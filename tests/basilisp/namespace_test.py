@@ -125,13 +125,7 @@ def test_cannot_remove_core(ns_cache: atom.Atom[NamespaceMap]):
 def test_imports(ns_cache: atom.Atom[NamespaceMap]):
     ns = get_or_create_ns(sym.symbol("ns1"))
     time = __import__("time")
-    ns.add_import(
-        sym.symbol("time"),
-        time,
-        sym.symbol("time"),
-        sym.symbol("py-time"),
-        sym.symbol("py-tm"),
-    )
+    ns.add_import(sym.symbol("time"), time, sym.symbol("py-time"), sym.symbol("py-tm"))
     assert time == ns.get_import(sym.symbol("time"))
     assert time == ns.get_import(sym.symbol("py-time"))
     assert time == ns.get_import(sym.symbol("py-tm"))
@@ -333,7 +327,7 @@ class TestCompletion:
 
         time_sym = sym.symbol("time")
         time_alias = sym.symbol("py-time")
-        ns.add_import(time_sym, __import__("time"), time_sym, time_alias)
+        ns.add_import(time_sym, __import__("time"), time_alias)
 
         core_ns = Namespace(sym.symbol("basilisp.core"))
         map_alias = sym.symbol("map")

@@ -3535,7 +3535,6 @@ def __resolve_namespaced_symbol_in_ns(
         if safe_name in vars(ns_module):
             return MaybeHostForm(
                 form=form,
-                class_original=ns_sym.name,
                 class_=munge(ns_sym.name),
                 field=safe_name,
                 target=vars(ns_module)[safe_name],
@@ -3551,7 +3550,6 @@ def __resolve_namespaced_symbol_in_ns(
         # don't need to care if this is an import or an alias.
         return MaybeHostForm(
             form=form,
-            class_original=ns_sym.name,
             class_=munge(ns_sym.name),
             field=safe_name,
             target=vars(ns_module)[safe_name],
@@ -3658,7 +3656,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
             ctx.symbol_table.mark_used(maybe_import_or_require_sym)
             return MaybeHostForm(
                 form=form,
-                class_original=form.ns,
                 class_=munge(form.ns),
                 field=munge(form.name),
                 target=None,

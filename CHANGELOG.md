@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * The compiler will issue a warning when adding any alias that might conflict with any other alias (#1045)
 
 ### Fixed
- * Basilisp now respects the value of Python's `sys.dont_write_bytecode` flag when generating bytecode (#1054)
+ * Fix a bug where Basilisp did not respect the value of Python's `sys.dont_write_bytecode` flag when generating bytecode (#1054)
+ * Fix a bug where Basilisp import names existed in the same namespace as `def` names, which caused some unexpected behavior (#1045)
 
 ## [v0.2.2]
 ### Added

@@ -2305,6 +2305,14 @@ def _import_hash(s: str) -> str:
     return base64.b64encode(digest).decode().translate(_IMPORT_HASH_TRANSLATE_TABLE)[:6]
 
 
+def _import_name(root: str, *submodules: str) -> Tuple[str, str]:
+    """Return the complete import name (with hash suffix) for an import."""
+    safe_root = f"{root}_{_import_hash(root)}"
+    if not submodules:
+        return safe_root, safe_root
+    return safe_root, ".".join([safe_root, *submodules])
+
+
 @_with_ast_loc_deps
 def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST node for a Basilisp `import*` expression."""
@@ -2320,14 +2328,13 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
         # import if parent and child are both imported:
         #   (import* collections collections.abc)
         if alias.alias is not None:
-            py_import_alias = munge(alias.alias)
-            py_import_alias = f"{py_import_alias}_{_import_hash(py_import_alias)}"
-            full_import_name = py_import_alias
+            py_import_alias, full_import_name = _import_name(munge(alias.alias))
             import_func = _IMPORTLIB_IMPORT_MODULE_FN_NAME
         else:
             py_import_alias, *submodules = safe_name.split(".", maxsplit=1)
-            py_import_alias = f"{py_import_alias}_{_import_hash(py_import_alias)}"
-            full_import_name = ".".join([py_import_alias, *submodules])
+            py_import_alias, full_import_name = _import_name(
+                py_import_alias, *submodules
+            )
             import_func = _BUILTINS_IMPORT_FN_NAME
 
         ctx.symbol_table.context_boundary.new_symbol(
@@ -3326,12 +3333,15 @@ def _maybe_host_form_to_py_ast(
     assert node.op == NodeOp.MAYBE_HOST_FORM
     if (mod_name := _MODULE_ALIASES.get(node.class_)) is None:
         current_ns = ctx.current_ns
-        mod_or_class = sym.symbol(node.class_original)
-        alias = current_ns.import_aliases.val_at(mod_or_class)
-        if (mod := current_ns.import_names.val_at(alias or mod_or_class)) is not None:
-            mod_name = mod.name
-    if mod_name is None:
-        mod_name = f"{node.class_}_{_import_hash(node.class_)}"
+
+        # At import time, the compiler generates a unique, consistent name for the root
+        # level Python name to avoid clashing with names later def'ed in the namespace.
+        # This is the same logic applied to completing the reference.
+        if (alias := current_ns.import_aliases.val_at(node.class_)) is not None:
+            _, mod_name = _import_name(alias)
+        else:
+            root, *submodules = node.class_.split(".", maxsplit=1)
+            _, mod_name = _import_name(root, *submodules)
     return GeneratedPyAST(node=_load_attr(f"{mod_name}.{node.field}"))
 
 

@@ -587,7 +587,6 @@ class Namespace(ReferenceBase):
         "_aliases",
         "_imports",
         "_import_aliases",
-        "_import_names",
     )
 
     def __init__(
@@ -600,7 +599,6 @@ class Namespace(ReferenceBase):
         self._lock = threading.RLock()
 
         self._aliases: NamespaceMap = lmap.PersistentMap.empty()
-        self._import_names: AliasMap = lmap.PersistentMap.empty()
         self._imports: ModuleMap = lmap.map(
             dict(
                 map(
@@ -649,16 +647,6 @@ class Namespace(ReferenceBase):
         """A mapping of a symbolic alias and a Python module name."""
         with self._lock:
             return self._import_aliases
-
-    @property
-    def import_names(self) -> AliasMap:
-        """A mapping of the true name of imported Python modules to the aliased name
-        used in generated code.
-
-        Default imports are not included in this mapping because the generator uses
-        constant aliases for all default imports."""
-        with self._lock:
-            return self._import_names
 
     @property
     def interns(self) -> VarMap:
@@ -744,21 +732,11 @@ class Namespace(ReferenceBase):
                 return self._refers.val_at(sym, None)
             return v
 
-    def add_import(
-        self,
-        sym: sym.Symbol,
-        module: Module,
-        imported_name: sym.Symbol,
-        *aliases: sym.Symbol,
-    ) -> None:
-        """Add the Symbol as an imported Symbol in this Namespace with the underlying
-        imported name.
-
-        If aliases are given, the aliases will be added to the import aliases for the
-        imported module."""
+    def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
+        """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
+        the aliases will be applied to the"""
         with self._lock:
             self._imports = self._imports.assoc(sym, module)
-            self._import_names = self._import_names.assoc(sym, imported_name)
             if aliases:
                 m = self._import_aliases
                 for alias in aliases:
