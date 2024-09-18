@@ -180,10 +180,9 @@ def compile_and_exec_form(
     if not ns.module.__basilisp_bootstrapped__:
         _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
-    final_wrapped_name = genname(wrapped_fn_name)
-
     last = _sentinel
     for form in _flatmap_forms([form]):
+        final_wrapped_name = genname(wrapped_fn_name)
         lisp_ast = analyze_form(ctx.analyzer_context, form)
         py_ast = gen_py_ast(ctx.generator_context, lisp_ast)
         form_ast = list(
