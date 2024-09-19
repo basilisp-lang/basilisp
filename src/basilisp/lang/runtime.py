@@ -85,7 +85,7 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
-SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10), (3, 11), (3, 12)})
+SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10), (3, 11), (3, 12), (3, 13)})
 BASILISP_VERSION_STRING = importlib.metadata.version("basilisp")
 BASILISP_VERSION = vec.vector(
     (int(s) if s.isdigit() else s) for s in BASILISP_VERSION_STRING.split(".")
