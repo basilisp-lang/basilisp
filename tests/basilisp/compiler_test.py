@@ -6132,7 +6132,8 @@ class TestSymbolResolution:
         [
             "(import* abc) abc",
             "(do (import* abc) abc)",
-            "(do (do ((fn [] (import* abc))) abc))" "((fn [] (import* abc) abc))",
+            "(do (do ((fn [] (import* abc))) abc))",
+            "((fn [] (import* abc) abc))",
             "((fn [] (import* abc))) abc",
             """
             (import* collections.abc)
