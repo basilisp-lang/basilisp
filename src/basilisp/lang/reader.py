@@ -277,7 +277,9 @@ class StreamReader:
     def _update_loc(self):
         """Update the internal line and column buffers after a new character is
         added."""
-        if newline_chars.match(self._buffer[-2]):
+        if self._buffer[-2] == "\n" or (
+            self._buffer[-2] == "\r" and self._buffer[-1] != "\n"
+        ):
             self._col.append(0)
             self._line.append(self._line[-1] + 1)
         else:
