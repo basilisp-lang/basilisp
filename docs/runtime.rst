@@ -122,7 +122,8 @@ Requiring a namespace in a highly dynamic context (e.g. from within a function c
 
    ((fn []
      (require 'basilisp.set)
-     (basilisp.set/difference #{:b} #{:a})))  ;; => error occurred during macroexpansion: unable to resolve symbol 'basilisp.set/difference' in this context
+     (basilisp.set/difference #{:b} #{:a})))
+   ;; => error occurred during macroexpansion: unable to resolve symbol 'basilisp.set/difference' in this context
 
 In such cases, it may be preferable to use :lpy:fn:`requiring-resolve` to dynamically require and resolve the Var rather than fighting the compiler:
 
