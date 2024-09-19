@@ -151,7 +151,7 @@ def _emit_ast_string(
 
 
 def _flatmap_forms(forms: Iterable[ReaderForm]) -> Iterable[ReaderForm]:
-    """Unroll top-level `do` forms as a flatmap over a list of forms."""
+    """Flatmap over an iterable of forms, unrolling any top-level `do` forms"""
     for form in forms:
         if isinstance(form, ISeq) and form.first == SpecialForm.DO:
             yield from form.rest
@@ -214,7 +214,7 @@ def compile_and_exec_form(
         finally:
             del ns.module.__dict__[final_wrapped_name]
 
-    assert last is not _sentinel
+    assert last is not _sentinel, "Must compile at least one form"
     return last
 
 
