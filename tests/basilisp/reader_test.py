@@ -207,6 +207,9 @@ class TestReaderLines:
             ("[5]\n\n(def n 123)", (1, 1, 0, 3), (3, 3, 0, 11)),
             ("[5]\r\r(def n 123)", (1, 1, 0, 3), (3, 3, 0, 11)),
             ("[5]\r\n\r\n(def n 123)", (1, 1, 0, 3), (3, 3, 0, 11)),
+            ("\n[5]\n(def n 123)", (2, 2, 0, 3), (3, 3, 0, 11)),
+            ("\r[5]\r(def n 123)", (2, 2, 0, 3), (3, 3, 0, 11)),
+            ("\r\n[5]\r\n(def n 123)", (2, 2, 0, 3), (3, 3, 0, 11)),
         ],
     )
     def test_reader_newlines_from_str(self, evalstr, first, second):
