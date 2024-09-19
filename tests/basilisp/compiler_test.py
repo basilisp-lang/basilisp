@@ -796,6 +796,14 @@ class TestDefType:
               (def Shape (python/type "Shape" #py () #py {}))
               (deftype* Circle [radius]
                 :implements [Shape]))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+            ((fn []
+                (def Shape (python/type "Shape" #py () #py {}))
+                (deftype* Circle [radius]
+                  :implements [Shape])))""",
                 runtime.RuntimeException,
             ),
         ],
@@ -848,11 +856,9 @@ class TestDefType:
                 compiler.CompilerException,
             ),
             (
-                # TODO: it's currently a bug for the `(import* abc)` to appear
-                #       in the same (do ...) block as the rest of this code.
                 """
-            (import* abc)
             (do
+              (import* abc)
               (def Shape
                 (python/type "Shape"
                              #py (abc/ABC)
@@ -862,6 +868,21 @@ class TestDefType:
               (deftype* Circle [radius]
                 :implements [Shape]))
             """,
+                compiler.CompilerException,
+            ),
+            (
+                """
+                ((fn []
+                  (import* abc)
+                  (def Shape
+                    (python/type "Shape"
+                                 #py (abc/ABC)
+                                 #py {"area"
+                                       (abc/abstractmethod
+                                        (fn []))}))
+                  (deftype* Circle [radius]
+                    :implements [Shape])))
+                """,
                 runtime.RuntimeException,
             ),
         ],
@@ -889,11 +910,9 @@ class TestDefType:
                 compiler.CompilerException,
             ),
             (
-                # TODO: it's currently a bug for the `(import* abc)` to appear
-                #       in the same (do ...) block as the rest of this code.
                 """
-            (import* abc collections.abc)
             (do
+              (import* abc collections.abc)
               (def Shape
                 (python/type "Shape"
                              #py (abc/ABC)
@@ -905,6 +924,23 @@ class TestDefType:
                 (area [this] (* 2 radius radius))
                 (call [this] :called)))
             """,
+                compiler.CompilerException,
+            ),
+            (
+                """
+                ((fn []
+                  (import* abc collections.abc)
+                  (def Shape
+                    (python/type "Shape"
+                                 #py (abc/ABC)
+                                 #py {"area"
+                                       (abc/abstractmethod
+                                        (fn []))}))
+                  (deftype* Circle [radius]
+                    :implements [Shape]
+                    (area [this] (* 2 radius radius))
+                    (call [this] :called))))
+                """,
                 runtime.RuntimeException,
             ),
         ],
@@ -1104,6 +1140,17 @@ class TestDefType:
                         :implements [^:abstract AABase]
                         (some-method [this])
                         (other-method [this])))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    ((fn []
+                      (def AABase
+                        (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                      (deftype* SomeAction []
+                        :implements [^:abstract AABase]
+                        (some-method [this])
+                        (other-method [this]))))""",
                     runtime.RuntimeException,
                 ),
             ],
@@ -1376,10 +1423,6 @@ class TestDefType:
                     compiler.CompilerException,
                 ),
                 (
-                    # TODO: it's currently a bug for the `(import* abc)` to appear
-                    #       in the same (do ...) block as the rest of this code;
-                    #       but it's still working because `abc` was imported by the
-                    #       auto-used fixture for this class
                     """
                     (do
                       (import* abc)
@@ -1392,6 +1435,22 @@ class TestDefType:
                                             (fn [cls])))}))
                       (deftype* Point [x y z]
                         :implements [WithClassMethod]))
+                    """,
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    ((fn []
+                      (import* abc)
+                      (def WithClassMethod
+                        (python/type "WithCls"
+                                     #py (abc/ABC)
+                                     #py {"make"
+                                          (python/classmethod
+                                           (abc/abstractmethod
+                                            (fn [cls])))}))
+                      (deftype* Point [x y z]
+                        :implements [WithClassMethod])))
                     """,
                     runtime.RuntimeException,
                 ),
@@ -1991,10 +2050,6 @@ class TestDefType:
                     compiler.CompilerException,
                 ),
                 (
-                    # TODO: it's currently a bug for the `(import* abc)` to appear
-                    #       in the same (do ...) block as the rest of this code;
-                    #       but it's still working because `abc` was imported by the
-                    #       auto-used fixture for this class
                     """
                     (do
                       (import* abc)
@@ -2007,6 +2062,22 @@ class TestDefType:
                                             (fn [self])))}))
                       (deftype* Point [x y z]
                         :implements [WithProperty]))
+                    """,
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    ((fn []
+                      (import* abc)
+                      (def WithProperty
+                        (python/type "WithProp"
+                                     #py (abc/ABC)
+                                     #py {"a_property"
+                                          (python/property
+                                           (abc/abstractmethod
+                                            (fn [self])))}))
+                      (deftype* Point [x y z]
+                        :implements [WithProperty])))
                     """,
                     runtime.RuntimeException,
                 ),
@@ -2163,29 +2234,41 @@ class TestDefType:
             [
                 (
                     """
-                        (deftype* Point [x y z]
-                          :implements [WithCls])
-                        """,
+                    (deftype* Point [x y z]
+                      :implements [WithCls])
+                    """,
                     compiler.CompilerException,
                 ),
                 (
-                    # TODO: it's currently a bug for the `(import* abc)` to appear
-                    #       in the same (do ...) block as the rest of this code;
-                    #       but it's still working because `abc` was imported by the
-                    #       auto-used fixture for this class
                     """
-                        (do
-                          (import* abc)
-                          (def WithStaticMethod
-                            (python/type "WithStatic"
-                                         #py (abc/ABC)
-                                         #py {"do_static_method"
-                                              (python/staticmethod
-                                               (abc/abstractmethod
-                                                (fn [])))}))
-                          (deftype* Point [x y z]
-                            :implements [WithStaticMethod]))
-                        """,
+                    (do
+                      (import* abc)
+                      (def WithStaticMethod
+                        (python/type "WithStatic"
+                                     #py (abc/ABC)
+                                     #py {"do_static_method"
+                                          (python/staticmethod
+                                           (abc/abstractmethod
+                                            (fn [])))}))
+                      (deftype* Point [x y z]
+                        :implements [WithStaticMethod]))
+                    """,
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    ((fn []
+                      (import* abc)
+                      (def WithStaticMethod
+                        (python/type "WithStatic"
+                                     #py (abc/ABC)
+                                     #py {"do_static_method"
+                                          (python/staticmethod
+                                           (abc/abstractmethod
+                                            (fn [])))}))
+                      (deftype* Point [x y z]
+                        :implements [WithStaticMethod])))
+                    """,
                     runtime.RuntimeException,
                 ),
             ],
@@ -4501,6 +4584,13 @@ class TestReify:
                 (do
                   (def Shape (python/type "Shape" #py () #py {}))
                   (reify* :implements [Shape]))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+                ((fn []
+                  (def Shape (python/type "Shape" #py () #py {}))
+                  (reify* :implements [Shape])))""",
                 runtime.RuntimeException,
             ),
         ],
@@ -4548,6 +4638,19 @@ class TestReify:
                                      (abc/abstractmethod
                                       (fn []))}))
                   (reify* :implements [Shape]))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+                ((fn []
+                  (import* abc)
+                  (def Shape
+                  (python/type "Shape"
+                               #py (abc/ABC)
+                               #py {"area"
+                                     (abc/abstractmethod
+                                      (fn []))}))
+                  (reify* :implements [Shape])))""",
                 runtime.RuntimeException,
             ),
         ],
@@ -4585,6 +4688,21 @@ class TestReify:
                 (reify* :implements [Shape]
                   (area [this] (* 2 1 1))
                   (call [this] :called)))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+                (import* abc collections.abc)
+                ((fn []
+                  (def Shape
+                  (python/type "Shape"
+                               #py (abc/ABC)
+                               #py {"area"
+                                     (abc/abstractmethod
+                                      (fn []))}))
+                (reify* :implements [Shape]
+                  (area [this] (* 2 1 1))
+                  (call [this] :called))))""",
                 runtime.RuntimeException,
             ),
         ],
@@ -4792,6 +4910,16 @@ class TestReify:
                       (reify* :implements [^:abstract AABase]
                         (some-method [this])
                         (other-method [this])))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    ((fn []
+                      (def AABase
+                        (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                      (reify* :implements [^:abstract AABase]
+                        (some-method [this])
+                        (other-method [this]))))""",
                     runtime.RuntimeException,
                 ),
             ],
@@ -5352,6 +5480,20 @@ class TestReify:
                                            (abc/abstractmethod
                                             (fn [self])))}))
                       (reify* :implements [WithProperty]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    ((fn []
+                      (import* abc)
+                      (def WithProperty
+                        (python/type "WithProp"
+                                     #py (abc/ABC)
+                                     #py {"a_property"
+                                          (python/property
+                                           (abc/abstractmethod
+                                            (fn [self])))}))
+                      (reify* :implements [WithProperty])))""",
                     runtime.RuntimeException,
                 ),
             ],
@@ -5990,7 +6132,7 @@ class TestSymbolResolution:
         [
             "(import* abc) abc",
             "(do (import* abc) abc)",
-            "((fn [] (import* abc) abc))",
+            "(do (do ((fn [] (import* abc))) abc))" "((fn [] (import* abc) abc))",
             "((fn [] (import* abc))) abc",
             """
             (import* collections.abc)
@@ -6005,6 +6147,12 @@ class TestSymbolResolution:
               (--call-- [this] (import* abc)))
             ((Importer))
             abc""",
+            """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc) abc/ABC))
+            (do (do ((Importer)) abc))""",
         ],
     )
     def test_imported_module_sym_resolves(self, lcompile: CompileFn, code: str):
@@ -6021,6 +6169,7 @@ class TestSymbolResolution:
             "((fn [] (import* abc) abc/ABC))",
             "((fn [] (import* abc))) abc/ABC",
             "(do ((fn [] (import* abc))) abc/ABC)",
+            "(do (do ((fn [] (import* abc))) abc/ABC))"
             """
             (import* collections.abc)
             (deftype* Importer []
@@ -6040,6 +6189,12 @@ class TestSymbolResolution:
               :implements [collections.abc/Callable]
               (--call-- [this] (import* abc) abc/ABC))
             (do ((Importer)) abc/ABC)""",
+            """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc) abc/ABC))
+            (do (do ((Importer)) abc/ABC))""",
         ],
     )
     def test_sym_from_import_resolves(self, lcompile: CompileFn, code: str):
@@ -6069,30 +6224,10 @@ class TestSymbolResolution:
     @pytest.mark.parametrize(
         "code,ExceptionType",
         [
-            ("(do (do ((fn [] (import* abc))) abc))", compiler.CompilerException),
             ("(if false (import* abc) nil) abc", NameError),
             ("(do (if false (import* abc) nil) abc)", NameError),
-            ("(do (do ((fn [] (import* abc))) abc/ABC))", compiler.CompilerException),
             ("(if false (import* abc) nil) abc/ABC", NameError),
             ("(do (if false (import* abc) nil) abc/ABC)", NameError),
-            (
-                """
-                (import* collections.abc)
-                (deftype* Importer []
-                  :implements [collections.abc/Callable]
-                  (--call-- [this] (import* abc) abc/ABC))
-                (do (do ((Importer)) abc))""",
-                compiler.CompilerException,
-            ),
-            (
-                """
-                (import* collections.abc)
-                (deftype* Importer []
-                  :implements [collections.abc/Callable]
-                  (--call-- [this] (import* abc) abc/ABC))
-                (do (do ((Importer)) abc/ABC))""",
-                compiler.CompilerException,
-            ),
         ],
     )
     def test_unresolvable_imported_symbols(
@@ -6103,9 +6238,6 @@ class TestSymbolResolution:
         # applicable, so I'm not going to spend time making them work right now.
         # If an important use case arises for more complex import resolution,
         # then we can think about reworking the resolver.
-        #
-        # Perhaps if we can eventually unroll top-level `do` forms into individiual
-        # nodes, the cases not involving branching above can be resolved.
         with pytest.raises(ExceptionType):
             lcompile(code)
 

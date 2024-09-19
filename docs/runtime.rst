@@ -111,6 +111,26 @@ This is roughly analogous to the Java classpath in Clojure.
 These values may be set manually, but are more often configured by some project management tool such as Poetry or defined in your Python virtualenv.
 These values may also be set via :ref:`cli` arguments.
 
+Requiring Code Dynamically
+##########################
+
+The Basilisp compiler attempts to verify the existence of Vars and Python module members during its analysis phase.
+It typically does that by introspecting the runtime environment (Namespaces or Python modules).
+Requiring a namespace in a highly dynamic context (e.g. from within a function call) and then immediately attempting to reference that value prevents the compiler from verifying references (which is an error).
+
+.. code-block::
+
+   ((fn []
+     (require 'basilisp.set)
+     (basilisp.set/difference #{:b} #{:a})))  ;; => error occurred during macroexpansion: unable to resolve symbol 'basilisp.set/difference' in this context
+
+In such cases, it may be preferable to use :lpy:fn:`requiring-resolve` to dynamically require and resolve the Var rather than fighting the compiler:
+
+.. code-block::
+
+   ((fn []
+     ((requiring-resolve 'basilisp.set/difference) #{:b} #{:a})))  ;; => #{:b}
+
 .. _namespace_imports:
 
 Namespace Imports

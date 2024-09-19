@@ -154,7 +154,7 @@ def _flatmap_forms(forms: Iterable[ReaderForm]) -> Iterable[ReaderForm]:
     """Flatmap over an iterable of forms, unrolling any top-level `do` forms"""
     for form in forms:
         if isinstance(form, ISeq) and form.first == SpecialForm.DO:
-            yield from form.rest
+            yield from _flatmap_forms(form.rest)
         else:
             yield form
 
