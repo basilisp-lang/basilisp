@@ -181,9 +181,9 @@ def compile_and_exec_form(
         _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
     last = _sentinel
-    for form in _flatmap_forms([form]):
+    for unrolled_form in _flatmap_forms([form]):
         final_wrapped_name = genname(wrapped_fn_name)
-        lisp_ast = analyze_form(ctx.analyzer_context, form)
+        lisp_ast = analyze_form(ctx.analyzer_context, unrolled_form)
         py_ast = gen_py_ast(ctx.generator_context, lisp_ast)
         form_ast = list(
             map(
