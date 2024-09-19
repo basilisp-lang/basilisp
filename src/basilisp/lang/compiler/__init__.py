@@ -23,6 +23,7 @@ from basilisp.lang.compiler.analyzer import (  # noqa
     macroexpand,
     macroexpand_1,
 )
+from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (
     USE_VAR_INDIRECTION,
@@ -34,6 +35,7 @@ from basilisp.lang.compiler.generator import expressionize as _expressionize  # 
 from basilisp.lang.compiler.generator import gen_py_ast, py_module_preamble
 from basilisp.lang.compiler.generator import statementize as _statementize
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
+from basilisp.lang.interfaces import ISeq
 from basilisp.lang.typing import CompilerOpts, ReaderForm
 from basilisp.lang.util import genname
 from basilisp.util import Maybe
@@ -148,6 +150,18 @@ def _emit_ast_string(
         runtime.add_generated_python(to_py_str(module), which_ns=ns)
 
 
+def _flatmap_forms(forms: Iterable[ReaderForm]) -> Iterable[ReaderForm]:
+    """Flatmap over an iterable of forms, unrolling any top-level `do` forms"""
+    for form in forms:
+        if isinstance(form, ISeq) and form.first == SpecialForm.DO:
+            yield from _flatmap_forms(form.rest)
+        else:
+            yield form
+
+
+_sentinel = object()
+
+
 def compile_and_exec_form(
     form: ReaderForm,
     ctx: CompilerContext,
@@ -166,34 +180,42 @@ def compile_and_exec_form(
     if not ns.module.__basilisp_bootstrapped__:
         _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
-    final_wrapped_name = genname(wrapped_fn_name)
-
-    lisp_ast = analyze_form(ctx.analyzer_context, form)
-    py_ast = gen_py_ast(ctx.generator_context, lisp_ast)
-    form_ast = list(
-        map(
-            _statementize,
-            itertools.chain(
-                py_ast.dependencies,
-                [_expressionize(GeneratedPyAST(node=py_ast.node), final_wrapped_name)],
-            ),
+    last = _sentinel
+    for unrolled_form in _flatmap_forms([form]):
+        final_wrapped_name = genname(wrapped_fn_name)
+        lisp_ast = analyze_form(ctx.analyzer_context, unrolled_form)
+        py_ast = gen_py_ast(ctx.generator_context, lisp_ast)
+        form_ast = list(
+            map(
+                _statementize,
+                itertools.chain(
+                    py_ast.dependencies,
+                    [
+                        _expressionize(
+                            GeneratedPyAST(node=py_ast.node), final_wrapped_name
+                        )
+                    ],
+                ),
+            )
         )
-    )
 
-    ast_module = ast.Module(body=form_ast, type_ignores=[])
-    ast_module = ctx.py_ast_optimizer.visit(ast_module)
-    ast.fix_missing_locations(ast_module)
+        ast_module = ast.Module(body=form_ast, type_ignores=[])
+        ast_module = ctx.py_ast_optimizer.visit(ast_module)
+        ast.fix_missing_locations(ast_module)
 
-    _emit_ast_string(ns, ast_module)
+        _emit_ast_string(ns, ast_module)
 
-    bytecode = compile(ast_module, ctx.filename, "exec")
-    if collect_bytecode:
-        collect_bytecode(bytecode)
-    exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
-    try:
-        return getattr(ns.module, final_wrapped_name)()
-    finally:
-        del ns.module.__dict__[final_wrapped_name]
+        bytecode = compile(ast_module, ctx.filename, "exec")
+        if collect_bytecode:
+            collect_bytecode(bytecode)
+        exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
+        try:
+            last = getattr(ns.module, final_wrapped_name)()
+        finally:
+            del ns.module.__dict__[final_wrapped_name]
+
+    assert last is not _sentinel, "Must compile at least one form"
+    return last
 
 
 def _incremental_compile_module(
@@ -257,7 +279,7 @@ def compile_module(
     """
     _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
-    for form in forms:
+    for form in _flatmap_forms(forms):
         nodes = gen_py_ast(
             ctx.generator_context, analyze_form(ctx.analyzer_context, form)
         )

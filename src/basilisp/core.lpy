@@ -5068,7 +5068,7 @@
   .. warning::
 
      Reloading namespaces has many of the same limitations described for
-     :external:py:func:`importlib.reload_module`. Below is a non-exhaustive set of
+     :external:py:func:`importlib.reload`. Below is a non-exhaustive set of
      limitations of reloading Basilisp namespace:
 
      - Vars will be re-``def``'ed based on the current definition of the underlying
