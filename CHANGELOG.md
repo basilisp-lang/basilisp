@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+ * Fix a bug where the reader was double counting the CRLF newline seq in metadata (#1063)
+
 ## [v0.2.3]
 ### Added
  * Added a compiler metadata flag for suppressing warnings when Var indirection is unavoidable (#1052)

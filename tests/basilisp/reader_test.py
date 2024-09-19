@@ -198,6 +198,32 @@ class TestReaderLines:
             l3.meta.get(reader.READER_END_COL_KW),
         )
 
+    @pytest.mark.parametrize(
+        "evalstr,first,second",
+        [
+            ("[5]\n(def n 123)", (1, 1, 0, 3), (2, 2, 0, 11)),
+            ("[5]\r(def n 123)", (1, 1, 0, 3), (2, 2, 0, 11)),
+            ("[5]\r\n(def n 123)", (1, 1, 0, 3), (2, 2, 0, 11)),
+            ("[5]\n\n(def n 123)", (1, 1, 0, 3), (3, 3, 0, 11)),
+            ("[5]\r\r(def n 123)", (1, 1, 0, 3), (3, 3, 0, 11)),
+            ("[5]\r\n\r\n(def n 123)", (1, 1, 0, 3), (3, 3, 0, 11)),
+        ],
+    )
+    def test_reader_newlines_from_str(self, evalstr, first, second):
+        l0, l1 = list(reader.read_str(evalstr))
+        assert first == (
+            l0.meta.get(reader.READER_LINE_KW),
+            l0.meta.get(reader.READER_END_LINE_KW),
+            l0.meta.get(reader.READER_COL_KW),
+            l0.meta.get(reader.READER_END_COL_KW),
+        )
+        assert second == (
+            l1.meta.get(reader.READER_LINE_KW),
+            l1.meta.get(reader.READER_END_LINE_KW),
+            l1.meta.get(reader.READER_COL_KW),
+            l1.meta.get(reader.READER_END_COL_KW),
+        )
+
     def test_reader_lines_from_file(self, tmp_path):
         filename = tmp_path / "test.lpy"
 
