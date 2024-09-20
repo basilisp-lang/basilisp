@@ -19,6 +19,7 @@
   Tests may take advantage of Basilisp fixtures via :lpy:fn:`use-fixtures` to perform
   setup and teardown functions for each test or namespace. Fixtures are not the same
   (nor are they compatible with) PyTest fixtures."
+  (:import types)
   (:require
    [basilisp.template :as template]))
 
@@ -59,6 +60,11 @@
   via ``use-fixture`` and then removing them after the test is defined."
   (fn [fixture-type & _] fixture-type))
 
+(defn generator?
+  "Return true if ``x`` is a generator type, else false."
+  [x]
+  (instance? types/GeneratorType x))
+
 (defmethod use-fixtures :each
   [_ & fixtures]
   (alter-meta! *ns* assoc ::each-fixtures fixtures))
@@ -66,6 +72,42 @@
 (defmethod use-fixtures :once
   [_ & fixtures]
   (alter-meta! *ns* assoc ::once-fixtures fixtures))
+
+(defmacro with-fixtures
+  "Wrap the ``body`` in the ``fixtures`` in the given order. Handle
+  setup and teardown for each of the ``fixtures``."
+  [fixtures & body]
+  (assert (vector? fixtures) "Expected a literal vector of fixtures")
+  (let [result (gensym "result")]
+    (reduce (fn [form fixture]
+              `(let [~result (~fixture)]
+                 (if (generator? ~result)
+                   (try
+                     (python/next ~result)
+                     ~form
+                     (finally
+                       (try
+                         (python/next ~result)
+                         (catch python/StopIteration ~'_ nil))))
+                   ~form)))
+            `(do ~@body)
+            (reverse fixtures))))
+
+(defmacro compose-fixtures
+  "Compose any number of ``fixtures``, in order, creating a new fixture
+  that combines their behavior. Always returns a valid fixture
+  function, even if no fixtures are given."
+  [& fixtures]
+  `(fn [] (with-fixtures [~@fixtures] (yield))))
+
+(defn join-fixtures
+  "Composes a collection of ``fixtures``, in order.  Always returns a valid
+  fixture function, even if the collection is empty.
+  Prefer :lpy:macro`compose-fixtures` if fixtures are known at compile time."
+  [fixtures]
+  (if (seq fixtures)
+    (reduce #(compose-fixtures %1 %2) fixtures)
+    (constantly nil)))
 
 (defmulti
   ^{:arglists '([expr msg line-num])}

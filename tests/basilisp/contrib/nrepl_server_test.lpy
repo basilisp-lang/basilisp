@@ -273,29 +273,36 @@
             {:id @id* :ns "user" :value "1"}
             {:id @id* :ns "user" :status ["done"]})
           (client-send! client {:id (id-inc!) :op "complete" :prefix "clojure.test/"})
-          (is (= {:id @id* :status ["done"]
-                  :completions  [{:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-failures*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-name*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-section*"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/are"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/deftest"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/gen-assert"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/is"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/testing"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/use-fixtures"}]}
-                 (client-recv! client)))
+          (let [result (client-recv! client)
+                has-completion? (set (:completions result))]
+            (is (= @id* (:id result)))
+            (is (= ["done"] (:status result)))
+            (are [completion] (has-completion? completion)
+              {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-failures*"}
+              {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-name*"}
+              {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-section*"}
+              {:type "macro" :ns "basilisp.test" :candidate "clojure.test/are"}
+              {:type "macro" :ns "basilisp.test" :candidate "clojure.test/deftest"}
+              {:type "var" :ns "basilisp.test" :candidate "clojure.test/gen-assert"}
+              {:type "macro" :ns "basilisp.test" :candidate "clojure.test/is"}
+              {:type "macro" :ns "basilisp.test" :candidate "clojure.test/testing"}
+              {:type "var" :ns "basilisp.test" :candidate "clojure.test/use-fixtures"}))
+
           (client-send! client {:id (id-inc!) :op "complete" :prefix "test/"})
-          (is (= {:id @id* :status ["done"]
-                  :completions  [{:type "var" :ns "basilisp.test" :candidate "test/*test-failures*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/*test-name*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/*test-section*"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/are"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/deftest"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/gen-assert"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/is"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/testing"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/use-fixtures"}]}
-                 (client-recv! client))))))))
+          (let [result (client-recv! client)
+                has-completion? (set (:completions result))]
+            (is (= @id* (:id result)))
+            (is (= ["done"] (:status result)))
+            (are [completion] (has-completion? completion)
+              {:type "var" :ns "basilisp.test" :candidate "test/*test-failures*"}
+              {:type "var" :ns "basilisp.test" :candidate "test/*test-name*"}
+              {:type "var" :ns "basilisp.test" :candidate "test/*test-section*"}
+              {:type "macro" :ns "basilisp.test" :candidate "test/are"}
+              {:type "macro" :ns "basilisp.test" :candidate "test/deftest"}
+              {:type "var" :ns "basilisp.test" :candidate "test/gen-assert"}
+              {:type "macro" :ns "basilisp.test" :candidate "test/is"}
+              {:type "macro" :ns "basilisp.test" :candidate "test/testing"}
+              {:type "var" :ns "basilisp.test" :candidate "test/use-fixtures"})))))))
 
 (deftest nrepl-server-eval
   (testing "basic"
