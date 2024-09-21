@@ -12,7 +12,8 @@
    socket
    tempfile
    threading
-   time))
+   time
+   urllib))
 
 (use-fixtures :each fixtures/tempdir)
 
@@ -454,13 +455,17 @@
           (let [{:keys [status]} (client-recv! client)]
             (is (= ["done"] status)))
           (client-send! client {:id (id-inc!) :op "info" :ns "user" :sym "sort-by"})
-          (let [{:keys [file line] :as response} (client-recv! client)
-                {:keys [doc]
-                 meta-file :file} (meta (resolve 'sort-by))]
+          (let [{:keys [file line column] :as response} (client-recv! client)
+                {:keys [doc col]
+                 meta-file :file
+                 meta-line :line} (meta (resolve 'sort-by))
+                meta-file-uri     (->> (urllib.parse/quote meta-file)
+                                       (urllib.parse/urljoin "file:"))]
             (is (= {:ns "basilisp.core" :status ["done"] :id @id* :arglists-str "[keyfn coll]\n[keyfn cmp coll]"
+                    :line line :column col
                     :doc doc :name "sort-by"}
-                   (select-keys response [:ns :status :id :arglists-str :doc :name])))
-            (is (= meta-file file)))
+                   (select-keys response [:ns :status :id :arglists-str :doc :name :line :column])))
+            (is (= meta-file-uri file)))
 
           ;; test fqdn, aliases and refers
           (client-send! client {:id (id-inc!) :op "eval"
