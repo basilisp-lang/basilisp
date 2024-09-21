@@ -103,7 +103,7 @@
 (defn join-fixtures
   "Composes a collection of ``fixtures``, in order.  Always returns a valid
   fixture function, even if the collection is empty.
-  Prefer :lpy:macro`compose-fixtures` if fixtures are known at compile time."
+  Prefer :lpy:fn:`compose-fixtures` if fixtures are known at compile time."
   [fixtures]
   (if (seq fixtures)
     (reduce #(compose-fixtures %1 %2) fixtures)
