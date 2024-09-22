@@ -1,0 +1,79 @@
+(ns tests.basilisp.test-test
+  (:require [basilisp.test :refer :all]))
+
+(defn- before-after-fixture
+  [events]
+  (fn []
+    (swap! events conj :before)
+    (yield)
+    (swap! events conj :after)))
+
+(defn- index-fixture
+  [events idx]
+  (fn []
+    (swap! events conj idx)
+    (yield)
+    (swap! events conj idx)))
+
+(def ^:dynamic *state* nil)
+
+(deftest with-fixtures-test
+  (testing "setup and teardown"
+    (let [events (atom [])]
+      (with-fixtures [(before-after-fixture events)]
+        (swap! events conj :during))
+      (is (= [:before :during :after] @events))))
+
+  (testing "teardown on exception"
+    (let [events (atom [])]
+      (try
+        (with-fixtures [(before-after-fixture events)]
+          (swap! events conj :during)
+          (throw (ex-info "Boom!" {})))
+        (catch Exception _ nil))
+      (is (= [:before :during :after] @events))))
+
+  (testing "teardown on fixture setup exception"
+    (let [events (atom [])]
+      (try
+        (with-fixtures [(before-after-fixture events)
+                        #(throw (ex-info "Boom!" {}))]
+          (swap! events conj :during))
+        (catch Exception _ nil))
+      (is (= [:before :after] @events))))
+
+  (testing "teardown on fixture teardown exception"
+    (let [events (atom [])]
+      (try
+        (with-fixtures [(before-after-fixture events)
+                        (fn []
+                          (yield)
+                          (throw (ex-info "Boom!" {})))]
+          (swap! events conj :during))
+        (catch Exception _ nil))
+      (is (= [:before :during :after] @events))))
+
+  (testing "applied in order"
+    (let [events  (atom nil)]
+      (with-fixtures [(index-fixture events 1)
+                      (index-fixture events 2)
+                      (index-fixture events 3)]
+        (swap! events conj 4))
+      (is (= '(1 2 3 4 3 2 1) @events))))
+
+  (testing "nesting fixtures"
+    (with-fixtures [(fn []
+                      (with-fixtures [(fn []
+                                        (binding [*state* 1]
+                                          (yield)))]
+                        (yield)))]
+      (is (= 1 *state*)))))
+
+(deftest join-fixtures-test
+  (testing "applied in order"
+    (let [events  (atom nil)]
+      (with-fixtures [(join-fixtures [(index-fixture events 1)
+                                      (index-fixture events 2)
+                                      (index-fixture events 3)])]
+        (swap! events conj 4))
+      (is (= '(1 2 3 4 3 2 1) @events)))))

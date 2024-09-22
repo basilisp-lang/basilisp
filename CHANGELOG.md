@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+ * Added functions to `basilisp.test` for using and combining test fixtures (#980)
+
 ### Fixed
  * Fix a bug where the reader was double counting the CRLF newline seq in metadata (#1063)
  * Conform to the `cider-nrepl` `info` ops spec by ensuring result's `:file` is URI, also added missing :column number (#1066)
