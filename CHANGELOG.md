@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
  * Added functions to `basilisp.test` for using and combining test fixtures (#980)
+ * Added the `importing-resolve` function for dynamically importing and resolving a Python name (#1065, #1070)
 
 ### Fixed
  * Fix a bug where the reader was double counting the CRLF newline seq in metadata (#1063)
