@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
  * Removed support for Python 3.9 (#1283)
 
+### Other
+ *  Improve the state of the Python type hints in `basilisp.lang.multifn` (#800)
+
 ## [v0.4.0]
 ### Added
  * Added support for referring imported Python names as by `from ... import ...` (#1154)
