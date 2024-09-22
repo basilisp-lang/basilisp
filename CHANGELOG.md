@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug with `basilisp.edn/write-string` where nested double quotes were not escaped properly (#1071)
  * Fix a bug where additional arguments to `basilisp test` CLI subcommand were not being passed correctly to Pytest (#1075)
 
+### Other
+ *  Improve the state of the Python type hints in `basilisp.lang.multifn` (#800)
+
 ## [v0.2.3]
 ### Added
  * Added a compiler metadata flag for suppressing warnings when Var indirection is unavoidable (#1052)
