@@ -1748,6 +1748,18 @@
   ;; a valid symbol in that namespace
   (is (= (resolve 'basilisp.shell/sh) (requiring-resolve 'basilisp.shell/sh))))
 
+(deftest importing-resolve-test
+  (is (thrown? basilisp.lang.exception/ExceptionInfo (importing-resolve 'a-symbol)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo (importing-resolve :a-keyword)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo (importing-resolve :ns.qualified/kw)))
+  (is (thrown? python/ImportError (importing-resolve 'not.a.real.ns/sym)))
+  (is (nil? (importing-resolve 'logging/fakeGetLogger)))
+  ;; this check should succeed (in spite of the missing top-level require) because
+  ;; the previous assertion will import 'basilisp.shell even though 'sholl is not
+  ;; a valid symbol in that namespace
+  (is (= (python/getattr (get sys/modules "logging") "getLogger")
+         (importing-resolve 'logging/getLogger))))
+
 (deftest ns-resolve-test
   (is (= #'basilisp.core/apply (ns-resolve *ns* 'apply)))
   (is (nil? (ns-resolve *ns* 'xyz)))

@@ -4886,7 +4886,13 @@
   if the ``import`` itself occurs within a function or method.
 
   Use of ``import`` directly is discouraged in favor of the ``:import`` directive in
-  the :lpy:fn:`ns` macro."
+  the :lpy:fn:`ns` macro.
+
+  Importing and attempting to reference an import within a top level form other than
+  a :lpy:form:`do` is a compile-time error because the compiler cannot verify that
+  the imported name exists. In cases where you may need to import and reference an
+  imported symbol within a single top-level form, you can use
+  :lpy:fn:`importing-resolve`."
   [& modules]
   ;; We need to use eval here, because there could have been an ns
   ;; switch inside an eval earlier, and although *ns* is correctly set
@@ -5064,6 +5070,12 @@
 
   Use of ``require`` directly is discouraged in favor of the ``:require`` directive in
   the :lpy:fn:`ns` macro.
+
+  Requiring and attempting to reference a required namespace within a top level form
+  other than a :lpy:form:`do` is a compile-time error because the compiler cannot
+  verify that the required name exists. In cases where you may need to require and
+  reference a required symbol within a single top-level form, you can use
+  :lpy:fn:`requiring-resolve`.
 
   .. warning::
 
@@ -5264,6 +5276,23 @@
        ~requires
        ~uses
        ~@imports)))
+
+(defn importing-resolve
+  "Resolve the namespaced symbol ``sym`` as a Python module member. If resolution fails,
+  attempts to import ``sym`` 's namespace (as by :lpy:fn:`import`\\) before resolving
+  again."
+  [sym]
+  (if (qualified-symbol? sym)
+    (let [mod-name   (basilisp.lang.util/munge (namespace sym))
+          obj-name   (basilisp.lang.util/munge (name sym))
+          py-resolve #(some-> (get sys/modules mod-name)
+                              (python/getattr obj-name nil))]
+      (or (py-resolve)
+          (do (eval `(import* ~(symbol (namespace sym))) *ns*)
+              (py-resolve))))
+    (throw
+     (ex-info "Cannot resolve an unqualified symbol"
+              {:sym sym}))))
 
 (defn requiring-resolve
   "Resolve the namespaced symbol ``sym`` as by :lpy:fn:`resolve`\\. If resolution fails,
