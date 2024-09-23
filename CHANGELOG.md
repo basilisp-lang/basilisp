@@ -5,10 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
 ### Added
  * Added functions to `basilisp.test` for using and combining test fixtures (#980)
  * Added the `importing-resolve` function for dynamically importing and resolving a Python name (#1065, #1070)
+ * Added support for highlighting matching parens, brackets, and braces at the REPL (#1074)
 
 ### Fixed
  * Fix a bug where the reader was double counting the CRLF newline seq in metadata (#1063)
