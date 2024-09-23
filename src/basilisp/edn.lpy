@@ -539,6 +539,18 @@
 ;; Writers ;;
 ;;;;;;;;;;;;;
 
+(def ^:private str-escape-chars-translation
+  (python.str/maketrans
+   #py {"\\" "\\\\"
+        "\"" "\\\""
+        "\a" "\\a"
+        "\b" "\\b"
+        "\f" "\\f"
+        "\n" "\\n"
+        "\r" "\\r"
+        "\t" "\\t"
+        "\v" "\\v"}))
+
 (defprotocol EDNEncodeable
   (write* [this writer]
     "Write the object ``this`` to the stream ``writer`` encoded as EDN.
@@ -617,9 +629,10 @@
     nil)
   python/str
   (write* [this writer]
-    (.write writer "\"")
-    (.write writer this)
-    (.write writer "\"")
+    (let [decoded (.translate this str-escape-chars-translation)]
+      (.write writer "\"")
+      (.write writer decoded)
+      (.write writer "\""))
     nil)
   nil
   (write* [_this writer]
