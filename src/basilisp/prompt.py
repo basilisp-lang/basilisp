@@ -14,6 +14,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
@@ -77,6 +78,7 @@ class PromptToolkitPrompter(Prompter):
             key_bindings=self._get_key_bindings(),
             lexer=self._prompt_toolkit_lexer,
             multiline=True,
+            input_processors=[HighlightMatchingBracketProcessor(chars="[](){}")],
             **self._style_settings,
         )
 
