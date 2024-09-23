@@ -365,28 +365,52 @@
     \u03A9 "\"Ω\""
 
     \space   "\" \""
-    \newline "\"\n\""
-    \tab     "\"\t\""
-    \return  "\"\r\""))
+    \newline "\"\\n\""
+    \tab     "\"\\t\""
+    \return  "\"\\r\""))
 
 (deftest write-string
-  (are [v s] (= s (edn/write-string v))
-    ""   "\"\""
-    " "  "\" \""
-    "\"" "\"\"\""
-    "\\" "\"\\\""
-    "\a" "\"\a\""
-    "\b" "\"\b\""
-    "\f" "\"\f\""
-    "\n" "\"\n\""
-    "\r" "\"\r\""
-    "\t" "\"\t\""
-    "\v" "\"\v\""
+  (testing "expected outputs"
+    (are [v s] (= s (edn/write-string v))
+      ""   "\"\""
+      " "  "\" \""
+      "\"" "\"\\\"\""
+      "\\" "\"\\\\\""
+      "\a" "\"\\a\""
+      "\b" "\"\\b\""
+      "\f" "\"\\f\""
+      "\n" "\"\\n\""
+      "\r" "\"\\r\""
+      "\t" "\"\\t\""
+      "\v" "\"\\v\""
 
-    "Hello,\nmy name is\tChris."   "\"Hello,\nmy name is\tChris.\""
-    "Regular string"               "\"Regular string\""
-    "String with 'inner string'"   "\"String with 'inner string'\""
-    "String with \"inner string\"" "\"String with \"inner string\"\""))
+      (str ["a"]) "\"[\\\"a\\\"]\""
+
+      "Hello,\nmy name is\tChris."   "\"Hello,\\nmy name is\\tChris.\""
+      "Regular string"               "\"Regular string\""
+      "String with 'inner string'"   "\"String with 'inner string'\""
+      "String with \"inner string\"" "\"String with \\\"inner string\\\"\""))
+
+  (testing "round-trip"
+    (are [s] (= s (edn/read-string (edn/write-string s)))
+      ""
+      " "
+      "\""
+      "\\"
+      "\a"
+      "\b"
+      "\f"
+      "\n"
+      "\r"
+      "\t"
+      "\v"
+
+      (str ["a"])
+
+      "Hello,\nmy name is\tChris."
+      "Regular string"
+      "String with 'inner string'"
+      "String with \"inner string\"")))
 
 (deftest write-dispatch
   (are [v s] (= s (edn/write-string v))
