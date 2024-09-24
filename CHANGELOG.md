@@ -9,11 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added functions to `basilisp.test` for using and combining test fixtures (#980)
  * Added the `importing-resolve` function for dynamically importing and resolving a Python name (#1065, #1070)
  * Added support for highlighting matching parens, brackets, and braces at the REPL (#1074)
+ * Added the `-p`/`--include-path` argument to `basilisp test` CLI subcommand (#???)
+ * Added an empty entry to `sys.path` for `basilisp test` CLI subcommand (#???)
 
 ### Fixed
  * Fix a bug where the reader was double counting the CRLF newline seq in metadata (#1063)
  * Conform to the `cider-nrepl` `info` ops spec by ensuring result's `:file` is URI, also added missing :column number (#1066)
  * Fix a bug with `basilisp.edn/write-string` where nested double quotes were not escaped properly (#1071)
+ * Fix a bug where additional arguments to `basilisp test` CLI subcommand were not being passed correctly to Pytest (#???)
 
 ## [v0.2.3]
 ### Added

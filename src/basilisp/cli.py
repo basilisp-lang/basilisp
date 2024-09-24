@@ -7,7 +7,7 @@ import sys
 import textwrap
 import types
 from pathlib import Path
-from typing import Any, Callable, Optional, Sequence, Type
+from typing import Any, Callable, List, Optional, Sequence, Type, Union
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler
@@ -379,7 +379,10 @@ def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
-Handler = Callable[[argparse.ArgumentParser, argparse.Namespace], None]
+Handler = Union[
+    Callable[[argparse.ArgumentParser, argparse.Namespace], None],
+    Callable[[argparse.ArgumentParser, argparse.Namespace, List[str]], None],
+]
 
 
 def _subcommand(
@@ -388,6 +391,7 @@ def _subcommand(
     help: Optional[str] = None,  # pylint: disable=redefined-builtin
     description: Optional[str] = None,
     handler: Handler,
+    allows_extra: bool = False,
 ) -> Callable[
     [Callable[[argparse.ArgumentParser], None]],
     Callable[["argparse._SubParsersAction"], None],
@@ -400,6 +404,7 @@ def _subcommand(
                 subcommand, help=help, description=description
             )
             parser.set_defaults(handler=handler)
+            parser.set_defaults(allows_extra=allows_extra)
             f(parser)
 
         return _wrapped_subcommand
@@ -722,8 +727,11 @@ def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
 
 
 def test(
-    parser: argparse.ArgumentParser, args: argparse.Namespace
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    extra: List[str],
 ) -> None:  # pragma: no cover
+    init_path(args)
     basilisp.init(_compiler_opts(args))
     try:
         import pytest
@@ -732,7 +740,7 @@ def test(
             "Cannot run tests without dependency PyTest. Please install PyTest and try again.",
         )
     else:
-        pytest.main(args=list(args.args))
+        pytest.main(args=list(extra))
 
 
 @_subcommand(
@@ -740,10 +748,12 @@ def test(
     help="run tests in a Basilisp project",
     description="Run tests in a Basilisp project.",
     handler=test,
+    allows_extra=True,
 )
 def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("args", nargs=-1)
+    parser.add_argument("args", nargs=-1, help="arguments passed on to Pytest")
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
@@ -765,7 +775,7 @@ def run_script():
     This is provided as a shim for platforms where shebang lines cannot contain more
     than one argument and thus `#!/usr/bin/env basilisp run` would be non-functional.
 
-    The current process is replaced as by `os.execlp`."""
+    The current process is replaced as by `os.execvp`."""
     # os.exec* functions do not perform shell expansion, so we must do so manually.
     script_path = Path(sys.argv[1]).resolve()
     args = ["basilisp", "run", str(script_path)]
@@ -790,9 +800,15 @@ def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
     _add_test_subcommand(subparsers)
     _add_version_subcommand(subparsers)
 
-    parsed_args = parser.parse_args(args=args)
-    if hasattr(parsed_args, "handler"):
-        parsed_args.handler(parser, parsed_args)
+    parsed_args, extra = parser.parse_known_args(args=args)
+    allows_extra = getattr(parsed_args, "allows_extra", False)
+    if extra and not allows_extra:
+        parser.error(f"unrecognized arguments: {' '.join(extra)}")
+    elif hasattr(parsed_args, "handler"):
+        if allows_extra:
+            parsed_args.handler(parser, parsed_args, extra)
+        else:
+            parsed_args.handler(parser, parsed_args)
     else:
         parser.print_help()
 

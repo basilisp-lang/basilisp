@@ -57,25 +57,27 @@ Sub or child namespaces may be nested using folders.
 A namespace may be both a "leaf" and "branch" node in the source tree without any special configuration, as ``myproject.pkg`` is below.
 Basilisp source files should always have a ``.lpy`` extension.
 
-::
+.. code-block:: text
 
    .
    ├── README.md
    ├── poetry.lock
    ├── pyproject.toml
    ├── src
-   │   └── myproject
-   │       ├── core.lpy
-   │       ├── pkg
-   │       │   └── subns.lpy
-   │       └── pkg.lpy
+   │   └── myproject
+   │       ├── core.lpy
+   │       └── pkg
+   │           └── subns.lpy
+   │           └── pkg.lpy
    └── tests
+       └── __init__.py
        └── myproject
            └── test_core.lpy
 
 .. note::
 
-   Python ``__init__.py`` files are not required anywhere in Basilisp projects (including for nested namespaces), though you may need to use them if your project mixes Python and Basilisp sources.
+   Python ``__init__.py`` files are not required anywhere in Basilisp project source directories (including for nested namespaces), though you may need to use them if your project mixes Python and Basilisp sources.
+   A single ``__init__.py`` file may be required for running tests with Pytest -- see :ref:`testing_path` for more information.
 
 Basilisp apps can use any of Python's myriad dependency management options, including `pip <https://pip.pypa.io/en/stable/>`_, `Pipenv <https://pipenv.pypa.io/en/latest/>`_, and `Poetry <https://python-poetry.org/>`_.
 Basilisp itself uses Poetry and that is the recommended dependency management tool for new Basilisp projects.
