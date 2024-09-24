@@ -36,6 +36,34 @@ For asserting repeatedly against different inputs, you can use the :lpy:fn:`are`
        4  2 2
        0 -1 1)
 
+.. _testing_path:
+
+Testing and ``PYTHONPATH``
+--------------------------
+
+Typical Clojure projects will have parallel ``src/`` and ``tests/`` folders in the project root.
+Project management tooling typically constructs the Java classpath to include both parallel trees for development and only ``src/`` for deployed software.
+Basilisp does not currently have such tooling (though it is planned!) and the recommended Python tooling is not configurable to allow for this distinction.
+
+Due to this limitation, the easiest solution to facilitate test discovery with Pytest (Basilisp's default test runner) is to include a single, empty ``__init__.py`` file in the top-level ``tests`` directory:
+
+.. code-block:: text
+
+   tests
+   ├── __init__.py
+   └── myproject
+       └── core_test.lpy
+
+Test namespaces can then be created as if they are part of a giant ``tests`` package:
+
+.. code-block::
+
+   (ns tests.myproject.core-test)
+
+.. note::
+
+   The project maintainers acknowledge that this is not an ideal solution and would like to provide a more Clojure-like solution in the future.
+
 .. _test_fixtures:
 
 Fixtures
