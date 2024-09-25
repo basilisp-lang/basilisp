@@ -94,7 +94,7 @@ class RefBase(IRef[T], ReferenceBase):
                 res = False
 
             if not res:
-                raise ExceptionInfo(
+                raise ExceptionInfo(  # pylint: disable=abstract-class-instantiated
                     "Invalid reference state",
                     lmap.map({kw.keyword("data"): val, kw.keyword("validator"): vf}),
                 )
