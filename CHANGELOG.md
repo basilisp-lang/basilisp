@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.2.4]
 ### Added
  * Added functions to `basilisp.test` for using and combining test fixtures (#980)
  * Added the `importing-resolve` function for dynamically importing and resolving a Python name (#1065, #1070)
@@ -604,6 +606,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.2.4]: https://github.com/basilisp-lang/basilisp/compare/v0.2.3..v0.2.4
 [v0.2.3]: https://github.com/basilisp-lang/basilisp/compare/v0.2.2..v0.2.3
 [v0.2.2]: https://github.com/basilisp-lang/basilisp/compare/v0.2.1..v0.2.2
 [v0.2.1]: https://github.com/basilisp-lang/basilisp/compare/v0.2.0..v0.2.1
