@@ -49,6 +49,7 @@ docutils = [
     { version = "*", python = ">=3.9" }
 ]
 isort = "*"
+maturin = "^1.7.3"
 pygments = "*"
 pytest = ">=7.0.0,<9.0.0"
 pytest-pycharm = "*"
@@ -74,8 +75,13 @@ basilisp-run = "basilisp.cli:run_script"
 basilisp_test_runner = "basilisp.contrib.pytest.testrunner"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+manifest-path = "rust/Cargo.toml"
+module-name = "basilisp_native"
 
 [tool.black]
 line-length = 88
