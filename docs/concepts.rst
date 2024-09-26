@@ -207,7 +207,7 @@ Vectors return their count in ``O(1)`` time via :lpy:fn:`count`.
 Random access to vector elements by index (via :lpy:fn:`get` or :lpy:fn:`nth`) is ``O(log32(n))``.
 You can reverse a vector in constant time using :lpy:fn:`rseq`.
 
-Vectors be called like a function similar to :lpy:fn:`nth` with an index and an optional default value, returning the value at the specified index if found.
+Vectors can be called like a function similar to :lpy:fn:`nth` with an index and an optional default value, returning the value at the specified index if found.
 Returns the default value or ``nil`` (if no default value is specified) otherwise.
 
 .. code-block::
@@ -239,7 +239,7 @@ Random access to map values is ``O(log(n))``.
 
 Calling :lpy:fn:`seq` on a map yields successive map entries, which are roughly equivalent to 2 element vectors.
 
-Maps be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value at the specified key if found.
+Maps can be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value at the specified key if found.
 Returns the default value or ``nil`` (if no default value is specified) otherwise.
 
 .. code-block::
@@ -262,7 +262,7 @@ Sets are unordered groups of unique values.
 Values must be hashable.
 Sets return their count in ``O(1)`` time via :lpy:fn:`count.`
 
-Sets be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value if it exists in the set.
+Sets can be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value if it exists in the set.
 Returns the default value or ``nil`` (if no default value is specified) otherwise.
 
 .. code-block::
