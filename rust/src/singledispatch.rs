@@ -1,5 +1,6 @@
 use crate::utils::typeref::PyTypeReference;
-use pyo3::exceptions::{PyNotImplementedError, PyTypeError};
+use pyo3::basic::CompareOp;
+use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::{PyAnyMethods, PyTupleMethods};
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyTuple, PyType};
@@ -129,6 +130,37 @@ struct SingleDispatchState {
     cache_token: Option<PyObject>,
 }
 
+impl SingleDispatchState {
+    fn find_impl(&mut self, py: Python) -> PyResult<PyObject> {
+        let py_object_type = get_py_object_type(py);
+        let default_handler = self
+            .registry
+            .get(&PyTypeReference::new(py_object_type.clone_ref(py)));
+        assert!(default_handler.is_some());
+        Ok(default_handler.unwrap().clone_ref(py))
+    }
+
+    fn get_or_find_impl(&mut self, py: Python, cls: Bound<'_, PyAny>) -> PyResult<PyObject> {
+        let type_reference = PyTypeReference::new(cls.unbind());
+
+        match self.cache.get(&type_reference) {
+            Some(handler) => Ok(handler.clone_ref(py)),
+            None => {
+                let handler_for_cls = match self.registry.get(&type_reference) {
+                    Some(handler) => handler.clone_ref(py),
+                    None => match self.find_impl(py) {
+                        Ok(handler) => handler,
+                        Err(_) => return Err(PyRuntimeError::new_err("Something bad happened!")),
+                    },
+                };
+                self.cache
+                    .insert(type_reference, handler_for_cls.clone_ref(py));
+                Ok(handler_for_cls)
+            }
+        }
+    }
+}
+
 #[pyclass]
 pub(crate) struct SingleDispatch {
     lock: Mutex<SingleDispatchState>,
@@ -233,17 +265,23 @@ impl SingleDispatch {
 
     fn dispatch(&self, py: Python<'_>, cls: Bound<'_, PyAny>) -> PyResult<PyObject> {
         match self.lock.lock() {
-            Ok(state) => match state.registry.get(&PyTypeReference::new(cls.unbind())) {
-                Some(handler) => Ok(handler.clone_ref(py)),
-                None => {
-                    let py_object_type = get_py_object_type(py);
-                    let default_handler = state
-                        .registry
-                        .get(&PyTypeReference::new(py_object_type.clone_ref(py)));
-                    assert!(default_handler.is_some());
-                    Ok(default_handler.unwrap().clone_ref(py))
+            Ok(mut state) => {
+                match &state.cache_token {
+                    Some(cache_token) => {
+                        let current_token = get_abc_cache_token(py);
+                        match current_token.rich_compare(cache_token.bind(py), CompareOp::Eq) {
+                            Ok(_) => {
+                                state.cache.clear();
+                                state.cache_token = Some(current_token.unbind());
+                            }
+                            _ => (),
+                        }
+                    }
+                    _ => (),
                 }
-            },
+
+                state.get_or_find_impl(py, cls)
+            }
             Err(_) => panic!("Singledispatch mutex poisoned!"),
         }
     }
