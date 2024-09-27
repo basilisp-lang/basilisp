@@ -1,8 +1,8 @@
-use std::hash::{Hash, Hasher};
 use pyo3::PyObject;
+use std::hash::{Hash, Hasher};
 
 pub struct PyTypeReference {
-    wrapped: PyObject
+    wrapped: PyObject,
 }
 
 impl PyTypeReference {

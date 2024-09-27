@@ -1,15 +1,14 @@
-use pyo3::exceptions::PyTypeError;
+use crate::utils::typeref::PyTypeReference;
+use pyo3::exceptions::{PyNotImplementedError, PyTypeError};
 use pyo3::prelude::{PyAnyMethods, PyTupleMethods};
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyDict, PyTuple, PyType};
 use pyo3::{
     pyclass, pyfunction, pymethods, Bound, IntoPy, Py, PyAny, PyObject, PyResult, Python,
     ToPyObject,
 };
 use std::collections::HashMap;
 use std::sync::Mutex;
-
-use crate::utils::typeref::PyTypeReference;
 
 static PY_OBJECT_TYPE: GILOnceCell<PyObject> = GILOnceCell::new();
 
@@ -32,6 +31,98 @@ fn get_abc_cache_token(py: Python) -> Bound<'_, PyAny> {
         .unwrap()
 }
 
+struct TypingModule {
+    get_origin: PyObject,
+    get_args: PyObject,
+    union_types: Vec<PyTypeReference>,
+}
+
+static TYPING_MODULE: GILOnceCell<TypingModule> = GILOnceCell::new();
+
+impl TypingModule {
+    fn new(py: Python) -> Self {
+        let typing_module = py.import_bound("typing").unwrap();
+        let types_module = py.import_bound("types").unwrap();
+        let mut union_types = Vec::with_capacity(2);
+        union_types.extend([
+            PyTypeReference::new(typing_module.getattr("Union").unwrap().to_object(py)),
+            PyTypeReference::new(types_module.getattr("UnionType").unwrap().to_object(py)),
+        ]);
+
+        TypingModule {
+            get_args: typing_module.getattr("get_args").unwrap().to_object(py),
+            get_origin: typing_module.getattr("get_origin").unwrap().to_object(py),
+            union_types,
+        }
+    }
+
+    fn cached(py: Python) -> &Self {
+        TYPING_MODULE.get_or_init(py, || TypingModule::new(py))
+    }
+
+    fn get_args(&self, py: Python, cls: &Bound<'_, PyAny>) -> PyResult<Py<PyTuple>> {
+        match self.get_args.call1(py, PyTuple::new_bound(py, [cls])) {
+            Ok(maybe_args) => match maybe_args.downcast_bound::<PyTuple>(py) {
+                Ok(args) => Ok(args.clone().unbind().clone_ref(py)),
+                Err(_) => Err(PyTypeError::new_err("Expected tuple return value")),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn get_origin(&self, py: Python, cls: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+        self.get_origin.call1(py, PyTuple::new_bound(py, [cls]))
+    }
+
+    fn is_union_type(&self, py: Python, cls: &Bound<'_, PyAny>) -> bool {
+        let origin_type_reference = PyTypeReference::new(cls.into_py(py));
+        self.union_types.contains(&origin_type_reference)
+    }
+}
+
+fn valid_dispatch_types(py: Python, cls: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyType>>> {
+    if let Ok(typ) = cls.downcast::<PyType>() {
+        Ok(Vec::from([typ.clone().unbind()]))
+    } else {
+        let typing_module = TypingModule::cached(py);
+        if let Ok(origin) = typing_module.get_origin(py, cls) {
+            if typing_module.is_union_type(py, origin.bind(py)) {
+                if let Ok(type_args) = typing_module.get_args(py, cls) {
+                    let py_tuple = type_args.bind(py);
+                    let mut dispatch_types = Vec::with_capacity(py_tuple.len());
+                    for (i, item) in py_tuple.iter().enumerate() {
+                        match item.downcast::<PyType>() {
+                            Ok(typ) => {
+                                dispatch_types.insert(i, typ.clone().unbind());
+                            }
+                            Err(_) => {
+                                return Err(PyTypeError::new_err(format!(
+                                    "Object {item} is not a valid type"
+                                )))
+                            }
+                        }
+                    }
+                    Ok(dispatch_types)
+                } else {
+                    Ok(Vec::new())
+                }
+            } else {
+                Ok(Vec::new())
+            }
+        } else {
+            Ok(Vec::new())
+        }
+    }
+}
+
+fn is_valid_dispatch_type(py: Python, cls: &Bound<'_, PyAny>) -> bool {
+    if let Ok(types) = valid_dispatch_types(py, cls) {
+        !types.is_empty()
+    } else {
+        false
+    }
+}
+
 struct SingleDispatchState {
     registry: HashMap<PyTypeReference, PyObject>,
     cache: HashMap<PyTypeReference, PyObject>,
@@ -50,16 +141,51 @@ impl SingleDispatch {
         cls: Bound<'_, PyAny>,
         func: Bound<'_, PyAny>,
     ) -> PyResult<PyObject> {
+        let typing_module = TypingModule::cached(py);
         match self.lock.lock() {
             Ok(mut state) => {
                 let unbound_func = func.unbind();
-                state.registry.insert(
-                    PyTypeReference::new(cls.into_py(py)),
-                    unbound_func.clone_ref(py),
-                );
+                if typing_module.is_union_type(py, &cls) {
+                    match typing_module.get_args(py, &cls) {
+                        Ok(tuple) => {
+                            for tp in tuple.bind(py).iter() {
+                                state.registry.insert(
+                                    PyTypeReference::new(tp.unbind()),
+                                    unbound_func.clone_ref(py),
+                                );
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    state.registry.insert(
+                        PyTypeReference::new(cls.into_py(py)),
+                        unbound_func.clone_ref(py),
+                    );
+                }
+                if state.cache_token.is_none() {
+                    if let Ok(_) = unbound_func.getattr(py, "__abstractmethods__") {
+                        state.cache_token = Some(get_abc_cache_token(py).unbind());
+                    }
+                }
+                state.cache.clear();
                 Ok(unbound_func)
             }
             Err(_) => panic!("Singledispatch mutex poisoned!"),
+        }
+    }
+
+    fn register_with_type_annotations(
+        &self,
+        _py: Python<'_>,
+        cls: Bound<'_, PyAny>,
+        func: Bound<'_, PyAny>,
+    ) -> PyResult<PyObject> {
+        match func.getattr("__annotations__") {
+            Ok(_annotations) => Err(PyNotImplementedError::new_err("Oops!")),
+            Err(_) => Err(PyTypeError::new_err(
+                format!("Invalid first argument to `register()`: {cls}. Use either `@register(some_class)` or plain `@register` on an annotated function."),
+            )),
         }
     }
 }
@@ -130,10 +256,19 @@ impl SingleDispatch {
         func: Option<Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
         let singledispatch = slf.borrow(py);
-        match func {
-            Some(actual_func) => singledispatch.register_cls(py, cls, actual_func),
-            None => {
-                Ok(PartialSingleDispatchRegistration::__new__(slf.clone_ref(py), cls).into_py(py))
+        if is_valid_dispatch_type(py, &cls) {
+            match func {
+                Some(actual_func) => singledispatch.register_cls(py, cls, actual_func),
+                None => Ok(
+                    PartialSingleDispatchRegistration::__new__(slf.clone_ref(py), cls).into_py(py),
+                ),
+            }
+        } else {
+            match func {
+                Some(f) => singledispatch.register_with_type_annotations(py, cls, f),
+                None => Err(PyTypeError::new_err(format!(
+                    "invalid first argument to `register()`. {cls} must be a class or union type."
+                ))),
             }
         }
     }
