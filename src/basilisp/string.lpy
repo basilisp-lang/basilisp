@@ -123,7 +123,7 @@
      (instance? typing/Pattern pattern)
      (if (= "" (.-pattern pattern))
        (split s "" limit)
-       (vec (re/split pattern s (or (when limit (dec limit)) 0))))
+       (vec (re/split pattern s ** :maxsplit (or (when limit (dec limit)) 0))))
 
      (string? pattern)
      (vec
@@ -224,7 +224,8 @@
               #(replacement (.group % 0))
               replacement)
             s
-            1)
+            **
+            :count 1)
 
     (and (string? match) (string? replacement))
     (.replace s match replacement 1)
