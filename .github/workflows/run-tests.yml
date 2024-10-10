@@ -29,7 +29,7 @@ jobs:
           - version: '3.12'
             tox-env: py312,py312-mypy,py312-lint,format,safety
           - version: '3.13'
-            tox-env: py311,py311-mypy,py311-lint,safety
+            tox-env: py313,py313-mypy,py313-lint,safety
           - os: windows-latest
             version: '3.12'
             tox-env: py312,safety
