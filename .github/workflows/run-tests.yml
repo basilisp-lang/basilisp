@@ -16,10 +16,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+        version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         include:
-          - version: '3.8'
-            tox-env: py38,py38-mypy,py38-lint,safety
           - version: '3.9'
             tox-env: py39,py39-mypy,py39-lint,safety
           - version: '3.10'
@@ -150,8 +148,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.8']
-        tox-env: ['py38']
+        version: ['3.9']
+        tox-env: ['py39']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

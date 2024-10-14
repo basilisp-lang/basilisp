@@ -1006,7 +1006,7 @@ class TestDefType:
         assert "y" not in hints
 
     @pytest.mark.skipif(
-        sys.version_info > (3, 9), reason="This version is intended for 3.8 and 3.9"
+        sys.version_info > (3, 9), reason="This version is intended for 3.9"
     )
     def test_deftype_field_tag_annotations_pre310(
         self, lcompile: CompileFn, ns: runtime.Namespace
