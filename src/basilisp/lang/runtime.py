@@ -4,6 +4,7 @@ import collections.abc
 import contextlib
 import decimal
 import functools
+import graphlib
 import importlib.metadata
 import inspect
 import itertools
@@ -15,27 +16,9 @@ import re
 import sys
 import threading
 import types
-from collections.abc import Sequence, Sized
+from collections.abc import Iterable, Iterator, Mapping, Sequence, Sized
 from fractions import Fraction
-from typing import (
-    AbstractSet,
-    Any,
-    Callable,
-    Dict,
-    FrozenSet,
-    Iterable,
-    Iterator,
-    List,
-    Mapping,
-    NoReturn,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import AbstractSet, Any, Callable, NoReturn, Optional, TypeVar, Union, cast
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -70,11 +53,6 @@ from basilisp.lang.reference import RefBase, ReferenceBase
 from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
-
-if sys.version_info >= (3, 9):
-    import graphlib
-else:
-    import graphlib  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -200,8 +178,8 @@ READER_COND_DEFAULT_FEATURE_SET = lset.s(
     *_supported_python_versions_features(),
 )
 
-CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
-CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
+CompletionMatcher = Callable[[tuple[sym.Symbol, Any]], bool]
+CompletionTrimmer = Callable[[tuple[sym.Symbol, Any]], str]
 
 
 class BasilispModule(types.ModuleType):
@@ -227,7 +205,7 @@ class RuntimeException(Exception):
 
 class _VarBindings(threading.local):
     def __init__(self):
-        self.bindings: List = []
+        self.bindings: list = []
 
 
 class Unbound:
@@ -893,7 +871,7 @@ class Namespace(ReferenceBase):
         """Return a function which matches any symbol keys from map entries
         against the given text."""
 
-        def is_match(entry: Tuple[sym.Symbol, Any]) -> bool:
+        def is_match(entry: tuple[sym.Symbol, Any]) -> bool:
             return entry[0].name.startswith(text)
 
         return is_match
@@ -958,7 +936,7 @@ class Namespace(ReferenceBase):
         else:
             _is_match = Namespace.__completion_matcher(value)
 
-            def is_match(entry: Tuple[sym.Symbol, Var]) -> bool:
+            def is_match(entry: tuple[sym.Symbol, Var]) -> bool:
                 return _is_match(entry) and not entry[1].is_private
 
         return map(
@@ -1592,7 +1570,7 @@ def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
     value should be cleared and the `with-meta` method should be replaced with a
     new method."""
     existing_arities: IPersistentSet[Union[kw.Keyword, int]] = f.arities
-    new_arities: Set[Union[kw.Keyword, int]] = set()
+    new_arities: set[Union[kw.Keyword, int]] = set()
     for arity in existing_arities:
         if isinstance(arity, kw.Keyword):
             new_arities.add(arity)
@@ -1914,7 +1892,7 @@ def _to_py_map(
 def _to_py_set(
     o: IPersistentSet, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
 ) -> set:
-    return set(to_py(e, keyword_fn=keyword_fn) for e in o)
+    return {to_py(e, keyword_fn=keyword_fn) for e in o}
 
 
 def lrepr(o, human_readable: bool = False) -> str:
@@ -1975,7 +1953,7 @@ class _TrampolineArgs:
         self._kwargs = kwargs
 
     @property
-    def args(self) -> Tuple:
+    def args(self) -> tuple:
         """Return the arguments for a trampolined function. If the function
         that is being trampolined has varargs, unroll the final argument if
         it is a sequence."""
@@ -1992,7 +1970,7 @@ class _TrampolineArgs:
             return ()
 
     @property
-    def kwargs(self) -> Dict:
+    def kwargs(self) -> dict:
         return self._kwargs
 
 
@@ -2094,7 +2072,7 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
 
 
 def _basilisp_fn(
-    arities: Tuple[Union[int, kw.Keyword], ...]
+    arities: tuple[Union[int, kw.Keyword], ...]
 ) -> Callable[..., BasilispFunction]:
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
@@ -2112,26 +2090,26 @@ def _basilisp_fn(
 
 def _basilisp_type(
     fields: Iterable[str],
-    interfaces: Iterable[Type],
-    artificially_abstract_bases: AbstractSet[Type],
+    interfaces: Iterable[type],
+    artificially_abstract_bases: AbstractSet[type],
     members: Iterable[str],
 ):
     """Check that a Basilisp type (defined by `deftype*`) only declares abstract
     super-types and that all abstract methods are implemented."""
 
-    def wrap_class(cls: Type):
+    def wrap_class(cls: type):
         field_names = frozenset(fields)
         member_names = frozenset(members)
-        artificially_abstract_base_members: Set[str] = set()
+        artificially_abstract_base_members: set[str] = set()
         all_member_names = field_names.union(member_names)
-        all_interface_methods: Set[str] = set()
+        all_interface_methods: set[str] = set()
         for interface in interfaces:
             if interface is object:
                 continue
 
             if is_abstract(interface):
-                interface_names: FrozenSet[str] = interface.__abstractmethods__
-                interface_property_names: FrozenSet[str] = frozenset(
+                interface_names: frozenset[str] = interface.__abstractmethods__
+                interface_property_names: frozenset[str] = frozenset(
                     method
                     for method in interface_names
                     if isinstance(getattr(interface, method), property)

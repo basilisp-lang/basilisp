@@ -1,16 +1,7 @@
 from builtins import map as pymap
+from collections.abc import Iterable, Mapping
 from itertools import islice
-from typing import (
-    Any,
-    Callable,
-    Iterable,
-    Mapping,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from immutables import Map as _Map
 from immutables import MapMutation
@@ -129,7 +120,7 @@ class TransientMap(ITransientMap[K, V]):
 
 
 def map_lrepr(  # pylint: disable=too-many-locals
-    entries: Callable[[], Iterable[Tuple[Any, Any]]],
+    entries: Callable[[], Iterable[tuple[Any, Any]]],
     start: str,
     end: str,
     meta: Optional[IPersistentMap] = None,
@@ -237,7 +228,7 @@ class PersistentMap(
     @classmethod
     def from_coll(
         cls,
-        members: Union[Mapping[K, V], Iterable[Tuple[K, V]]],
+        members: Union[Mapping[K, V], Iterable[tuple[K, V]]],
         meta: Optional[IPersistentMap] = None,
     ) -> "PersistentMap[K, V]":
         return PersistentMap(_Map(members), meta=meta)

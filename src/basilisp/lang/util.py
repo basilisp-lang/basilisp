@@ -4,9 +4,10 @@ import inspect
 import keyword
 import re
 import uuid
+from collections.abc import Iterable
 from decimal import Decimal
 from fractions import Fraction
-from typing import Iterable, Match, Pattern, Type
+from re import Match, Pattern
 
 from basilisp.lang import atom as atom
 
@@ -71,7 +72,7 @@ def demunge(s: str) -> str:
     return re.sub(_DEMUNGE_PATTERN, demunge_replacer, s).replace("_", "-")
 
 
-def is_abstract(tp: Type) -> bool:
+def is_abstract(tp: type) -> bool:
     """Return True if tp is an abstract class.
 
     The builtin `inspect.isabstract` returns False for marker abstract classes

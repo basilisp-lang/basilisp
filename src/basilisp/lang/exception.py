@@ -2,7 +2,7 @@ import functools
 import sys
 import traceback
 from types import TracebackType
-from typing import List, Optional, Type
+from typing import Optional
 
 import attr
 
@@ -27,10 +27,10 @@ class ExceptionInfo(IExceptionInfo):
 @functools.singledispatch
 def format_exception(  # pylint: disable=unused-argument
     e: Optional[BaseException],
-    tp: Optional[Type[BaseException]] = None,
+    tp: Optional[type[BaseException]] = None,
     tb: Optional[TracebackType] = None,
     disable_color: Optional[bool] = None,
-) -> List[str]:
+) -> list[str]:
     """Format an exception into something readable, returning a list of newline
     terminated strings.
 
@@ -50,7 +50,7 @@ def format_exception(  # pylint: disable=unused-argument
 
 def print_exception(
     e: Optional[BaseException],
-    tp: Optional[Type[BaseException]] = None,
+    tp: Optional[type[BaseException]] = None,
     tb: Optional[TracebackType] = None,
 ) -> None:
     """Print the given exception `e` using Basilisp's own exception formatting.

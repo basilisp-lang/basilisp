@@ -1,18 +1,14 @@
 import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Hashable, Sized
+from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence, Sized
 from typing import (
     AbstractSet,
     Any,
     Callable,
     Final,
     Generic,
-    Iterable,
-    Iterator,
-    Mapping,
     Optional,
     Protocol,
-    Sequence,
     TypeVar,
     Union,
     overload,

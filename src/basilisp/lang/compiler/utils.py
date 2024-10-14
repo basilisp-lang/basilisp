@@ -2,15 +2,9 @@ import ast
 import sys
 from functools import partial
 
-if sys.version_info >= (3, 9):
 
-    def ast_index(v: ast.expr) -> ast.expr:
-        return v
-
-else:
-
-    def ast_index(v: ast.expr) -> ast.Index:
-        return ast.Index(value=v)
+def ast_index(v: ast.expr) -> ast.expr:
+    return v
 
 
 if sys.version_info >= (3, 12):

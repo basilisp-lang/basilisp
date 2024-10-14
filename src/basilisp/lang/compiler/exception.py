@@ -2,7 +2,7 @@ import ast
 import os
 from enum import Enum
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Optional, Union
 
 import attr
 
@@ -67,7 +67,7 @@ class CompilerException(IExceptionInfo):
 
     @property
     def data(self) -> IPersistentMap:
-        d: Dict[kw.Keyword, Any] = {_PHASE: self.phase.value}
+        d: dict[kw.Keyword, Any] = {_PHASE: self.phase.value}
         d[_FILE] = self.filename
         loc = None
         if self.form is not None:
@@ -112,10 +112,10 @@ class CompilerException(IExceptionInfo):
 @format_exception.register(CompilerException)
 def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argument
     e: CompilerException,
-    tp: Optional[Type[Exception]] = None,
+    tp: Optional[type[Exception]] = None,
     tb: Optional[TracebackType] = None,
     disable_color: Optional[bool] = None,
-) -> List[str]:
+) -> list[str]:
     """Format a compiler exception as a list of newline-terminated strings.
 
     If `disable_color` is True, no color formatting will be applied to the source

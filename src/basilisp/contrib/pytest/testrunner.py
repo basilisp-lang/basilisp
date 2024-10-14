@@ -3,9 +3,10 @@ import inspect
 import os
 import sys
 import traceback
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from types import GeneratorType
-from typing import Callable, Iterable, Iterator, Optional, Tuple
+from typing import Callable, Optional
 
 import pytest
 
@@ -210,7 +211,7 @@ class BasilispFile(pytest.File):
     @staticmethod
     def _collected_fixtures(
         ns: runtime.Namespace,
-    ) -> Tuple[Iterable[FixtureFunction], Iterable[FixtureFunction]]:
+    ) -> tuple[Iterable[FixtureFunction], Iterable[FixtureFunction]]:
         """Collect all of the declared fixtures of the namespace."""
         if ns.meta is not None:
             return (

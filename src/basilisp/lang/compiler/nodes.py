@@ -1,17 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, MutableMapping, Sequence
 from enum import Enum
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Iterable,
-    MutableMapping,
-    Optional,
-    Sequence,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 import attr
 
@@ -196,7 +186,7 @@ class Node(ABC, Generic[T]):
                 f(child, *args, **kwargs)
 
     def fix_missing_locations(
-        self, form_loc: Optional[Tuple[int, int, int, int]] = None
+        self, form_loc: Optional[tuple[int, int, int, int]] = None
     ) -> "Node[T]":
         """Return a transformed copy of this node with location in this node's
         environment updated to match the `form_loc` if given, or using its

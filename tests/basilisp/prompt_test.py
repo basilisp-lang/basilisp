@@ -184,9 +184,10 @@ class TestKeyBindings:
 
     @pytest.fixture(autouse=True)
     def assert_syntax_error(self):
-        with patch("basilisp.prompt.run_in_terminal") as run_in_terminal, patch(
-            "basilisp.prompt.partial"
-        ) as partial:
+        with (
+            patch("basilisp.prompt.run_in_terminal") as run_in_terminal,
+            patch("basilisp.prompt.partial") as partial,
+        ):
             marker = object()
             partial.return_value = marker
 

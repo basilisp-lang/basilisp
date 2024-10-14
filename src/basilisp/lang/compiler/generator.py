@@ -9,25 +9,20 @@ import hashlib
 import logging
 import re
 import uuid
+from collections.abc import Collection, Iterable, Mapping, MutableMapping
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
+from re import Pattern
 from typing import (
     TYPE_CHECKING,
     Callable,
-    Collection,
     Deque,
     Generic,
-    Iterable,
-    List,
-    Mapping,
-    MutableMapping,
     Optional,
-    Pattern,
-    Tuple,
     TypeVar,
     Union,
     cast,
@@ -353,7 +348,7 @@ class GeneratedPyAST(Generic[T_pynode]):
     def reduce(
         *genned: "GeneratedPyAST[T_pynode]",
     ) -> "GeneratedPyAST[T_pynode]":
-        deps: List[PyASTNode] = []
+        deps: list[PyASTNode] = []
         for n in genned:
             deps.extend(n.dependencies)
             deps.append(n.node)
@@ -376,7 +371,7 @@ PyASTGenerator = Callable[
 
 def _chain_py_ast(
     *genned: GeneratedPyAST[T_pynode],
-) -> Tuple[Iterable[PyASTNode], PyASTStream[T_pynode]]:
+) -> tuple[Iterable[PyASTNode], PyASTStream[T_pynode]]:
     """Chain a sequence of generated Python ASTs into a tuple of dependency nodes"""
     deps = chain.from_iterable(map(lambda n: n.dependencies, genned))
     nodes = map(lambda n: n.node, genned)
@@ -421,14 +416,14 @@ def _simple_ast_generator(
 
 def _collection_ast(
     ctx: GeneratorContext, form: Iterable[Node]
-) -> Tuple[PyASTStream, PyASTStream]:
+) -> tuple[PyASTStream, PyASTStream]:
     """Turn a collection of Lisp forms into Python AST nodes."""
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
 def _class_ast(  # pylint: disable=too-many-arguments
     class_name: str,
-    body: List[ast.stmt],
+    body: list[ast.stmt],
     bases: Iterable[ast.expr] = (),
     fields: Iterable[str] = (),
     members: Iterable[str] = (),
@@ -513,11 +508,11 @@ def _class_ast(  # pylint: disable=too-many-arguments
 def _kwargs_ast(
     ctx: GeneratorContext,
     kwargs: KeywordArgs,
-) -> Tuple[PyASTStream, PyASTStream]:
+) -> tuple[PyASTStream, PyASTStream]:
     """Return a tuple of dependency nodes and Python `ast.keyword` nodes from a
     Basilisp `KeywordArgs` Node property."""
     kwargs_keys, kwargs_nodes = [], []
-    kwargs_deps: List[PyASTNode] = []
+    kwargs_deps: list[PyASTNode] = []
     for k, v in kwargs.items():
         kwargs_keys.append(k)
         kwarg_ast = gen_py_ast(ctx, v)
@@ -532,8 +527,8 @@ def _kwargs_ast(
 def _fn_node(  # pylint: disable=too-many-arguments
     name: str,
     args: ast.arguments,
-    body: List[ast.stmt],
-    decorator_list: List[ast.expr],
+    body: list[ast.stmt],
+    decorator_list: list[ast.expr],
     returns: Optional[ast.expr],
     is_async: bool,
 ) -> Union[ast.AsyncFunctionDef, ast.FunctionDef]:
@@ -823,7 +818,7 @@ def expressionize(
     statements and expressions, and Lisps, which have only expressions.
     """
     args = Maybe(args).or_else_get([])
-    body_nodes: List[ast.stmt] = list(map(statementize, body.dependencies))
+    body_nodes: list[ast.stmt] = list(map(statementize, body.dependencies))
     body_nodes.append(ast.Return(value=body.node))
 
     return ast_FunctionDef(
@@ -916,7 +911,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
         else:
             tag, tag_deps = None, []
 
-        def_dependencies: List[PyASTNode]
+        def_dependencies: list[PyASTNode]
         func = _INTERN_VAR_FN_NAME
         extra_args = [ast.Name(id=safe_name, ctx=ast.Load())]
         if is_defn:
@@ -1114,8 +1109,8 @@ def __multi_arity_deftype_dispatch_method(
     """
     method_prefix = genname("self")
 
-    dispatch_keys: List[Optional[ast.expr]] = []
-    dispatch_vals: List[ast.expr] = []
+    dispatch_keys: list[Optional[ast.expr]] = []
+    dispatch_vals: list[ast.expr] = []
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Constant(k))
         dispatch_vals.append(_load_attr(f"{method_prefix}.{v}"))
@@ -1285,8 +1280,11 @@ def __deftype_method_arity_to_py_ast(
     assert arity.op == NodeOp.DEFTYPE_METHOD_ARITY
     assert node.name == arity.name
 
-    with ctx.new_symbol_table(node.name, is_context_boundary=True), ctx.new_recur_point(
-        arity.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
+    with (
+        ctx.new_symbol_table(node.name, is_context_boundary=True),
+        ctx.new_recur_point(
+            arity.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
+        ),
     ):
         this_name = genname(munge(arity.this_local.name))
         this_sym = sym.symbol(arity.this_local.name)
@@ -1395,11 +1393,11 @@ def __deftype_or_reify_bases_to_py_ast(
     ctx: GeneratorContext,
     node: Union[DefType, Reify],
     interfaces: Iterable[DefTypeBase],
-) -> List[ast.expr]:
+) -> list[ast.expr]:
     """Return a list of AST nodes for the base classes for a `deftype*` or `reify*`."""
     assert node.op in {NodeOp.DEFTYPE, NodeOp.REIFY}
 
-    bases: List[ast.expr] = []
+    bases: list[ast.expr] = []
     for base in interfaces:
         base_node = gen_py_ast(ctx, base)
         assert (
@@ -1452,8 +1450,8 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
 
     with ctx.new_symbol_table(node.name):
         fields = []
-        type_nodes: List[ast.stmt] = []
-        type_deps: List[PyASTNode] = []
+        type_nodes: list[ast.stmt] = []
+        type_deps: list[PyASTNode] = []
         for field in node.fields:
             safe_field = munge(field.name)
 
@@ -1593,7 +1591,7 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST[ast.expr]:
         *map(partial(gen_py_ast, ctx), chain(node.statements, [node.ret]))
     )
 
-    fn_body_ast: List[PyASTNode] = []
+    fn_body_ast: list[PyASTNode] = []
     fn_body_ast.extend(map(statementize, body_ast.dependencies))
 
     assert isinstance(body_ast.node, ast.expr)
@@ -1635,11 +1633,11 @@ def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
 
 def __fn_args_to_py_ast(
     ctx: GeneratorContext, params: Iterable[Binding], body: Do
-) -> Tuple[List[ast.arg], Optional[ast.arg], List[ast.stmt], Iterable[PyASTNode]]:
+) -> tuple[list[ast.arg], Optional[ast.arg], list[ast.stmt], Iterable[PyASTNode]]:
     """Generate a list of Python AST nodes from function method parameters."""
     fn_args, varg = [], None
-    fn_body_ast: List[ast.stmt] = []
-    fn_def_deps: List[PyASTNode] = []
+    fn_body_ast: list[ast.stmt] = []
+    fn_def_deps: list[PyASTNode] = []
     for binding in params:
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
@@ -1727,7 +1725,7 @@ def __fn_decorator(
 
 def __fn_meta(
     ctx: GeneratorContext, meta_node: Optional[MetaNode] = None
-) -> Tuple[Iterable[PyASTNode], Iterable[ast.expr]]:
+) -> tuple[Iterable[PyASTNode], Iterable[ast.expr]]:
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
         return (
@@ -1770,9 +1768,10 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(ctx, lisp_fn_name) if def_name is None else munge(def_name)
-    with ctx.new_symbol_table(
-        py_fn_name, is_context_boundary=True
-    ), ctx.new_recur_point(method.loop_id, RecurType.FN, is_variadic=node.is_variadic):
+    with (
+        ctx.new_symbol_table(py_fn_name, is_context_boundary=True),
+        ctx.new_recur_point(method.loop_id, RecurType.FN, is_variadic=node.is_variadic),
+    ):
         # Allow named anonymous functions to recursively call themselves
         if lisp_fn_name is not None:
             ctx.symbol_table.new_symbol(
@@ -1875,8 +1874,8 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     """
     dispatch_map_name = f"{name}_dispatch_map"
 
-    dispatch_keys: List[Optional[ast.expr]] = []
-    dispatch_vals: List[ast.expr] = []
+    dispatch_keys: list[Optional[ast.expr]] = []
+    dispatch_vals: list[ast.expr] = []
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Constant(k))
         dispatch_vals.append(ast.Name(id=v, ctx=ast.Load()))
@@ -1976,9 +1975,9 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 
     ret_ann_ast: Optional[ast.expr] = None
-    ret_ann_deps: List[PyASTNode] = []
+    ret_ann_deps: list[PyASTNode] = []
     if all(tag is not None for tag in return_tags):
-        ret_ann_asts: List[ast.expr] = []
+        ret_ann_asts: list[ast.expr] = []
         for tag in cast(Iterable[Node], return_tags):
             ret_ann = gen_py_ast(ctx, tag)
             ret_ann_asts.append(ret_ann.node)
@@ -2065,7 +2064,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     rest_arity_name: Optional[str] = None
     rest_arity_fixed_arity: Optional[int] = None
     fn_defs = []
-    all_arity_def_deps: List[PyASTNode] = []
+    all_arity_def_deps: list[PyASTNode] = []
     for arity in arities:
         arity_name = (
             f"{py_fn_name}__arity{'_rest' if arity.is_variadic else arity.fixed_arity}"
@@ -2076,10 +2075,11 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         else:
             arity_to_name[arity.fixed_arity] = arity_name
 
-        with ctx.new_symbol_table(
-            arity_name, is_context_boundary=True
-        ), ctx.new_recur_point(
-            arity.loop_id, RecurType.FN, is_variadic=node.is_variadic
+        with (
+            ctx.new_symbol_table(arity_name, is_context_boundary=True),
+            ctx.new_recur_point(
+                arity.loop_id, RecurType.FN, is_variadic=node.is_variadic
+            ),
         ):
             # Allow named anonymous functions to recursively call themselves
             if lisp_fn_name is not None:
@@ -2236,7 +2236,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST[ast.expr]:
 
     # Suppress the duplicate assignment statement if the `if` statement test is already
     # an ast.Name instance.
-    if_test_deps: List[PyASTNode] = []
+    if_test_deps: list[PyASTNode] = []
     if isinstance(test_ast.node, ast.Name):
         test_name = test_ast.node.id
     else:
@@ -2305,7 +2305,7 @@ def _import_hash(s: str) -> str:
     return base64.b64encode(digest).decode().translate(_IMPORT_HASH_TRANSLATE_TABLE)[:6]
 
 
-def _import_name(root: str, *submodules: str) -> Tuple[str, str]:
+def _import_name(root: str, *submodules: str) -> tuple[str, str]:
     """Return a tuple of the root import name (with hash suffix) for an import and the
     full import name (if submodules are provided)."""
     safe_root = f"{root}_{_import_hash(root)}"
@@ -2320,7 +2320,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
     assert node.op == NodeOp.IMPORT
 
     last = None
-    deps: List[PyASTNode] = []
+    deps: list[PyASTNode] = []
     for alias in node.aliases:
         safe_name = munge(alias.name)
 
@@ -2413,7 +2413,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST[ast.expr]
     assert node.op == NodeOp.LET
 
     with ctx.new_symbol_table("let"):
-        let_body_ast: List[PyASTNode] = []
+        let_body_ast: list[PyASTNode] = []
         for binding in node.bindings:
             init_node = binding.init
             assert init_node is not None
@@ -2467,7 +2467,7 @@ def _letfn_to_py_ast(ctx: GeneratorContext, node: LetFn) -> GeneratedPyAST[ast.e
             )
             binding_names.append((binding_name, binding))
 
-        letfn_body_ast: List[PyASTNode] = []
+        letfn_body_ast: list[PyASTNode] = []
         for binding_name, binding in binding_names:
             init_node = binding.init
             assert init_node is not None
@@ -2498,7 +2498,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
 
     with ctx.new_symbol_table("loop"):
         binding_names = []
-        init_bindings: List[PyASTNode] = []
+        init_bindings: list[PyASTNode] = []
         for binding in node.bindings:
             init_node = binding.init
             assert init_node is not None
@@ -2520,7 +2520,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
         with ctx.new_recur_point(
             node.loop_id, RecurType.LOOP, binding_names=binding_names
         ):
-            loop_body_ast: List[ast.stmt] = []
+            loop_body_ast: list[ast.stmt] = []
             body_ast = _synthetic_do_to_py_ast(ctx, node.body)
             loop_body_ast.extend(map(statementize, body_ast.dependencies))
             loop_body_ast.append(
@@ -2568,8 +2568,8 @@ def __fn_recur_to_py_ast(
     """Return a Python AST node for `recur` occurring inside a `fn*`."""
     assert node.op == NodeOp.RECUR
     assert ctx.recur_point.is_variadic is not None
-    recur_nodes: List[ast.expr] = []
-    recur_deps: List[PyASTNode] = []
+    recur_nodes: list[ast.expr] = []
+    recur_deps: list[PyASTNode] = []
     for expr in node.exprs:
         expr_ast = gen_py_ast(ctx, expr)
         recur_nodes.append(expr_ast.node)
@@ -2591,8 +2591,8 @@ def __deftype_method_recur_to_py_ast(
 ) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST node for `recur` occurring inside a `deftype*` method."""
     assert node.op == NodeOp.RECUR
-    recur_nodes: List[ast.expr] = []
-    recur_deps: List[PyASTNode] = []
+    recur_nodes: list[ast.expr] = []
+    recur_deps: list[PyASTNode] = []
     for expr in node.exprs:
         expr_ast = gen_py_ast(ctx, expr)
         recur_nodes.append(expr_ast.node)
@@ -2627,9 +2627,9 @@ def __loop_recur_to_py_ast(
     assert node.op == NodeOp.RECUR
     assert ctx.recur_point.binding_names is not None
 
-    recur_deps: List[PyASTNode] = []
-    recur_targets: List[ast.expr] = []
-    recur_exprs: List[ast.expr] = []
+    recur_deps: list[PyASTNode] = []
+    recur_targets: list[ast.expr] = []
+    recur_exprs: list[ast.expr] = []
     for name, expr in zip(ctx.recur_point.binding_names, node.exprs):
         expr_ast = gen_py_ast(ctx, expr)
         recur_deps.extend(expr_ast.dependencies)
@@ -2691,7 +2691,7 @@ def _reify_to_py_ast(
     else:
         meta_ast = None
 
-    bases: List[ast.expr] = [
+    bases: list[ast.expr] = [
         _BASILISP_WITH_META_INTERFACE_NAME,
         *__deftype_or_reify_bases_to_py_ast(ctx, node, node.interfaces),
     ]
@@ -2701,7 +2701,7 @@ def _reify_to_py_ast(
     type_name = munge(genname("ReifiedType"))
 
     with ctx.new_symbol_table("reify"):
-        type_nodes: List[ast.stmt] = [
+        type_nodes: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_meta", ctx=ast.Store())],
                 value=ast.Call(
@@ -2818,7 +2818,7 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST[ast
 
     last = None
     requiring_ns_name = genname("requiring_ns")
-    deps: List[PyASTNode] = [
+    deps: list[PyASTNode] = [
         # Fetch the requiring namespace first prior to initiating requires
         # in order to ensure the require is only made into that namespace
         # (in case the required module changes the value of *ns*)
@@ -2896,7 +2896,7 @@ def _set_bang_to_py_ast(
         target, (HostField, Local, VarRef)
     ), f"invalid set! target type {type(target)}"
 
-    assign_ast: List[PyASTNode]
+    assign_ast: list[PyASTNode]
     if isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
         assign_ast = [ast.Assign(targets=[target_ast.node], value=val_ast.node)]
@@ -3060,7 +3060,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST[ast.expr]
         map(partial(__catch_to_py_ast, ctx, try_expr_name=try_expr_name), node.catches)
     )
 
-    finallys: List[ast.stmt] = []
+    finallys: list[ast.stmt] = []
     if node.finally_ is not None:
         finally_ast = _synthetic_do_to_py_ast(ctx, node.finally_)
         finallys.extend(map(statementize, finally_ast.dependencies))
@@ -3802,9 +3802,9 @@ def _const_record_to_py_ast(
     assert form_seq is not None, "IRecord types must be iterable"
 
     # pylint: disable=no-member
-    keys: List[Optional[ast.expr]] = []
-    vals: List[ast.expr] = []
-    vals_deps: List[PyASTNode] = []
+    keys: list[Optional[ast.expr]] = []
+    vals: list[ast.expr] = []
+    vals_deps: list[PyASTNode] = []
     for k, v in form_seq:
         assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
         key_nodes = _kw_to_py_ast(k, ctx)
@@ -3864,7 +3864,7 @@ def _const_type_to_py_ast(
     tp = type(form)
 
     ctor_args = []
-    ctor_arg_deps: List[PyASTNode] = []
+    ctor_arg_deps: list[PyASTNode] = []
     for field in attr.fields(tp):  # type: ignore[arg-type, misc, unused-ignore]
         field_nodes = _const_val_to_py_ast(getattr(form, field.name, None), ctx)
         ctor_args.append(field_nodes.node)
@@ -4030,7 +4030,7 @@ def _ns_var(
 
 def py_module_preamble(ns: runtime.Namespace) -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
-    preamble: List[PyASTNode] = []
+    preamble: list[PyASTNode] = []
     preamble.extend(_module_imports(ns))
     preamble.extend(_from_module_imports())
     preamble.append(_ns_var())

@@ -52,8 +52,9 @@ def test_demunged_import(pytester: pytest.Pytester):
             module.write(code)
 
         with runtime.remove_ns_bindings():
-            with patch("sys.path", new=[tmpdir]), patch(
-                "sys.meta_path", new=[importer.BasilispImporter()]
+            with (
+                patch("sys.path", new=[tmpdir]),
+                patch("sys.meta_path", new=[importer.BasilispImporter()]),
             ):
                 importlib.import_module(
                     "long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__"

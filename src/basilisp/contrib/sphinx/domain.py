@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union, cast
+from collections.abc import Iterable
+from typing import Any, NamedTuple, Optional, Union, cast
 
 from docutils import nodes
 from docutils.nodes import Element, Node
@@ -78,7 +79,7 @@ class BasilispCurrentNamespace(SphinxDirective):
 
     option_spec: OptionSpec = {}
 
-    def run(self) -> List[Node]:
+    def run(self) -> list[Node]:
         modname = self.arguments[0].strip()
         if modname == "None":
             self.env.ref_context.pop("lpy:namespace", None)
@@ -100,13 +101,13 @@ class BasilispNamespace(SphinxDirective):
         "deprecated": directives.flag,
     }
 
-    def run(self) -> List[Node]:
+    def run(self) -> list[Node]:
         domain = cast(BasilispDomain, self.env.get_domain("lpy"))
 
         modname = self.arguments[0].strip()
         noindex = "noindex" in self.options
         self.env.ref_context["lpy:namespace"] = modname
-        ret: List[Node] = []
+        ret: list[Node] = []
         if not noindex:
             # note module to the domain
             node_id = make_id(self.env, self.state.document, "namespace", modname)
@@ -139,12 +140,12 @@ class BasilispObject(PyObject):  # pylint: disable=abstract-method
         }
     )
 
-    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+    def handle_signature(self, sig: str, signode: desc_signature) -> tuple[str, str]:
         """Subclasses should implement this themselves."""
         return NotImplemented
 
     def add_target_and_index(
-        self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
+        self, name_cls: tuple[str, str], sig: str, signode: desc_signature
     ) -> None:
         modname = self.options.get("module", self.env.ref_context.get("lpy:namespace"))
         fullname = (modname + "/" if modname else "") + name_cls[0]
@@ -187,7 +188,7 @@ class BasilispVar(BasilispObject):
             prefix = f"dynamic {prefix}"
         return prefix
 
-    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+    def handle_signature(self, sig: str, signode: desc_signature) -> tuple[str, str]:
         prefix = self.get_signature_prefix(sig)
         if prefix:
             signode += addnodes.desc_annotation(prefix, prefix)
@@ -206,7 +207,7 @@ class BasilispVar(BasilispObject):
 
         return sig, prefix
 
-    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+    def get_index_text(self, modname: str, name: tuple[str, str]) -> str:
         sig, prefix = name
         return f"{sig} ({prefix} in {modname})"
 
@@ -214,7 +215,7 @@ class BasilispVar(BasilispObject):
 class BasilispFunctionLike(BasilispObject):  # pylint: disable=abstract-method
     option_spec: OptionSpec = BasilispObject.option_spec.copy()
 
-    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+    def handle_signature(self, sig: str, signode: desc_signature) -> tuple[str, str]:
         prefix = self.get_signature_prefix(sig)
         if prefix:
             signode += addnodes.desc_annotation(prefix, prefix)
@@ -245,7 +246,7 @@ class BasilispSpecialForm(BasilispFunctionLike):
         return "special form"
 
     def add_target_and_index(
-        self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
+        self, name_cls: tuple[str, str], sig: str, signode: desc_signature
     ) -> None:
         fullname = name_cls[0]
         node_id = fullname
@@ -256,7 +257,7 @@ class BasilispSpecialForm(BasilispFunctionLike):
         domain = cast(BasilispDomain, self.env.get_domain("lpy"))
         domain.note_form(fullname, node_id)
 
-    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+    def get_index_text(self, modname: str, name: tuple[str, str]) -> str:
         sig, prefix = name
         sig_sexp = runtime.first(reader.read_str(sig))
         if isinstance(sig_sexp, IPersistentList):
@@ -282,7 +283,7 @@ class BasilispFunction(BasilispFunctionLike):
             prefix = f"async {prefix}"
         return prefix
 
-    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+    def get_index_text(self, modname: str, name: tuple[str, str]) -> str:
         sig, prefix = name
         sig_sexp = runtime.first(reader.read_str(sig))
         if isinstance(sig_sexp, IPersistentList):
@@ -294,7 +295,7 @@ class BasilispClassLike(BasilispObject):
     def get_signature_prefix(self, sig: str) -> str:
         return self.objtype
 
-    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+    def handle_signature(self, sig: str, signode: desc_signature) -> tuple[str, str]:
         prefix = self.get_signature_prefix(sig)
         if prefix:
             signode += addnodes.desc_annotation(prefix, prefix)
@@ -304,7 +305,7 @@ class BasilispClassLike(BasilispObject):
         signode += addnodes.desc_name(sig, sig)
         return sig, prefix
 
-    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+    def get_index_text(self, modname: str, name: tuple[str, str]) -> str:
         sig, prefix = name
         return f"{sig} ({prefix} in {modname})"
 
@@ -316,10 +317,10 @@ class BasilispNamespaceIndex(Index):
 
     def generate(  # pylint: disable=too-many-locals
         self, docnames: Optional[Iterable[str]] = None
-    ) -> Tuple[List[Tuple[str, List[IndexEntry]]], bool]:
-        content: Dict[str, List[IndexEntry]] = defaultdict(list)
+    ) -> tuple[list[tuple[str, list[IndexEntry]]], bool]:
+        content: dict[str, list[IndexEntry]] = defaultdict(list)
 
-        ignores: List[str] = self.domain.env.config["modindex_common_prefix"]
+        ignores: list[str] = self.domain.env.config["modindex_common_prefix"]
         ignores = sorted(ignores, key=len, reverse=True)
         namespaces = sorted(
             self.domain.data["namespaces"].items(), key=lambda x: x[0].lower()
@@ -399,7 +400,7 @@ class BasilispXRefRole(XRefRole):
         has_explicit_title: bool,
         title: str,
         target: str,
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         if refnode.attributes.get("reftype") != "form":
             refnode["lpy:namespace"] = env.ref_context.get("lpy:namespace")
         return title, target
@@ -428,7 +429,7 @@ class NamespaceEntry(NamedTuple):
 class BasilispDomain(Domain):
     name = "lpy"
     label = "basilisp"
-    object_types: Dict[str, ObjType] = {
+    object_types: dict[str, ObjType] = {
         "form": ObjType("special form", "form", "specialform", "obj"),
         "namespace": ObjType("namespace", "ns", "obj"),
         "var": ObjType("var", "var", "obj"),
@@ -467,7 +468,7 @@ class BasilispDomain(Domain):
         "meth": BasilispXRefRole(),
         "prop": BasilispXRefRole(),
     }
-    initial_data: Dict[str, Dict[str, Tuple[Any]]] = {
+    initial_data: dict[str, dict[str, tuple[Any]]] = {
         "forms": {},  # name -> docname
         "vars": {},  # fullname -> docname, objtype
         "namespaces": {},  # nsname -> docname, synopsis, platform, deprecated
@@ -475,7 +476,7 @@ class BasilispDomain(Domain):
     indices = [BasilispNamespaceIndex]
 
     @property
-    def forms(self) -> Dict[str, FormEntry]:
+    def forms(self) -> dict[str, FormEntry]:
         return self.data.setdefault("forms", {})
 
     def note_form(
@@ -487,7 +488,7 @@ class BasilispDomain(Domain):
         self.forms[name] = FormEntry(self.env.docname, node_id)
 
     @property
-    def vars(self) -> Dict[str, VarEntry]:
+    def vars(self) -> dict[str, VarEntry]:
         return self.data.setdefault("vars", {})
 
     def note_var(
@@ -501,7 +502,7 @@ class BasilispDomain(Domain):
         self.vars[name] = VarEntry(self.env.docname, node_id, objtype, aliased)
 
     @property
-    def namespaces(self) -> Dict[str, NamespaceEntry]:
+    def namespaces(self) -> dict[str, NamespaceEntry]:
         return self.data.setdefault("namespaces", {})
 
     def note_namespace(  # pylint: disable=too-many-arguments
@@ -527,7 +528,7 @@ class BasilispDomain(Domain):
             if ns_entry.docname == docname:
                 del self.namespaces[ns_name]
 
-    def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
+    def merge_domaindata(self, docnames: list[str], otherdata: dict) -> None:
         for frm_name, form_entry in otherdata["forms"].items():
             if form_entry.docname in docnames:
                 self.forms[frm_name] = form_entry
@@ -592,5 +593,5 @@ class BasilispDomain(Domain):
         target: str,
         node: pending_xref,
         contnode: Element,
-    ) -> List[Tuple[str, Element]]:
+    ) -> list[tuple[str, Element]]:
         raise NotImplementedError

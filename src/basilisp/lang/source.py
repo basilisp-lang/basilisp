@@ -1,7 +1,8 @@
 import itertools
 import linecache
 import os
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 try:
     import pygments.formatters
@@ -59,7 +60,7 @@ def format_source_context(  # pylint: disable=too-many-arguments,too-many-locals
     num_context_lines: int = 5,
     show_cause_marker: bool = True,
     disable_color: Optional[bool] = None,
-) -> List[str]:
+) -> list[str]:
     """Format source code context with line numbers and identifiers for the affected
     line(s).
 
