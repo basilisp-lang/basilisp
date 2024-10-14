@@ -43,10 +43,9 @@ def pytest_configure(config):
     # during tests and restore them afterward.
     out_var = runtime.Var.find(OUT_VAR_SYM)
     err_var = runtime.Var.find(ERR_VAR_SYM)
-    bindings = {
+    if bindings := {
         k: v for k, v in {out_var: sys.stdout, err_var: sys.stderr}.items() if k
-    }
-    if bindings.items():
+    }:
         runtime.push_thread_bindings(lmap.map(bindings))
         config.basilisp_bindings = bindings
 
