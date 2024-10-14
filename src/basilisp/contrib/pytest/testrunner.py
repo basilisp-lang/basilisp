@@ -42,21 +42,19 @@ def pytest_configure(config):
     # during tests and restore them afterward.
     out_var = runtime.Var.find(OUT_VAR_SYM)
     err_var = runtime.Var.find(ERR_VAR_SYM)
-    if out_var:
-        out_var.push_bindings(sys.stdout)
-        config.out_var = out_var
-    if err_var:
-        err_var.push_bindings(sys.stderr)
-        config.err_var = err_var
+    bindings = {
+        k: v for k, v in {out_var: sys.stdout, err_var: sys.stderr}.items() if k
+    }
+    if bindings.items():
+        runtime.push_thread_bindings(bindings)
+        config.basilisp_bindings = bindings
 
     basilisp.bootstrap("basilisp.test")
 
 
 def pytest_unconfigure(config):
-    if hasattr(config, "out_var"):
-        config.out_var.pop_bindings()
-    if hasattr(config, "err_var"):
-        config.err_var.pop_bindings()
+    if hasattr(config, "basilisp_bindings"):
+        runtime.pop_thread_bindings()
 
 
 def pytest_collect_file(  # pylint: disable=unused-argument
