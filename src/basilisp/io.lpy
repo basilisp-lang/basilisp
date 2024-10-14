@@ -34,7 +34,7 @@
       (let [path (.-path f)]
         ;; On MS-Windows, extracting an absolute path from the URL
         ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
-        (pathlib/Path #?(:windows (if (os.path/isabs path) (subs path 1) path)
+        (pathlib/Path #?(:windows (if (str/starts-with? path "/") (subs path 1) path)
                          :default path)))
       (throw
        (ex-info "Cannot coerce non-File URL to pathlib.Path"
