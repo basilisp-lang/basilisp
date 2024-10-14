@@ -188,7 +188,7 @@ jobs:
           tox run-parallel -p 2
 
   report-coverage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs:
      - run-tests
      - run-pypy-tests
