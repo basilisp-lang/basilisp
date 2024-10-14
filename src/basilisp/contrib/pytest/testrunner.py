@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import os
+import sys
 import traceback
 from pathlib import Path
 from types import GeneratorType
@@ -12,6 +13,7 @@ from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
@@ -20,13 +22,44 @@ _EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
 _ONCE_FIXTURES_NUM_META_KW = kw.keyword("once-fixtures", "basilisp.test")
 _TEST_META_KW = kw.keyword("test", "basilisp.test")
 
+CORE_NS = "basilisp.core"
+CORE_NS_SYM = sym.symbol(CORE_NS)
+OUT_VAR_NAME = "*out*"
+OUT_VAR_SYM = sym.symbol(OUT_VAR_NAME, ns=CORE_NS)
+ERR_VAR_NAME = "*err*"
+ERR_VAR_SYM = sym.symbol(ERR_VAR_NAME, ns=CORE_NS)
 
-# pylint: disable=unused-argument
+
 def pytest_configure(config):
+
+    # https://github.com/pytest-dev/pytest/issues/12876
+    #
+    # Basilisp's standard output streams may be initialized before
+    # pytest captures sys streams (sys.stdout and sys.stderr) for
+    # testing (e.g., with `basilisp test`). Writing to the original
+    # handles during tests on Windows can cause invalid handle
+    # errors. To prevent this, we rebind them to pytest's streams
+    # during tests and restore them afterward.
+    out_var = runtime.Var.find(OUT_VAR_SYM)
+    err_var = runtime.Var.find(ERR_VAR_SYM)
+    bindings = {
+        k: v for k, v in {out_var: sys.stdout, err_var: sys.stderr}.items() if k
+    }
+    if bindings.items():
+        runtime.push_thread_bindings(lmap.map(bindings))
+        config.basilisp_bindings = bindings
+
     basilisp.bootstrap("basilisp.test")
 
 
-def pytest_collect_file(file_path: Path, path, parent):
+def pytest_unconfigure(config):
+    if hasattr(config, "basilisp_bindings"):
+        runtime.pop_thread_bindings()
+
+
+def pytest_collect_file(  # pylint: disable=unused-argument
+    file_path: Path, path, parent
+):
     """Primary PyTest hook to identify Basilisp test files."""
     if file_path.suffix == ".lpy":
         if file_path.name.startswith("test_") or file_path.stem.endswith("_test"):
