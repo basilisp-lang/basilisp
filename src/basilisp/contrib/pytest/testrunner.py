@@ -46,7 +46,7 @@ def pytest_configure(config):
         k: v for k, v in {out_var: sys.stdout, err_var: sys.stderr}.items() if k
     }
     if bindings.items():
-        runtime.push_thread_bindings(bindings)
+        runtime.push_thread_bindings(lmap.map(bindings))
         config.basilisp_bindings = bindings
 
     basilisp.bootstrap("basilisp.test")
