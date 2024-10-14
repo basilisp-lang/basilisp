@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from typing import Deque, Optional
 
 from basilisp.lang.compiler.constants import OPERATOR_ALIAS
-from basilisp.lang.compiler.utils import ast_FunctionDef, ast_index
+from basilisp.lang.compiler.utils import ast_FunctionDef
 
 
 def _filter_dead_code(nodes: Iterable[ast.stmt]) -> list[ast.stmt]:
@@ -109,15 +109,13 @@ def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
             target, index = node.args
             assert len(node.args) == 2
             return ast.Delete(
-                targets=[
-                    ast.Subscript(value=target, slice=ast_index(index), ctx=ast.Del())
-                ]
+                targets=[ast.Subscript(value=target, slice=index, ctx=ast.Del())]
             )
 
         if fn.attr == "getitem":
             target, index = node.args
             assert len(node.args) == 2
-            return ast.Subscript(value=target, slice=ast_index(index), ctx=ast.Load())
+            return ast.Subscript(value=target, slice=index, ctx=ast.Load())
 
     return node
 

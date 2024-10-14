@@ -57,7 +57,7 @@ class TransientVector(ITransientVector[T]):
         return self
 
     def assoc_transient(self, *kvs: T) -> "TransientVector[T]":
-        for i, v in cast("Sequence[Tuple[int, T]]", partition(kvs, 2)):
+        for i, v in cast("Sequence[tuple[int, T]]", partition(kvs, 2)):
             self._inner.set(i, v)
         return self
 

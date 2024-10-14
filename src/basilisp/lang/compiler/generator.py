@@ -103,7 +103,6 @@ from basilisp.lang.compiler.utils import (
     ast_AsyncFunctionDef,
     ast_ClassDef,
     ast_FunctionDef,
-    ast_index,
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS
@@ -1985,7 +1984,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
         ret_ann_ast = (
             ast.Subscript(
                 value=ast.Name(id=_UNION_ALIAS, ctx=ast.Load()),
-                slice=ast_index(ast.Tuple(elts=ret_ann_asts, ctx=ast.Load())),
+                slice=ast.Tuple(elts=ret_ann_asts, ctx=ast.Load()),
                 ctx=ast.Load(),
             )
             if ret_ann_asts

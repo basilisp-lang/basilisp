@@ -2108,7 +2108,7 @@ def _basilisp_type(
                 continue
 
             if is_abstract(interface):
-                interface_names: frozenset[str] = interface.__abstractmethods__
+                interface_names: frozenset[str] = interface.__abstractmethods__  # type: ignore[attr-definedm]
                 interface_property_names: frozenset[str] = frozenset(
                     method
                     for method in interface_names
