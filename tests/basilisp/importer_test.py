@@ -8,7 +8,7 @@ import sys
 import tempfile
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Tuple
+from typing import Optional
 from unittest.mock import patch
 
 import pytest
@@ -52,8 +52,9 @@ def test_demunged_import(pytester: pytest.Pytester):
             module.write(code)
 
         with runtime.remove_ns_bindings():
-            with patch("sys.path", new=[tmpdir]), patch(
-                "sys.meta_path", new=[importer.BasilispImporter()]
+            with (
+                patch("sys.path", new=[tmpdir]),
+                patch("sys.meta_path", new=[importer.BasilispImporter()]),
             ):
                 importlib.import_module(
                     "long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__"
@@ -75,7 +76,7 @@ def test_demunged_import(pytester: pytest.Pytester):
             )
 
 
-def _ns_and_module(filename: str) -> Tuple[str, str]:
+def _ns_and_module(filename: str) -> tuple[str, str]:
     basename = os.path.splitext(os.path.basename(filename))[0]
     return demunge(basename), basename
 
@@ -577,7 +578,7 @@ class TestImporter:
             monkeypatch: pytest.MonkeyPatch,
             make_new_module,
             capsys,
-            args: List[str],
+            args: list[str],
             output: str,
         ):
             make_new_module(
@@ -634,7 +635,7 @@ def bootstrap_file() -> pathlib.Path:
     ],
 )
 def test_run_namespace_as_python_module(
-    bootstrap_file: pathlib.Path, tmp_path: pathlib.Path, args: List[str], ret: bytes
+    bootstrap_file: pathlib.Path, tmp_path: pathlib.Path, args: list[str], ret: bytes
 ):
     parent = tmp_path / "package"
     parent.mkdir()

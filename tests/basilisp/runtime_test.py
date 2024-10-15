@@ -29,23 +29,6 @@ def test_is_supported_python_version():
 @pytest.mark.parametrize(
     "feature",
     {
-        (3, 8): frozenset(
-            map(
-                kw.keyword,
-                [
-                    "lpy38",
-                    "default",
-                    "lpy",
-                    "lpy38-",
-                    "lpy38+",
-                    "lpy39-",
-                    "lpy310-",
-                    "lpy311-",
-                    "lpy312-",
-                    platform.system().lower(),
-                ],
-            )
-        ),
         (3, 9): frozenset(
             map(
                 kw.keyword,
@@ -55,10 +38,10 @@ def test_is_supported_python_version():
                     "lpy",
                     "lpy39-",
                     "lpy39+",
-                    "lpy38+",
                     "lpy310-",
                     "lpy311-",
                     "lpy312-",
+                    "lpy313-",
                     platform.system().lower(),
                 ],
             )
@@ -70,12 +53,12 @@ def test_is_supported_python_version():
                     "lpy310",
                     "default",
                     "lpy",
+                    "lpy313-",
                     "lpy312-",
                     "lpy311-",
                     "lpy310+",
                     "lpy310-",
                     "lpy39+",
-                    "lpy38+",
                     platform.system().lower(),
                 ],
             )
@@ -88,11 +71,11 @@ def test_is_supported_python_version():
                     "default",
                     "lpy",
                     "lpy311+",
+                    "lpy313-",
                     "lpy312-",
                     "lpy311-",
                     "lpy310+",
                     "lpy39+",
-                    "lpy38+",
                     platform.system().lower(),
                 ],
             )
@@ -106,10 +89,26 @@ def test_is_supported_python_version():
                     "lpy",
                     "lpy311+",
                     "lpy312+",
+                    "lpy313-",
                     "lpy312-",
-                    "lpy311+",
                     "lpy39+",
-                    "lpy38+",
+                    platform.system().lower(),
+                ],
+            )
+        ),
+        (3, 13): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy313",
+                    "default",
+                    "lpy",
+                    "lpy311+",
+                    "lpy312+",
+                    "lpy313+",
+                    "lpy313-",
+                    "lpy310+",
+                    "lpy39+",
                     platform.system().lower(),
                 ],
             )

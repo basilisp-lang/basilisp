@@ -2,9 +2,10 @@
 
 import os
 import re
+from collections.abc import Iterable, Mapping
 from functools import partial
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping, Optional, Type
+from typing import Any, Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application import run_in_terminal
@@ -127,7 +128,7 @@ class PromptToolkitPrompter(Prompter):
         return self._session.prompt(msg)
 
 
-_DEFAULT_PROMPTER: Type[Prompter] = PromptToolkitPrompter
+_DEFAULT_PROMPTER: type[Prompter] = PromptToolkitPrompter
 
 
 try:

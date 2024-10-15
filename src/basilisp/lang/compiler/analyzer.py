@@ -10,30 +10,13 @@ import re
 import sys
 import uuid
 from collections import defaultdict
+from collections.abc import Collection, Iterable, Mapping, MutableMapping, MutableSet
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
-from typing import (
-    Any,
-    Callable,
-    Collection,
-    Deque,
-    FrozenSet,
-    Iterable,
-    List,
-    Mapping,
-    MutableMapping,
-    MutableSet,
-    Optional,
-    Pattern,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from re import Pattern
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Literal
@@ -345,12 +328,12 @@ class AnalyzerContext:
     ) -> None:
         self._allow_unresolved_symbols = allow_unresolved_symbols
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._func_ctx: Deque[FunctionContext] = collections.deque([])
-        self._is_quoted: Deque[bool] = collections.deque([])
+        self._func_ctx: collections.deque[FunctionContext] = collections.deque([])
+        self._is_quoted: collections.deque[bool] = collections.deque([])
         self._opts = (
             Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore[arg-type, unused-ignore]
         )
-        self._recur_points: Deque[RecurPoint] = collections.deque([])
+        self._recur_points: collections.deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
         self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._syntax_pos = collections.deque([NodeSyntacticPosition.EXPR])
@@ -688,7 +671,7 @@ T_node = TypeVar("T_node", bound=Node)
 LispAnalyzer = Callable[[T_form, AnalyzerContext], T_node]
 
 
-def _loc(form: T_form) -> Optional[Tuple[int, int, int, int]]:
+def _loc(form: T_form) -> Optional[tuple[int, int, int, int]]:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
     # Technically, IMeta is sufficient for fetching `form.meta` but the
@@ -741,7 +724,7 @@ def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentM
 
 def _body_ast(
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
-) -> Tuple[Iterable[Node], Node]:
+) -> tuple[Iterable[Node], Node]:
     """Analyze the form and produce a body of statement nodes and a single
     return expression node.
 
@@ -773,7 +756,7 @@ def _body_ast(
 
 def _call_args_ast(
     form: ISeq, ctx: AnalyzerContext
-) -> Tuple[Iterable[Node], KeywordArgs]:
+) -> tuple[Iterable[Node], KeywordArgs]:
     """Return a tuple of positional arguments and keyword arguments, splitting at the
     keyword argument marker symbol '**'."""
     with ctx.expr_pos():
@@ -1125,7 +1108,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
 
 def __deftype_method_param_bindings(
     params: vec.PersistentVector, ctx: AnalyzerContext, special_form: sym.Symbol
-) -> Tuple[bool, int, List[Binding]]:
+) -> tuple[bool, int, list[Binding]]:
     """Generate parameter bindings for `deftype*` or `reify*` methods.
 
     Return a tuple containing a boolean, indicating if the parameter bindings
@@ -1199,8 +1182,9 @@ def __deftype_classmethod(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeClassMethod:
     """Emit a node for a :classmethod member of a `deftype*` form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
-        method_name, is_context_boundary=True
+    with (
+        ctx.hide_parent_symbol_table(),
+        ctx.new_symbol_table(method_name, is_context_boundary=True),
     ):
         try:
             cls_arg = args[0]
@@ -1390,8 +1374,9 @@ def __deftype_staticmethod(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeStaticMethod:
     """Emit a node for a :staticmethod member of a `deftype*` form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
-        method_name, is_context_boundary=True
+    with (
+        ctx.hide_parent_symbol_table(),
+        ctx.new_symbol_table(method_name, is_context_boundary=True),
     ):
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
             args, ctx, SpecialForm.DEFTYPE
@@ -1505,7 +1490,7 @@ def __deftype_or_reify_prop_or_method_arity(
 def __deftype_or_reify_method_node_from_arities(
     form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
-    arities: List[DefTypeMethodArity],
+    arities: list[DefTypeMethodArity],
     special_form: sym.Symbol,
 ) -> DefTypeMember:
     """Roll all of the collected `deftype*` or `reify*` arities up into a single
@@ -1542,7 +1527,7 @@ def __deftype_or_reify_method_node_from_arities(
         )
 
     assert (
-        len(set(arity.name for arity in arities)) <= 1
+        len({arity.name for arity in arities}) <= 1
     ), "arities must have the same name defined"
 
     if len(arities) > 1 and any(arity.kwarg_support is not None for arity in arities):
@@ -1564,7 +1549,7 @@ def __deftype_or_reify_method_node_from_arities(
 
 def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
     form: ISeq, ctx: AnalyzerContext, special_form: sym.Symbol
-) -> Tuple[List[DefTypeBase], List[DefTypeMember]]:
+) -> tuple[list[DefTypeBase], list[DefTypeMember]]:
     """Roll up `deftype*` and `reify*` declared bases and method implementations."""
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
@@ -1612,7 +1597,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     # keys to act as an ordered set of members we've seen. We don't want to register
     # duplicates.
     member_order = {}
-    methods: MutableMapping[str, List[DefTypeMethodArity]] = collections.defaultdict(
+    methods: MutableMapping[str, list[DefTypeMethodArity]] = collections.defaultdict(
         list
     )
     py_members: MutableMapping[str, DefTypePythonMember] = {}
@@ -1653,7 +1638,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
                 )
             methods[member.name].append(member)
 
-    members: List[DefTypeMember] = []
+    members: list[DefTypeMember] = []
     for member_name in member_order:
         arities = methods.get(member_name)
         if arities is not None:
@@ -1686,18 +1671,18 @@ def __is_reify_member(mem) -> bool:
 
 if platform.python_implementation() == "CPython":
 
-    def __is_type_weakref(tp: Type) -> bool:
+    def __is_type_weakref(tp: type) -> bool:
         return getattr(tp, "__weakrefoffset__", 0) > 0
 
 else:
 
-    def __is_type_weakref(tp: Type) -> bool:  # pylint: disable=unused-argument
+    def __is_type_weakref(tp: type) -> bool:  # pylint: disable=unused-argument
         return True
 
 
 def __get_artificially_abstract_members(
     ctx: AnalyzerContext, special_form: sym.Symbol, interface: DefTypeBase
-) -> Set[str]:
+) -> set[str]:
     if (
         declared_abstract_members := _artificially_abstract_members(
             cast(IMeta, interface.form)
@@ -1780,8 +1765,8 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
 
     supertype_possibly_weakref = []
     unverifiably_abstract = set()
-    artificially_abstract: Set[DefTypeBase] = set()
-    artificially_abstract_base_members: Set[str] = set()
+    artificially_abstract: set[DefTypeBase] = set()
+    artificially_abstract_base_members: set[str] = set()
     is_member = {
         SpecialForm.DEFTYPE: __is_deftype_member,
         SpecialForm.REIFY: __is_reify_member,
@@ -1790,7 +1775,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
     field_names = frozenset(fields)
     member_names = frozenset(deftype_or_reify_python_member_names(members))
     all_member_names = field_names.union(member_names)
-    all_interface_methods: Set[str] = set()
+    all_interface_methods: set[str] = set()
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
@@ -1852,8 +1837,8 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
             )
             supertype_possibly_weakref.append(__is_type_weakref(interface_type))
         elif is_abstract(interface_type):
-            interface_names: FrozenSet[str] = interface_type.__abstractmethods__
-            interface_property_names: FrozenSet[str] = frozenset(
+            interface_names: frozenset[str] = interface_type.__abstractmethods__
+            interface_property_names: frozenset[str] = frozenset(
                 method
                 for method in interface_names
                 if isinstance(getattr(interface_type, method), property)
@@ -2093,9 +2078,14 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
-            with ctx.new_func_ctx(
-                FunctionContext.ASYNC_FUNCTION if is_async else FunctionContext.FUNCTION
-            ), ctx.expr_pos():
+            with (
+                ctx.new_func_ctx(
+                    FunctionContext.ASYNC_FUNCTION
+                    if is_async
+                    else FunctionContext.FUNCTION
+                ),
+                ctx.expr_pos(),
+            ):
                 stmts, ret = _body_ast(form.rest, ctx)
             method = FnArity(
                 form=form,
@@ -2142,12 +2132,12 @@ InlineMeta = Union[Callable, bool, None]
 
 
 @functools.singledispatch
-def __unquote_args(f: LispForm, _: FrozenSet[sym.Symbol]):
+def __unquote_args(f: LispForm, _: frozenset[sym.Symbol]):
     return f
 
 
 @__unquote_args.register(sym.Symbol)
-def __unquote_args_sym(f: sym.Symbol, args: FrozenSet[sym.Symbol]):
+def __unquote_args_sym(f: sym.Symbol, args: frozenset[sym.Symbol]):
     if f in args:
         return llist.l(reader._UNQUOTE, f)
     return f
@@ -2512,7 +2502,7 @@ T_alias_node = TypeVar("T_alias_node", ImportAlias, RequireAlias)
 
 def _do_warn_on_import_or_require_name_clash(
     ctx: AnalyzerContext,
-    alias_nodes: List[T_alias_node],
+    alias_nodes: list[T_alias_node],
     action: Literal["import", "require"],
 ) -> None:
     assert alias_nodes, "Must have at least one alias"
@@ -2663,7 +2653,7 @@ def _do_warn_on_arity_mismatch(
     fn: VarRef, form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> None:
     if ctx.warn_on_arity_mismatch and getattr(fn.var.value, "_basilisp_fn", False):
-        arities: Optional[Tuple[Union[int, kw.Keyword]]] = getattr(
+        arities: Optional[tuple[Union[int, kw.Keyword]]] = getattr(
             fn.var.value, "arities", None
         )
         if arities is not None:
@@ -2678,7 +2668,7 @@ def _do_warn_on_arity_mismatch(
             if has_variadic and (max_fixed_arity is None or num_args > max_fixed_arity):
                 return
             if num_args not in fixed_arities:
-                report_arities = cast(Set[Union[int, str]], set(fixed_arities))
+                report_arities = cast(set[Union[int, str]], set(fixed_arities))
                 if has_variadic:
                     report_arities.discard(cast(int, max_fixed_arity))
                     report_arities.add(f"{max_fixed_arity}+")

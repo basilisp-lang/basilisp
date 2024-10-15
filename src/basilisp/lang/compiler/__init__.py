@@ -1,10 +1,11 @@
 import ast
 import itertools
 import os
-import sys
 import types
+from ast import unparse
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable, List, Optional
+from typing import Any, Callable, Optional
 
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
@@ -43,33 +44,10 @@ from basilisp.util import Maybe
 _DEFAULT_FN = "__lisp_expr__"
 
 
-if sys.version_info >= (3, 9):
-    from ast import unparse
-
-    def to_py_str(t: ast.AST) -> str:
-        """Return a string of the Python code which would generate the input
-        AST node."""
-        return unparse(t) + "\n\n"
-
-else:
-    try:
-        from astor import code_gen as codegen
-
-        def to_py_str(t: ast.AST) -> str:
-            """Return a string of the Python code which would generate the input
-            AST node."""
-            return codegen.to_source(t)
-
-    except ImportError:
-        import warnings
-
-        def to_py_str(t: ast.AST) -> str:  # pylint: disable=unused-argument
-            warnings.warn(
-                "Unable to generate Python code from generated AST due to missing "
-                "dependency 'astor'",
-                RuntimeWarning,
-            )
-            return ""
+def to_py_str(t: ast.AST) -> str:
+    """Return a string of the Python code which would generate the input
+    AST node."""
+    return unparse(t) + "\n\n"
 
 
 BytecodeCollector = Callable[[types.CodeType], None]
@@ -293,7 +271,7 @@ def compile_module(
 
 
 def compile_bytecode(
-    code: List[types.CodeType],
+    code: list[types.CodeType],
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
     ns: runtime.Namespace,

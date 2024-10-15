@@ -1,7 +1,7 @@
 import importlib
 import site
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from basilisp import importer as importer
 from basilisp import logconfig
@@ -56,7 +56,7 @@ def bootstrap(
         getattr(mod, fn_name)()
 
 
-def bootstrap_python(site_packages: Optional[List[str]] = None) -> None:
+def bootstrap_python(site_packages: Optional[list[str]] = None) -> None:
     """Bootstrap a Python installation by installing a ``.pth`` file in the first
     available ``site-packages`` directory (as by
     :external:py:func:`site.getsitepackages`).
@@ -75,7 +75,7 @@ def bootstrap_python(site_packages: Optional[List[str]] = None) -> None:
         break
 
 
-def unbootstrap_python(site_packages: Optional[List[str]] = None) -> List[str]:
+def unbootstrap_python(site_packages: Optional[list[str]] = None) -> list[str]:
     """Remove any `basilispbootstrap.pth` files found in any Python site-packages
     directory (as by :external:py:func:`site.getsitepackages`). Return a list of
     removed filenames."""

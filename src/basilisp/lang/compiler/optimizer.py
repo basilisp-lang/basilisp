@@ -1,18 +1,19 @@
 import ast
 import functools
 from collections import deque
+from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Deque, Iterable, List, Optional, Set
+from typing import Deque, Optional
 
 from basilisp.lang.compiler.constants import OPERATOR_ALIAS
-from basilisp.lang.compiler.utils import ast_FunctionDef, ast_index
+from basilisp.lang.compiler.utils import ast_FunctionDef
 
 
-def _filter_dead_code(nodes: Iterable[ast.stmt]) -> List[ast.stmt]:
+def _filter_dead_code(nodes: Iterable[ast.stmt]) -> list[ast.stmt]:
     """Return a list of body nodes, trimming out unreachable code (any
     statements appearing after `break`, `continue`, `raise`, and `return`
     nodes)."""
-    new_nodes: List[ast.stmt] = []
+    new_nodes: list[ast.stmt] = []
     for node in nodes:
         if isinstance(node, (ast.Break, ast.Continue, ast.Raise, ast.Return)):
             new_nodes.append(node)
@@ -108,15 +109,13 @@ def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
             target, index = node.args
             assert len(node.args) == 2
             return ast.Delete(
-                targets=[
-                    ast.Subscript(value=target, slice=ast_index(index), ctx=ast.Del())
-                ]
+                targets=[ast.Subscript(value=target, slice=index, ctx=ast.Del())]
             )
 
         if fn.attr == "getitem":
             target, index = node.args
             assert len(node.args) == 2
-            return ast.Subscript(value=target, slice=ast_index(index), ctx=ast.Load())
+            return ast.Subscript(value=target, slice=index, ctx=ast.Load())
 
     return node
 
@@ -125,7 +124,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
     __slots__ = ("_global_ctx",)
 
     def __init__(self):
-        self._global_ctx: Deque[Set[str]] = deque([set()])
+        self._global_ctx: Deque[set[str]] = deque([set()])
 
     @contextmanager
     def _new_global_context(self):
@@ -137,7 +136,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             self._global_ctx.pop()
 
     @property
-    def _global_context(self) -> Set[str]:
+    def _global_context(self) -> set[str]:
         """Return the current Python `global` context."""
         return self._global_ctx[-1]
 

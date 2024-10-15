@@ -8,30 +8,13 @@ import io
 import os
 import re
 import uuid
+from collections.abc import Collection, Iterable, MutableMapping, Sequence
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
+from re import Pattern
 from types import TracebackType
-from typing import (
-    Any,
-    Callable,
-    Collection,
-    Deque,
-    Dict,
-    Iterable,
-    List,
-    MutableMapping,
-    NoReturn,
-    Optional,
-    Pattern,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, Callable, NoReturn, Optional, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Unpack
@@ -148,7 +131,7 @@ class SyntaxError(Exception):
         )
 
     def __str__(self):
-        keys: Dict[str, Union[str, int]] = {}
+        keys: dict[str, Union[str, int]] = {}
         if self.filename is not None:
             keys["file"] = self.filename
         if self.line is not None and self.col is not None:
@@ -164,10 +147,10 @@ class SyntaxError(Exception):
 @format_exception.register(SyntaxError)
 def format_syntax_error(  # pylint: disable=unused-argument
     e: SyntaxError,
-    tp: Optional[Type[Exception]] = None,
+    tp: Optional[type[Exception]] = None,
     tb: Optional[TracebackType] = None,
     disable_color: Optional[bool] = None,
-) -> List[str]:
+) -> list[str]:
     """If `disable_color` is True, no color formatting will be applied to the source
     code."""
 
@@ -269,7 +252,7 @@ class StreamReader:
         return self._line[self._idx]
 
     @property
-    def loc(self) -> Tuple[int, int]:
+    def loc(self) -> tuple[int, int]:
         """Return the location of the character returned by `peek` as a tuple of
         (line, col)."""
         return self.line, self.col
@@ -402,9 +385,9 @@ class ReaderContext:
         self._process_reader_cond = process_reader_cond
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
-        self._in_anon_fn: Deque[bool] = collections.deque([])
-        self._syntax_quoted: Deque[bool] = collections.deque([])
-        self._gensym_env: Deque[GenSymEnvironment] = collections.deque([])
+        self._in_anon_fn: collections.deque[bool] = collections.deque([])
+        self._syntax_quoted: collections.deque[bool] = collections.deque([])
+        self._gensym_env: collections.deque[GenSymEnvironment] = collections.deque([])
         self._eof = eof
 
     @property
@@ -494,7 +477,7 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
 
     def __init__(
         self,
-        form: llist.PersistentList[Tuple[kw.Keyword, ReaderForm]],
+        form: llist.PersistentList[tuple[kw.Keyword, ReaderForm]],
         is_splicing: bool = False,
     ):
         self._form = form
@@ -502,13 +485,13 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
         self._is_splicing = is_splicing
 
     @staticmethod
-    def _compile_feature_vec(form: IPersistentList[Tuple[kw.Keyword, ReaderForm]]):
-        found_features: Set[kw.Keyword] = set()
-        feature_list: List[Tuple[kw.Keyword, ReaderForm]] = []
+    def _compile_feature_vec(form: IPersistentList[tuple[kw.Keyword, ReaderForm]]):
+        found_features: set[kw.Keyword] = set()
+        feature_list: list[tuple[kw.Keyword, ReaderForm]] = []
 
         try:
             for k, v in partition(
-                cast(Sequence[Tuple[kw.Keyword, ReaderForm]], form), 2
+                cast(Sequence[tuple[kw.Keyword, ReaderForm]], form), 2
             ):
                 if not isinstance(k, kw.Keyword):
                     raise SyntaxError(
@@ -591,10 +574,10 @@ def _with_loc(f: W) -> W:
 
 def _read_namespaced(
     ctx: ReaderContext, allowed_suffix: Optional[str] = None
-) -> Tuple[Optional[str], str]:
+) -> tuple[Optional[str], str]:
     """Read a namespaced token (keyword or symbol) from the input stream."""
-    ns: List[str] = []
-    name: List[str] = []
+    ns: list[str] = []
+    name: list[str] = []
     reader = ctx.reader
     has_ns = False
     while True:
@@ -644,7 +627,7 @@ def _read_coll(
 ):
     """Read a collection from the input stream and create the
     collection using f."""
-    coll: List = []
+    coll: list = []
     reader = ctx.reader
     while True:
         char = reader.peek()
@@ -839,7 +822,7 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-stateme
     ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
-    chars: List[str] = []
+    chars: list[str] = []
     reader = ctx.reader
 
     while True:
@@ -934,7 +917,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
 
     If allow_arbitrary_escapes is True, do not throw a SyntaxError if an
     unknown escape sequence is encountered."""
-    s: List[str] = []
+    s: list[str] = []
     reader = ctx.reader
     while True:
         char = reader.next_char()
@@ -997,7 +980,7 @@ def _read_byte_str(ctx: ReaderContext) -> bytes:
     if char != '"':
         raise ctx.syntax_error(f"Expected '\"'; got '{char}' instead")
 
-    b: List[bytes] = []
+    b: list[bytes] = []
     while True:
         char = reader.next_char()
         if char == "":
@@ -1188,7 +1171,7 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
 
     body = _postwalk(identify_and_replace, form) if len(form) > 0 else None
 
-    arg_list: List[sym.Symbol] = []
+    arg_list: list[sym.Symbol] = []
     numbered_args = sorted(map(int, filter(lambda k: k != "rest", arg_set)))
     if len(numbered_args) > 0:
         max_arg = max(numbered_args)
@@ -1378,7 +1361,7 @@ def _read_character(ctx: ReaderContext) -> str:
     start = ctx.reader.advance()
     assert start == "\\"
 
-    s: List[str] = []
+    s: list[str] = []
     reader = ctx.reader
     char = reader.peek()
     is_first_char = True

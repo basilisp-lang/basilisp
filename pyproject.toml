@@ -13,16 +13,16 @@ documentation = "https://basilisp.readthedocs.io/"
 classifiers = [
     # Trove classifiers
     # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 3 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Eclipse Public License 1.0 (EPL-1.0)",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Compilers",
@@ -30,24 +30,19 @@ classifiers = [
 include = ["README.md", "LICENSE"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 attrs = ">=22.2.0"
-graphlib-backport = { version = "^1.1.0", python = "<3.9" }
 immutables = ">=0.20,<1.0.0"
 prompt-toolkit = ">=3.0.0,<4.0.0"
 pyrsistent = ">=0.18.0,<1.0.0"
 typing-extensions = ">=4.7.0,<5.0.0"
 
-astor = { version = "^0.8.1", python = "<3.9", optional = true }
 pytest = { version = ">=7.0.0,<9.0.0", optional = true }
 pygments = { version = ">=2.9.0,<3.0.0", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 black = ">=24.0.0"
-docutils = [
-    { version = "<0.21", python = "3.8" },
-    { version = "*", python = ">=3.9" }
-]
+docutils = "*"
 isort = "*"
 pygments = "*"
 pytest = ">=7.0.0,<9.0.0"
@@ -79,7 +74,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ["py38"]
+target-version = ["py39"]
 include = '\.pyi?$'
 exclude = '''
 /(

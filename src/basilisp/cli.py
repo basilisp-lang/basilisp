@@ -6,8 +6,9 @@ import pathlib
 import sys
 import textwrap
 import types
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Sequence, Type, Union
+from typing import Any, Callable, Optional, Union
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler
@@ -109,8 +110,8 @@ def _to_bool(v: Optional[str]) -> Optional[bool]:
 
 
 def _set_envvar_action(
-    var: str, parent: Type[argparse.Action] = argparse.Action
-) -> Type[argparse.Action]:
+    var: str, parent: type[argparse.Action] = argparse.Action
+) -> type[argparse.Action]:
     """Return an argparse.Action instance (deriving from `parent`) that sets the value
     as the default value of the environment variable `var`."""
 
@@ -381,7 +382,7 @@ def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
 
 Handler = Union[
     Callable[[argparse.ArgumentParser, argparse.Namespace], None],
-    Callable[[argparse.ArgumentParser, argparse.Namespace, List[str]], None],
+    Callable[[argparse.ArgumentParser, argparse.Namespace, list[str]], None],
 ]
 
 
@@ -729,7 +730,7 @@ def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
 def test(
     parser: argparse.ArgumentParser,
     args: argparse.Namespace,
-    extra: List[str],
+    extra: list[str],
 ) -> None:  # pragma: no cover
     init_path(args)
     basilisp.init(_compiler_opts(args))

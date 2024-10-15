@@ -34,7 +34,7 @@
       (let [path (.-path f)]
         ;; On MS-Windows, extracting an absolute path from the URL
         ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
-        (pathlib/Path #?(:windows (if (os.path/isabs path) (subs path 1) path)
+        (pathlib/Path #?(:windows (if (str/starts-with? path "/") (subs path 1) path)
                          :default path)))
       (throw
        (ex-info "Cannot coerce non-File URL to pathlib.Path"
@@ -411,13 +411,6 @@
        (clean-binary-mode)
        (make-output-stream f)))
 
-(defmacro ^:private buf-size
-  "In Python 3.8+, a default buffer size value is supplied if 0 is given. In earlier
-  versions, the default value is supplied via keyword argument and providing 0 ends
-  up causing 0 length buffers to be used."
-  []
-  #?(:py38+ 0 :py37- 16384))
-
 (defmulti copy-file
   "Multi-method implementation for copying files.
 
@@ -429,16 +422,16 @@
   (fn [input output _] [(type input) (type output)]))
 
 (defmethod copy-file [io/TextIOBase io/TextIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
   (shutil/copyfileobj input output ** :length buffer-size))
 
 (defmethod copy-file [pathlib/Path io/TextIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
   (with-open [r (reader input)]
     (shutil/copyfileobj r output ** :length buffer-size)))
 
 (defmethod copy-file [io/TextIOBase pathlib/Path]
-  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
   (with-open [w (writer output)]
     (shutil/copyfileobj input w ** :length buffer-size)))
 
@@ -452,12 +445,12 @@
 
 (defmethod copy-file [io/BufferedIOBase io/TextIOBase]
   ;; Decode a binary buffer into a text buffer
-  [input output {:keys [buffer-size encoding] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size encoding] :or {buffer-size 0}}]
   (with-open [r (reader input :encoding encoding)]
     (shutil/copyfileobj r output ** :length buffer-size)))
 
 (defmethod copy-file [io/BufferedIOBase io/BufferedIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
   (shutil/copyfileobj input output ** :length buffer-size))
 
 (defmethod copy-file [python/bytes io/BufferedIOBase]
@@ -465,12 +458,12 @@
   (copy-file (input-stream input) output opts))
 
 (defmethod copy-file [pathlib/Path io/BufferedIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
   (with-open [r (input-stream input)]
     (shutil/copyfileobj r output ** :length buffer-size)))
 
 (defmethod copy-file [io/BufferedIOBase pathlib/Path]
-  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
   (with-open [w (output-stream output)]
     (shutil/copyfileobj input w ** :length buffer-size)))
 

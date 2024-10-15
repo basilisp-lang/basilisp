@@ -1,6 +1,6 @@
 # 🐍 basilisp 🐍
 
-A Clojure-compatible(-ish) Lisp dialect targeting Python 3.8+.
+A Clojure-compatible(-ish) Lisp dialect targeting Python 3.9+.
 
 [![PyPI](https://img.shields.io/pypi/v/basilisp.svg?style=flat-square)](https://pypi.org/project/basilisp/) [![python](https://img.shields.io/pypi/pyversions/basilisp.svg?style=flat-square)](https://pypi.org/project/basilisp/) [![pyimpl](https://img.shields.io/pypi/implementation/basilisp.svg?style=flat-square)](https://pypi.org/project/basilisp/) [![readthedocs](https://img.shields.io/readthedocs/basilisp.svg?style=flat-square)](https://basilisp.readthedocs.io/) [![Run tests](https://github.com/basilisp-lang/basilisp/actions/workflows/run-tests.yml/badge.svg?branch=main)](https://github.com/basilisp-lang/basilisp/actions/workflows/run-tests.yml) [![Coveralls github](https://img.shields.io/coveralls/github/basilisp-lang/basilisp.svg?style=flat-square)](https://coveralls.io/github/basilisp-lang/basilisp) [![license](https://img.shields.io/github/license/basilisp-lang/basilisp.svg?style=flat-square)](https://github.com/basilisp-lang/basilisp/blob/master/LICENSE)
 

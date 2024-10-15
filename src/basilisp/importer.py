@@ -5,19 +5,11 @@ import os
 import os.path
 import sys
 import types
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import ModuleSpec
-from typing import (
-    Any,
-    Iterable,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
-    Sequence,
-    cast,
-)
+from typing import Any, Optional, cast
 
 from typing_extensions import TypedDict
 
@@ -49,7 +41,7 @@ def _w_long(x: int) -> bytes:
 
 
 def _basilisp_bytecode(
-    mtime: int, source_size: int, code: List[types.CodeType]
+    mtime: int, source_size: int, code: list[types.CodeType]
 ) -> bytes:
     """Return the bytes for a Basilisp bytecode cache file."""
     data = bytearray(MAGIC_NUMBER)
@@ -61,7 +53,7 @@ def _basilisp_bytecode(
 
 def _get_basilisp_bytecode(
     fullname: str, mtime: int, source_size: int, cache_data: bytes
-) -> List[types.CodeType]:
+) -> list[types.CodeType]:
     """Unmarshal the bytes from a Basilisp bytecode cache file, validating the
     file header prior to returning. If the file header does not match, throw
     an exception."""
@@ -104,7 +96,7 @@ def _cache_from_source(path: str) -> str:
     return os.path.join(cache_path, filename + ".lpyc")
 
 
-@lru_cache()
+@lru_cache
 def _is_package(path: str) -> bool:
     """Return True if path should be considered a Basilisp (and consequently
     a Python) package.
@@ -118,7 +110,7 @@ def _is_package(path: str) -> bool:
     return False
 
 
-@lru_cache()
+@lru_cache
 def _is_namespace_package(path: str) -> bool:
     """Return True if the current directory is a namespace Basilisp package.
 
@@ -270,7 +262,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             # in a synthetic namespace.
             #
             # The target namespace is free to interpret
-            code: List[types.CodeType] = []
+            code: list[types.CodeType] = []
             path = "/" + "/".join(fullname.split("."))
             try:
                 compiler.load(
@@ -347,7 +339,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             # During compilation, bytecode objects are added to the list which is
             # passed to the compiler. The collected bytecodes will be used to generate
             # an .lpyc file for caching the compiled file.
-            all_bytecode: List[types.CodeType] = []
+            all_bytecode: list[types.CodeType] = []
 
             logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
             # Cast to basic ReaderForm since the reader can never return a reader conditional
@@ -412,7 +404,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         else:
             try:
                 self._exec_cached_module(fullname, spec.loader_state, path_stats, ns)
-            except (EOFError, ImportError, IOError, OSError) as e:
+            except (EOFError, ImportError, OSError) as e:
                 logger.debug(f"Failed to load cached Basilisp module: {e}")
                 self._exec_module(fullname, spec.loader_state, path_stats, ns)
 

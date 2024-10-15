@@ -7,7 +7,7 @@ CompileFn = Callable[[str], Any]
 
 
 def get_or_create_ns(
-    name: sym.Symbol, refer: Tuple[sym.Symbol] = (CORE_NS_SYM,)
+    name: sym.Symbol, refer: tuple[sym.Symbol] = (CORE_NS_SYM,)
 ) -> Namespace:
     """Get or create the namespace named by `name`, referring in all of the symbols
     of the namespaced named by `refer`."""

@@ -16,10 +16,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         include:
-          - version: '3.8'
-            tox-env: py38,py38-mypy,py38-lint,safety
           - version: '3.9'
             tox-env: py39,py39-mypy,py39-lint,safety
           - version: '3.10'
@@ -28,12 +26,14 @@ jobs:
             tox-env: py311,py311-mypy,py311-lint,safety
           - version: '3.12'
             tox-env: py312,py312-mypy,py312-lint,format,safety
+          - version: '3.13'
+            tox-env: py313,py313-mypy,py313-lint,safety
           - os: windows-latest
-            version: '3.12'
-            tox-env: py312,safety
+            version: '3.13'
+            tox-env: py313,safety
           - os: macos-latest
-            version: '3.12'
-            tox-env: py312,safety
+            version: '3.13'
+            tox-env: py313,safety
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -148,8 +148,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.8']
-        tox-env: ['py38']
+        version: ['3.9']
+        tox-env: ['py39']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -188,7 +188,7 @@ jobs:
           tox run-parallel -p 2
 
   report-coverage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs:
      - run-tests
      - run-pypy-tests

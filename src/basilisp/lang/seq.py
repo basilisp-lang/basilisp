@@ -1,6 +1,7 @@
 import functools
 import threading
-from typing import Callable, Iterable, Optional, TypeVar, overload
+from collections.abc import Iterable
+from typing import Callable, Optional, TypeVar, overload
 
 from basilisp.lang.interfaces import (
     IPersistentMap,

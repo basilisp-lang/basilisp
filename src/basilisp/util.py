@@ -1,6 +1,7 @@
 import contextlib
 import time
-from typing import Callable, Generic, Iterable, Optional, Sequence, Tuple, TypeVar
+from collections.abc import Iterable, Sequence
+from typing import Callable, Generic, Optional, TypeVar
 
 
 @contextlib.contextmanager
@@ -65,7 +66,7 @@ class Maybe(Generic[T]):
         return self._inner is not None
 
 
-def partition(coll: Sequence[T], n: int) -> Iterable[Tuple[T, ...]]:
+def partition(coll: Sequence[T], n: int) -> Iterable[tuple[T, ...]]:
     """Partition `coll` into groups of size `n`."""
     assert n > 0
     start = 0

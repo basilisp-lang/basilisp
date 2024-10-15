@@ -3,9 +3,10 @@ import inspect
 import os
 import sys
 import traceback
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from types import GeneratorType
-from typing import Callable, Iterable, Iterator, Optional, Tuple
+from typing import Callable, Optional
 
 import pytest
 
@@ -42,10 +43,9 @@ def pytest_configure(config):
     # during tests and restore them afterward.
     out_var = runtime.Var.find(OUT_VAR_SYM)
     err_var = runtime.Var.find(ERR_VAR_SYM)
-    bindings = {
+    if bindings := {
         k: v for k, v in {out_var: sys.stdout, err_var: sys.stderr}.items() if k
-    }
-    if bindings.items():
+    }:
         runtime.push_thread_bindings(lmap.map(bindings))
         config.basilisp_bindings = bindings
 
@@ -210,7 +210,7 @@ class BasilispFile(pytest.File):
     @staticmethod
     def _collected_fixtures(
         ns: runtime.Namespace,
-    ) -> Tuple[Iterable[FixtureFunction], Iterable[FixtureFunction]]:
+    ) -> tuple[Iterable[FixtureFunction], Iterable[FixtureFunction]]:
         """Collect all of the declared fixtures of the namespace."""
         if ns.meta is not None:
             return (

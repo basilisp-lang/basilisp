@@ -1,5 +1,3 @@
-from typing import Set
-
 from docutils import nodes
 from docutils.nodes import Node
 from sphinx import addnodes
@@ -22,7 +20,7 @@ def doctree_read(app: Sphinx, doctree: Node) -> None:
         if domain != "lpy":
             continue
 
-        uris: Set[str] = set()
+        uris: set[str] = set()
         for signode in objnode:
             if not isinstance(signode, addnodes.desc_signature):
                 continue

@@ -10,8 +10,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from threading import Thread
-from typing import List, Optional, Sequence
+from typing import Optional
 from unittest.mock import patch
 
 import attr
@@ -33,7 +34,7 @@ def env_vars():
 
 
 @pytest.fixture(autouse=True)
-def sys_path() -> List[str]:
+def sys_path() -> list[str]:
     sys_path = list(sys.path)
     try:
         yield sys_path
@@ -43,7 +44,7 @@ def sys_path() -> List[str]:
 
 
 @pytest.fixture()
-def temp_paths(tmp_path_factory) -> List[pathlib.Path]:
+def temp_paths(tmp_path_factory) -> list[pathlib.Path]:
     paths = []
     for i in range(3):
         path = tmp_path_factory.mktemp(f"dir{i}")
@@ -52,7 +53,7 @@ def temp_paths(tmp_path_factory) -> List[pathlib.Path]:
 
 
 @pytest.fixture
-def temp_path_args(temp_paths: List[pathlib.Path]) -> List[str]:
+def temp_path_args(temp_paths: list[pathlib.Path]) -> list[str]:
     args = []
     for p in temp_paths:
         args.extend(("-p", str(p)))
@@ -288,7 +289,7 @@ class TestREPL:
             assert sys_path[0] == sys.path[0]
 
         def test_repl_include_extra_path(
-            self, run_cli, temp_paths: List[pathlib.Path], temp_path_args: List[str]
+            self, run_cli, temp_paths: list[pathlib.Path], temp_path_args: list[str]
         ):
             result = run_cli(
                 ["repl", *temp_path_args],
@@ -330,7 +331,7 @@ class TestRun:
             assert f"nil{os.linesep}" == result.lisp_out
 
         @pytest.mark.parametrize("args,ret", cli_run_args_params)
-        def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
+        def test_run_code_with_args(self, run_cli, args: list[str], ret: str):
             result = run_cli(["run", "-c", cli_run_args_code, *args])
             assert ret == result.lisp_out
 
@@ -365,7 +366,7 @@ class TestRun:
             assert sys_path[0] == sys.path[0]
 
         def test_run_code_include_extra_path(
-            self, run_cli, temp_paths: List[pathlib.Path], temp_path_args: List[str]
+            self, run_cli, temp_paths: list[pathlib.Path], temp_path_args: list[str]
         ):
             result = run_cli(
                 [
@@ -412,7 +413,7 @@ class TestRun:
 
         @pytest.mark.parametrize("args,ret", cli_run_args_params)
         def test_run_file_with_args(
-            self, isolated_filesystem, run_cli, args: List[str], ret: str
+            self, isolated_filesystem, run_cli, args: list[str], ret: str
         ):
             with open("test.lpy", mode="w") as f:
                 f.write(cli_run_args_code)
@@ -470,8 +471,8 @@ class TestRun:
             self,
             isolated_filesystem,
             run_cli,
-            temp_paths: List[pathlib.Path],
-            temp_path_args: List[str],
+            temp_paths: list[pathlib.Path],
+            temp_path_args: list[str],
         ):
             with open("test.lpy", mode="w") as f:
                 f.write(
@@ -540,7 +541,7 @@ class TestRun:
             run_cli,
             namespace_name: str,
             namespace_file: pathlib.Path,
-            args: List[str],
+            args: list[str],
             ret: str,
         ):
             namespace_file.write_text(f"(ns {namespace_name}) {cli_run_args_code}")
@@ -618,8 +619,8 @@ class TestRun:
             run_cli,
             namespace_name: str,
             namespace_file: pathlib.Path,
-            temp_paths: List[pathlib.Path],
-            temp_path_args: List[str],
+            temp_paths: list[pathlib.Path],
+            temp_path_args: list[str],
         ):
             namespace_file.write_text(
                 os.linesep.join(
@@ -646,7 +647,7 @@ class TestRun:
             assert f"nil{os.linesep}" == result.lisp_out
 
         @pytest.mark.parametrize("args,ret", cli_run_args_params)
-        def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):
+        def test_run_stdin_with_args(self, run_cli, args: list[str], ret: str):
             result = run_cli(
                 ["run", "-", *args],
                 input=cli_run_args_code,
@@ -685,8 +686,8 @@ class TestRun:
         def test_run_stdin_include_extra_path(
             self,
             run_cli,
-            temp_paths: List[pathlib.Path],
-            temp_path_args: List[str],
+            temp_paths: list[pathlib.Path],
+            temp_path_args: list[str],
         ):
             result = run_cli(
                 ["run", *temp_path_args, "-"],
@@ -724,7 +725,7 @@ def test_version(run_cli):
         (["1", "hi", "yes"], b'["1" "hi" "yes"]\n'),
     ],
 )
-def test_run_script(tmp_path: pathlib.Path, args: List[str], ret: bytes):
+def test_run_script(tmp_path: pathlib.Path, args: list[str], ret: bytes):
     script_path = tmp_path / "script.lpy"
     script_path.write_text(
         "\n".join(

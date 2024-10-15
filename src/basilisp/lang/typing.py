@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
-from typing import Optional, Pattern, Protocol, Union
+from re import Pattern
+from typing import Optional, Protocol, Union
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist

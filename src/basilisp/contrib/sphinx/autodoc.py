@@ -3,7 +3,7 @@ import inspect
 import logging
 import sys
 import types
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Optional, cast
 
 from sphinx.ext.autodoc import (
     ClassDocumenter,
@@ -51,7 +51,7 @@ _SOURCE_PROTOCOL_KW = kw.keyword("source-protocol", ns=runtime.CORE_NS)
 _METHODS_KW = kw.keyword("methods")
 
 
-def _get_doc(reference: IReference) -> Optional[List[List[str]]]:
+def _get_doc(reference: IReference) -> Optional[list[list[str]]]:
     """Return the docstring of an IReference type (e.g. Namespace or Var)."""
     docstring = reference.meta and reference.meta.val_at(_DOC_KW)
     if docstring is None:
@@ -91,7 +91,7 @@ class NamespaceDocumenter(Documenter):
         v = runtime.first(reader.read_str(self.name))
         if isinstance(v, sym.Symbol) and v.ns is None:
             self.modname = v.name
-            self.objpath: List[str] = []
+            self.objpath: list[str] = []
             self.args = ""
             self.retann = ""
             self.fullname = v.name
@@ -100,7 +100,7 @@ class NamespaceDocumenter(Documenter):
 
     def resolve_name(
         self, modname: str, parents: Any, path: str, base: Any
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """Unused method since parse_name is overridden."""
         return NotImplemented
 
@@ -122,11 +122,11 @@ class NamespaceDocumenter(Documenter):
         self.module = ns.module
         return True
 
-    def get_doc(self) -> Optional[List[List[str]]]:
+    def get_doc(self) -> Optional[list[list[str]]]:
         assert self.object is not None
         return _get_doc(self.object)
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
+    def get_object_members(self, want_all: bool) -> tuple[bool, list[ObjectMember]]:
         assert self.object is not None
         interns = self.object.interns
 
@@ -145,8 +145,8 @@ class NamespaceDocumenter(Documenter):
         return False, selected
 
     def filter_members(
-        self, members: List[ObjectMember], want_all: bool
-    ) -> List[Tuple[str, Any, bool]]:
+        self, members: list[ObjectMember], want_all: bool
+    ) -> list[tuple[str, Any, bool]]:
         filtered = []
         for member in members:
             name, val = member.__name__, member.object
@@ -173,14 +173,14 @@ class NamespaceDocumenter(Documenter):
         return filtered
 
     def sort_members(
-        self, documenters: List[Tuple["Documenter", bool]], order: str
-    ) -> List[Tuple["Documenter", bool]]:
+        self, documenters: list[tuple["Documenter", bool]], order: str
+    ) -> list[tuple["Documenter", bool]]:
         assert self.object is not None
         if order == "bysource":
             # By the time this method is called, the object isn't hydrated in the
             # Documenter wrapper, so we cannot rely on the existence of that to get
             # line numbers. Instead, we have to build an index manually.
-            line_numbers: Dict[str, int] = {
+            line_numbers: dict[str, int] = {
                 s.name: (
                     cast(int, v.meta.val_at(_LINE_KW, sys.maxsize))
                     if v.meta is not None
@@ -189,7 +189,7 @@ class NamespaceDocumenter(Documenter):
                 for s, v in self.object.interns.items()
             }
 
-            def _line_num(e: Tuple["Documenter", bool]) -> int:
+            def _line_num(e: tuple["Documenter", bool]) -> int:
                 documenter = e[0]
                 _, name = documenter.name.split("::", maxsplit=1)
                 return line_numbers.get(name, sys.maxsize)
@@ -238,7 +238,7 @@ class VarDocumenter(Documenter):
 
     def resolve_name(
         self, modname: str, parents: Any, path: str, base: Any
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """Unused method since parse_name is overridden."""
         return NotImplemented
 
@@ -270,7 +270,7 @@ class VarDocumenter(Documenter):
             return f"{file}:docstring of {self.object}"
         return f"docstring of {self.object}"
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
+    def get_object_members(self, want_all: bool) -> tuple[bool, list[ObjectMember]]:
         assert self.object is not None
         return False, []
 
@@ -292,7 +292,7 @@ class VarDocumenter(Documenter):
             if self.object.meta.val_at(_DEPRECATED_KW):
                 self.add_line("   :deprecated:", sourcename)
 
-    def get_doc(self) -> Optional[List[List[str]]]:
+    def get_doc(self) -> Optional[list[list[str]]]:
         assert self.object is not None
         return _get_doc(self.object)
 
@@ -372,7 +372,7 @@ class ProtocolDocumenter(VarDocumenter):
             and member.meta.val_at(_PROTOCOL_KW) is True
         )
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
+    def get_object_members(self, want_all: bool) -> tuple[bool, list[ObjectMember]]:
         assert self.object is not None
         assert want_all
         ns = self.object.ns
@@ -390,8 +390,8 @@ class ProtocolDocumenter(VarDocumenter):
         )
 
     def filter_members(
-        self, members: List[ObjectMember], want_all: bool
-    ) -> List[Tuple[str, Any, bool]]:
+        self, members: list[ObjectMember], want_all: bool
+    ) -> list[tuple[str, Any, bool]]:
         filtered = []
         for member in members:
             name, val = member.__name__, member.object
@@ -428,7 +428,7 @@ class TypeDocumenter(VarDocumenter):
             and issubclass(member.value, IType)
         )
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
+    def get_object_members(self, want_all: bool) -> tuple[bool, list[ObjectMember]]:
         return ClassDocumenter.get_object_members(self, want_all)
 
 

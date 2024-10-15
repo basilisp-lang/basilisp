@@ -1,4 +1,5 @@
-from typing import Callable, Iterable, Tuple
+from collections.abc import Iterable
+from typing import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -132,12 +133,12 @@ class TestCompleter:
         ],
     )
     def test_completer(
-        self, completer: Completer, ns: Namespace, val: str, expected: Tuple[str]
+        self, completer: Completer, ns: Namespace, val: str, expected: tuple[str]
     ):
         doc = Document(val, len(val))
         completions = list(completer.get_completions(doc, CompleteEvent()))
         assert len(completions) == len(expected)
-        assert set(c.text for c in completions) == set(expected)
+        assert {c.text for c in completions} == set(expected)
 
 
 class TestPrompter:
@@ -184,9 +185,10 @@ class TestKeyBindings:
 
     @pytest.fixture(autouse=True)
     def assert_syntax_error(self):
-        with patch("basilisp.prompt.run_in_terminal") as run_in_terminal, patch(
-            "basilisp.prompt.partial"
-        ) as partial:
+        with (
+            patch("basilisp.prompt.run_in_terminal") as run_in_terminal,
+            patch("basilisp.prompt.partial") as partial,
+        ):
             marker = object()
             partial.return_value = marker
 
@@ -226,7 +228,7 @@ class TestKeyBindings:
             ("[", "          ", "          ", ":a :b :c", "", "]"),
         ],
     )
-    def test_multiline_input(self, handler: Binding, lines: Tuple[str]):
+    def test_multiline_input(self, handler: Binding, lines: tuple[str]):
         *begin, last = lines
 
         line_buffer = []

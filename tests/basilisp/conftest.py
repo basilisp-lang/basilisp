@@ -12,7 +12,7 @@ from basilisp.lang import symbol as sym
 from tests.basilisp.helpers import CompileFn, get_or_create_ns
 
 
-@pytest.fixture(params=[3, 4] if sys.version_info < (3, 8) else [3, 4, 5])
+@pytest.fixture(params=[3, 4, 5])
 def pickle_protocol(request) -> int:
     return request.param
 
@@ -47,7 +47,7 @@ def lcompile(ns: runtime.Namespace, compiler_file_path: str) -> CompileFn:
     def _lcompile(
         s: str,
         resolver: Optional[reader.Resolver] = None,
-        opts: Optional[Dict[str, bool]] = None,
+        opts: Optional[dict[str, bool]] = None,
     ):
         """Compile and execute the code in the input string.
 
@@ -64,7 +64,7 @@ def lcompile(ns: runtime.Namespace, compiler_file_path: str) -> CompileFn:
 
 
 @pytest.fixture
-def cap_lisp_io() -> Tuple[io.StringIO, io.StringIO]:
+def cap_lisp_io() -> tuple[io.StringIO, io.StringIO]:
     """Capture the values of `*out*` and `*err*` during test execution, returning
     `io.StringIO` for each."""
     with io.StringIO() as outbuf, io.StringIO() as errbuf:

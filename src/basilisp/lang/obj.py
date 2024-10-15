@@ -3,12 +3,14 @@ import math
 import re
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from decimal import Decimal
 from fractions import Fraction
 from functools import singledispatch
 from itertools import islice
 from pathlib import Path
-from typing import Any, Iterable, Pattern, Union, cast
+from re import Pattern
+from typing import Any, Union, cast
 
 from typing_extensions import TypedDict, Unpack
 

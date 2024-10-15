@@ -1,5 +1,6 @@
+from collections.abc import Iterable
 from collections.abc import Set as _PySet
-from typing import AbstractSet, Iterable, Optional, TypeVar
+from typing import AbstractSet, Optional, TypeVar
 
 from immutables import Map as _Map
 from immutables import MapMutation
