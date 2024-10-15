@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fix an issue with `basilisp test` standard streams output that can lead to failures on MS-Windows (#1080)
+ * Fixed a bug where imported Python names containing `-` (in lieu of `_`) could not be referenced using the `-` syntax (#1085)
 
 ### Removed
  * Removed support for Python 3.8 (#1083)
