@@ -14,7 +14,7 @@ from fractions import Fraction
 from itertools import chain
 from re import Pattern
 from types import TracebackType
-from typing import Any, Callable, Deque, NoReturn, Optional, TypeVar, Union, cast
+from typing import Any, Callable, NoReturn, Optional, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Unpack
@@ -385,9 +385,9 @@ class ReaderContext:
         self._process_reader_cond = process_reader_cond
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
-        self._in_anon_fn: Deque[bool] = collections.deque([])
-        self._syntax_quoted: Deque[bool] = collections.deque([])
-        self._gensym_env: Deque[GenSymEnvironment] = collections.deque([])
+        self._in_anon_fn: collections.deque[bool] = collections.deque([])
+        self._syntax_quoted: collections.deque[bool] = collections.deque([])
+        self._gensym_env: collections.deque[GenSymEnvironment] = collections.deque([])
         self._eof = eof
 
     @property

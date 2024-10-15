@@ -17,16 +17,7 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from re import Pattern
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Deque,
-    Generic,
-    Optional,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import TYPE_CHECKING, Callable, Generic, Optional, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Concatenate, ParamSpec
@@ -229,10 +220,10 @@ class GeneratorContext:
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
-        self._recur_points: Deque[RecurPoint] = collections.deque([])
+        self._recur_points: collections.deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
-        self._this: Deque[sym.Symbol] = collections.deque([])
-        self._var_indirection_override: Deque[bool] = collections.deque([])
+        self._this: collections.deque[sym.Symbol] = collections.deque([])
+        self._var_indirection_override: collections.deque[bool] = collections.deque([])
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts.items():

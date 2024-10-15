@@ -16,7 +16,7 @@ from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
 from re import Pattern
-from typing import Any, Callable, Deque, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Literal
@@ -328,12 +328,12 @@ class AnalyzerContext:
     ) -> None:
         self._allow_unresolved_symbols = allow_unresolved_symbols
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._func_ctx: Deque[FunctionContext] = collections.deque([])
-        self._is_quoted: Deque[bool] = collections.deque([])
+        self._func_ctx: collections.deque[FunctionContext] = collections.deque([])
+        self._is_quoted: collections.deque[bool] = collections.deque([])
         self._opts = (
             Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore[arg-type, unused-ignore]
         )
-        self._recur_points: Deque[RecurPoint] = collections.deque([])
+        self._recur_points: collections.deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
         self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._syntax_pos = collections.deque([NodeSyntacticPosition.EXPR])
