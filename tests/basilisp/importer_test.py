@@ -8,7 +8,7 @@ import sys
 import tempfile
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Tuple
+from typing import Optional
 from unittest.mock import patch
 
 import pytest

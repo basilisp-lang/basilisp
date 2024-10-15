@@ -1,5 +1,5 @@
-from typing import Callable, Tuple
 from collections.abc import Iterable
+from typing import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest

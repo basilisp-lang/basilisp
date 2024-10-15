@@ -10,9 +10,9 @@ import subprocess
 import sys
 import tempfile
 import time
-from threading import Thread
-from typing import List, Optional
 from collections.abc import Sequence
+from threading import Thread
+from typing import Optional
 from unittest.mock import patch
 
 import attr
