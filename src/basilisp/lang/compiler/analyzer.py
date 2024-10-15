@@ -3506,17 +3506,18 @@ def __resolve_namespaced_symbol_in_ns(
     assert form.ns is not None
 
     ns_sym = sym.symbol(form.ns)
-    if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
+    import_sym = sym.symbol(munge(form.ns))
+    if import_sym in which_ns.imports or import_sym in which_ns.import_aliases:
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
         # for membership.
-        if ns_sym in which_ns.import_aliases:
-            ns = which_ns.import_aliases[ns_sym]
+        if import_sym in which_ns.import_aliases:
+            ns = which_ns.import_aliases[import_sym]
             assert ns is not None
             ns_name = ns.name
         else:
-            ns_name = ns_sym.name
+            ns_name = import_sym.name
 
         safe_module_name = munge(ns_name)
         assert (
