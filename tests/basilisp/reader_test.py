@@ -89,7 +89,7 @@ def test_stream_reader():
 
 
 def test_stream_reader_loc():
-    s = str("i=1\n" "b=2\n" "i")
+    s = "i=1\n" "b=2\n" "i"
     sreader = reader.StreamReader(io.StringIO(s))
     assert (1, 0) == sreader.loc
 
@@ -135,7 +135,7 @@ def test_stream_reader_loc():
 
 
 def test_stream_reader_loc_other():
-    s = str("i=1\n" "b=2\n" "i")
+    s = "i=1\n" "b=2\n" "i"
     sreader = reader.StreamReader(io.StringIO(s), init_line=5, init_column=3)
     assert (5, 3) == sreader.loc
 
@@ -233,7 +233,7 @@ class TestReaderLines:
         with open(filename, mode="w", encoding="utf-8") as f:
             f.write("1\n2\n(/ 5 0)")
 
-        with open(filename, mode="r", encoding="utf-8") as f:
+        with open(filename, encoding="utf-8") as f:
             _, _, l = list(reader.read(f))
 
         assert (3, 3, 0, 7) == (

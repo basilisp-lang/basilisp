@@ -76,7 +76,7 @@ def test_demunged_import(pytester: pytest.Pytester):
             )
 
 
-def _ns_and_module(filename: str) -> Tuple[str, str]:
+def _ns_and_module(filename: str) -> tuple[str, str]:
     basename = os.path.splitext(os.path.basename(filename))[0]
     return demunge(basename), basename
 
@@ -578,7 +578,7 @@ class TestImporter:
             monkeypatch: pytest.MonkeyPatch,
             make_new_module,
             capsys,
-            args: List[str],
+            args: list[str],
             output: str,
         ):
             make_new_module(
@@ -635,7 +635,7 @@ def bootstrap_file() -> pathlib.Path:
     ],
 )
 def test_run_namespace_as_python_module(
-    bootstrap_file: pathlib.Path, tmp_path: pathlib.Path, args: List[str], ret: bytes
+    bootstrap_file: pathlib.Path, tmp_path: pathlib.Path, args: list[str], ret: bytes
 ):
     parent = tmp_path / "package"
     parent.mkdir()

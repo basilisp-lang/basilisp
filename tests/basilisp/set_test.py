@@ -113,5 +113,5 @@ def test_set_pickleability(pickle_protocol: int, o: lset.PersistentSet):
         (lset.s(keyword("kw1"), keyword("kw2")), {"#{:kw1 :kw2}", "#{:kw2 :kw1}"}),
     ],
 )
-def test_set_repr(l: lset.PersistentSet, str_repr: typing.Set[str]):
+def test_set_repr(l: lset.PersistentSet, str_repr: set[str]):
     assert repr(l) in str_repr

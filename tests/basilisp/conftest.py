@@ -47,7 +47,7 @@ def lcompile(ns: runtime.Namespace, compiler_file_path: str) -> CompileFn:
     def _lcompile(
         s: str,
         resolver: Optional[reader.Resolver] = None,
-        opts: Optional[Dict[str, bool]] = None,
+        opts: Optional[dict[str, bool]] = None,
     ):
         """Compile and execute the code in the input string.
 
@@ -64,7 +64,7 @@ def lcompile(ns: runtime.Namespace, compiler_file_path: str) -> CompileFn:
 
 
 @pytest.fixture
-def cap_lisp_io() -> Tuple[io.StringIO, io.StringIO]:
+def cap_lisp_io() -> tuple[io.StringIO, io.StringIO]:
     """Capture the values of `*out*` and `*err*` during test execution, returning
     `io.StringIO` for each."""
     with io.StringIO() as outbuf, io.StringIO() as errbuf:
