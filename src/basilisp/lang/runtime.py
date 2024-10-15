@@ -1345,7 +1345,7 @@ def nth(coll, i: int, notfound=__nth_sentinel):
 
 @nth.register(type(None))
 def _nth_none(_: None, i: int, notfound=__nth_sentinel) -> None:
-    return notfound if notfound is not __nth_sentinel else None
+    return notfound if notfound is not __nth_sentinel else None  # type: ignore[return-value]
 
 
 @nth.register(Sequence)
@@ -2108,7 +2108,7 @@ def _basilisp_type(
                 continue
 
             if is_abstract(interface):
-                interface_names: frozenset[str] = interface.__abstractmethods__  # type: ignore[attr-definedm]
+                interface_names: frozenset[str] = interface.__abstractmethods__  # type: ignore[attr-defined]
                 interface_property_names: frozenset[str] = frozenset(
                     method
                     for method in interface_names
