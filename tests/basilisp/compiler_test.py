@@ -5,6 +5,7 @@ import importlib
 import inspect
 import logging
 import os
+import pathlib
 import re
 import sys
 import textwrap
@@ -6386,6 +6387,19 @@ class TestSymbolResolution:
             finally:
                 monkeypatch.chdir(cwd)
                 os.unlink(module_file_path)
+
+    def test_import_name_with_underscores_resolves_properly(
+        self,
+        lcompile: CompileFn,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pathlib.Path,
+    ):
+        package = tmp_path / "a_b"
+        package.mkdir(parents=True)
+        file = package / "c.py"
+        file.write_text("val = 10")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        assert lcompile("(import a-b.c) [a-b.c/val a_b.c/val]") == vec.v(10, 10)
 
     @pytest.mark.parametrize(
         "code",
