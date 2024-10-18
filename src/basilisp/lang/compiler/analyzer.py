@@ -3505,15 +3505,19 @@ def __resolve_namespaced_symbol_in_ns(
     namespace portion"""
     assert form.ns is not None
 
+    # Import names are always munged by the compiler when they're added to imports,
+    # but if the user provides an import alias that is left untouched. Check for
+    # the munged symbol in `Namespace.imports` and the unmunged in
+    # `Namespace.import_aliases`.
     ns_sym = sym.symbol(form.ns)
     import_sym = sym.symbol(munge(form.ns))
-    if import_sym in which_ns.imports or import_sym in which_ns.import_aliases:
+    if import_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
         # for membership.
-        if import_sym in which_ns.import_aliases:
-            ns = which_ns.import_aliases[import_sym]
+        if ns_sym in which_ns.import_aliases:
+            ns = which_ns.import_aliases[ns_sym]
             assert ns is not None
             ns_name = ns.name
         else:
