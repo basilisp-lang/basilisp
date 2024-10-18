@@ -2,7 +2,7 @@
   (:import contextlib inspect os socket tempfile)
   (:require
    [basilisp.string :as str]
-   [basilisp.test :refer [deftest is testing]]))
+   [basilisp.test :refer [deftest is are testing]]))
 
 (deftest defn-test
   (testing "single arity defn"
@@ -739,6 +739,37 @@
              (g v))))))
 
 (deftest fn-associative-destructuring
+  (testing "ignore non-associative types"
+    (let [f (fn [{:keys [a]}]
+              a)]
+      (are [v] (nil? (f v))
+        nil
+        []
+        [:a 5]
+        ""
+        "abc"
+        5
+        5.5))
+
+    (testing "with defaults"
+      (let [f (fn [{:keys [a] :or {a :not-defined}}]
+                a)]
+        (are [v] (= :not-defined (f v))
+          nil
+          []
+          [:a 5]
+          ""
+          "abc"
+          5
+          5.5))))
+
+  (testing "falsey values not overridden by default values"
+    (let [f (fn [{:keys [a] :or {a :not-defined}}]
+              a)]
+      (are [v] (= v (f {:a v}))
+        nil
+        false)))
+
   (testing "destructuring simple keys"
     (let [m {:a "a" :b "b"}
 
@@ -1019,6 +1050,32 @@
       (is (= [[:a :b] [:c]] all)))))
 
 (deftest let-associative-destructuring
+  (testing "ignore non-associative types"
+    (are [v] (nil? (let [{:keys [a]} v] a))
+      nil
+      []
+      [:a 5]
+      ""
+      "abc"
+      5
+      5.5)
+
+    (testing "with defaults"
+      (are [v] (= :not-defined (let [{:keys [a] :or {a :not-defined}} v] a))
+        nil
+        []
+        [:a 5]
+        ""
+        "abc"
+        5
+        5.5)))
+
+  (testing "falsey values not overridden by default values"
+    (are [v] (= v (let [{:keys [a] :or {a :not-defined}} {:a v}]
+                    a))
+      nil
+      false))
+
   (testing "destructuring simple keys"
     (let [{:keys [a b]} {:a "a" :b "b"}]
       (is (= "a" a))
@@ -1253,6 +1310,37 @@
                (g v)))))))
 
 (deftest letfn-associative-destructuring
+  (testing "ignore non-associative types"
+    (letfn [(f [{:keys [a]}]
+              a)]
+      (are [v] (nil? (f v))
+        nil
+        []
+        [:a 5]
+        ""
+        "abc"
+        5
+        5.5))
+
+    (testing "with defaults"
+      (letfn [(f [{:keys [a] :or {a :not-defined}}]
+                a)]
+        (are [v] (= :not-defined (f v))
+          nil
+          []
+          [:a 5]
+          ""
+          "abc"
+          5
+          5.5))))
+
+  (testing "falsey values not overridden by default values"
+    (letfn [(f [{:keys [a] :or {a :not-defined}}]
+              a)]
+      (are [v] (= v (f {:a v}))
+        nil
+        false)))
+
   (testing "destructuring simple keys"
     (let [m {:a "a" :b "b"}]
       (letfn [(f [{:keys [a]}]
@@ -1498,6 +1586,39 @@
                (recur r orig-all (conj pairs pair) (+ accum v1 v2))))))))
 
 (deftest loop-associative-destructuring
+  (testing "ignore non-associative types"
+    (is (= []
+           (loop [items       [nil [] [:a 5] "" "abc" 5 5.5]
+                  {:keys [a]} (first items)
+                  accum       []]
+             (if (seq items)
+               (recur (rest items)
+                      (first (rest items))
+                      (cond-> accum a (conj a)))
+               accum))))
+
+    (testing "with defaults"
+      (is (= (vec (repeat 7 :not-defined))
+             (loop [items                            [nil [] [:a 5] "" "abc" 5 5.5]
+                    {:keys [a] :or {a :not-defined}} (first items)
+                    accum                            []]
+               (if (seq items)
+                 (recur (rest items)
+                        (first (rest items))
+                        (cond-> accum a (conj a)))
+                 accum))))))
+
+  (testing "falsey values not overridden by default values"
+    (is (= [nil false]
+           (loop [items                            [nil false]
+                  {:keys [a] :or {a :not-defined}} {:a (first items)}
+                  accum                            []]
+             (if (seq items)
+               (recur (rest items)
+                      (first (rest items))
+                      (conj accum a))
+               accum)))))
+
   (testing "destructuring simple keys"
     (is (= [[{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"}] "abcdee"]
            (loop [items                           [{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"}]

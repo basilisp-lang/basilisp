@@ -5814,14 +5814,14 @@
                                         (keyword kw-name))
                            or-binding (get ors sym)]
                        (if or-binding
-                         [sym `(or (get ~fn-arg ~kw) ~or-binding)]
+                         [sym `(get ~fn-arg ~kw ~or-binding)]
                          [sym `(get ~fn-arg ~kw)])))
 
         map-binding (fn [f arg]
                       (let [k          (f arg)
                             or-binding (get ors arg)]
                         (if or-binding
-                          [arg `(or (get ~fn-arg ~k) ~or-binding)]
+                          [arg `(get ~fn-arg ~k ~or-binding)]
                           [arg `(get ~fn-arg ~k)])))
 
         sym-binding (fn [arg]
@@ -5829,7 +5829,7 @@
                             sym        (symbol sym-name)
                             or-binding (get ors sym)]
                         (if or-binding
-                          [sym `(or (get ~fn-arg (quote ~arg)) ~or-binding)]
+                          [sym `(get ~fn-arg (quote ~arg) ~or-binding)]
                           [sym `(get ~fn-arg (quote ~arg))])))
 
         named-binding (fn [arg]
@@ -5837,7 +5837,7 @@
                               key        (:key arg)
                               or-binding (get ors binding)]
                           (if or-binding
-                            [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
+                            [binding `(get ~fn-arg (quote ~key) ~or-binding)]
                             [binding `(get ~fn-arg ~key)])))
 
         child-binding (fn [child]
@@ -5845,6 +5845,12 @@
                               k   (:key child)]
                           [arg `(get ~fn-arg ~k)]))]
     (concat
+     [fn-arg
+      `(if (seq? ~fn-arg)
+         (if (next ~fn-arg)
+           (apply hash-map ~fn-arg)
+           (first ~fn-arg))
+         ~fn-arg)]
      (mapcat kw-binding (:keys ddef))
      (mapcat (partial map-binding name) (:strs ddef))
      (mapcat sym-binding (:syms ddef))

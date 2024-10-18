@@ -191,7 +191,7 @@ class PersistentVector(
     def val_at(self, k: int, default: Optional[T] = None) -> Optional[T]:
         try:
             return self._inner[k]
-        except IndexError:
+        except (IndexError, TypeError):
             return default
 
     @staticmethod

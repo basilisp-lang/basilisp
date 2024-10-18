@@ -1405,7 +1405,7 @@ def get(m, k, default=None):  # pylint: disable=unused-argument
 def _get_others(m, k, default=None):
     try:
         return m[k]
-    except (KeyError, IndexError):
+    except (KeyError, IndexError, TypeError):
         return default
 
 
