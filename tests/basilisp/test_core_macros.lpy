@@ -785,11 +785,15 @@
 
     (let [m  {:a "a"}
           m1 {:a "a" :c "d"}
+          m2 '(:a "a" :c "d")
+          m3 (list m1)
 
           f (fn [{:keys [a c] :as m :or {c "c"}}]
               [a c m])]
       (is (= ["a" "c" m] (f m)))
-      (is (= ["a" "d" m1] (f m1)))))
+      (is (= ["a" "d" m1] (f m1)))
+      (is (= ["a" "d" (apply hash-map m2)] (f m2)))
+      (is (= ["a" "d" m1] (f m3)))))
 
   (testing "destructuring simple string keys"
     (let [m {:a 1 :b "b" "a" :a "b" :b}
@@ -1089,7 +1093,17 @@
     (let [{:keys [a b] :as m :or {b "c"}} {:a "a"}]
       (is (= "a" a))
       (is (= "c" b))
-      (is (= {:a "a"} m))))
+      (is (= {:a "a"} m)))
+
+    (let [{:keys [a b] :as m :or {b "c"}} '(:a "a")]
+      (is (= "a" a))
+      (is (= "c" b))
+      (is (= {:a "a"} m)))
+
+    (let [{:keys [a b] :as m :or {b "c"}} '({:a "a" :b "b"})]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= {:a "a" :b "b"} m))))
 
   (testing "destructuring simple string keys"
     (let [{:strs [a b]} {:a 1 :b 2 "a" :a "b" :b}]
@@ -1354,11 +1368,15 @@
         (is (= ["a" "b" m] (h m)))))
 
     (let [m  {:a "a"}
-          m1 {:a "a" :c "d"}]
+          m1 {:a "a" :c "d"}
+          m2 '(:a "a" :c "d")
+          m3 (list m1)]
       (letfn [(f [{:keys [a c] :as m :or {c "c"}}]
                 [a c m])]
         (is (= ["a" "c" m] (f m)))
-        (is (= ["a" "d" m1] (f m1))))))
+        (is (= ["a" "d" m1] (f m1)))
+        (is (= ["a" "d" (apply hash-map m2)] (f m2)))
+        (is (= ["a" "d" m1] (f m3))))))
 
   (testing "destructuring simple string keys"
     (let [m {:a 1 :b "b" "a" :a "b" :b}]
@@ -1620,8 +1638,8 @@
                accum)))))
 
   (testing "destructuring simple keys"
-    (is (= [[{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"}] "abcdee"]
-           (loop [items                           [{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"}]
+    (is (= [[{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"} {:a "f"} {:a "g" :b "h"}] "abcdeefegh"]
+           (loop [items                           [{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"} '(:a "f") '({:a "g" :b "h"})]
                   {:keys [a b] :as m :or {b "e"}} (first items)
                   coll                            []
                   accum                           []]
