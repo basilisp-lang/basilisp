@@ -1610,9 +1610,9 @@
 
   (testing "falsey values not overridden by default values"
     (is (= [nil false]
-           (loop [items                            [nil false]
-                  {:keys [a] :or {a :not-defined}} {:a (first items)}
-                  accum                            []]
+           (loop [items                                  (map #(hash-map :a %) [nil false])
+                  {:keys [a] :as m :or {a :not-defined}} (first items)
+                  accum                                  []]
              (if (seq items)
                (recur (rest items)
                       (first (rest items))
