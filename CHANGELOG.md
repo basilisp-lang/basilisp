@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fix an issue with `basilisp test` standard streams output that can lead to failures on MS-Windows (#1080)
+ * Fix an issue where destructuring a vector would throw an exception rather than returning `nil` for invalid key types (#1090)
+ * Fix an issue where destructuring default values would take precedence over falsey values in the source data structure (#1078)
 
 ### Removed
  * Removed support for Python 3.8 (#1083)

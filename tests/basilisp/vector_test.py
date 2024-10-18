@@ -124,6 +124,10 @@ def test_val_at():
     assert None is vec.PersistentVector.empty().val_at(0)
     assert None is vec.PersistentVector.empty().val_at(1)
     assert None is vec.PersistentVector.empty().val_at(-1)
+    assert None is vec.PersistentVector.empty().val_at(keyword("blah"))
+    assert "default" == vec.PersistentVector.empty().val_at(keyword("blah"), "default")
+    assert None is vec.PersistentVector.empty().val_at("key")
+    assert "default" == vec.PersistentVector.empty().val_at("key", "default")
 
 
 def test_peek():

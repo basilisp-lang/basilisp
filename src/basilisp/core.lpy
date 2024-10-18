@@ -5806,38 +5806,34 @@
                   (:children ddef))
 
         kw-binding (fn [arg]
-                     (let [kw-ns      (namespace arg)
-                           kw-name    (name arg)
-                           sym        (symbol kw-name)
-                           kw         (if kw-ns
-                                        (keyword kw-ns kw-name)
-                                        (keyword kw-name))
-                           or-binding (get ors sym)]
-                       (if or-binding
-                         [sym `(or (get ~fn-arg ~kw) ~or-binding)]
+                     (let [kw-ns   (namespace arg)
+                           kw-name (name arg)
+                           sym     (symbol kw-name)
+                           kw      (if kw-ns
+                                     (keyword kw-ns kw-name)
+                                     (keyword kw-name))]
+                       (if (contains? ors sym)
+                         [sym `(get ~fn-arg ~kw ~(get ors sym))]
                          [sym `(get ~fn-arg ~kw)])))
 
         map-binding (fn [f arg]
-                      (let [k          (f arg)
-                            or-binding (get ors arg)]
-                        (if or-binding
-                          [arg `(or (get ~fn-arg ~k) ~or-binding)]
+                      (let [k (f arg)]
+                        (if (contains? ors arg)
+                          [arg `(get ~fn-arg ~k ~(get ors arg))]
                           [arg `(get ~fn-arg ~k)])))
 
         sym-binding (fn [arg]
-                      (let [sym-name   (name arg)
-                            sym        (symbol sym-name)
-                            or-binding (get ors sym)]
-                        (if or-binding
-                          [sym `(or (get ~fn-arg (quote ~arg)) ~or-binding)]
+                      (let [sym-name (name arg)
+                            sym      (symbol sym-name)]
+                        (if (contains? ors sym)
+                          [sym `(get ~fn-arg (quote ~arg) ~(get ors sym))]
                           [sym `(get ~fn-arg (quote ~arg))])))
 
         named-binding (fn [arg]
-                        (let [binding    (get-in arg [:binding :name])
-                              key        (:key arg)
-                              or-binding (get ors binding)]
-                          (if or-binding
-                            [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
+                        (let [binding (get-in arg [:binding :name])
+                              key     (:key arg)]
+                          (if (contains? ors binding)
+                            [binding `(get ~fn-arg (quote ~key) ~(get ors binding))]
                             [binding `(get ~fn-arg ~key)])))
 
         child-binding (fn [child]
@@ -5845,6 +5841,12 @@
                               k   (:key child)]
                           [arg `(get ~fn-arg ~k)]))]
     (concat
+     [fn-arg
+      `(if (seq? ~fn-arg)
+         (if (next ~fn-arg)
+           (apply hash-map ~fn-arg)
+           (first ~fn-arg))
+         ~fn-arg)]
      (mapcat kw-binding (:keys ddef))
      (mapcat (partial map-binding name) (:strs ddef))
      (mapcat sym-binding (:syms ddef))
