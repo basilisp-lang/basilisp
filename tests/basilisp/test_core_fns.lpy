@@ -6,6 +6,7 @@
   (:require
    [basilisp.io :as bio]
    [basilisp.set :as set]
+   [basilisp.string :as str]
    [basilisp.test :refer [deftest are is testing]]))
 
 (deftest vec-test
@@ -2552,6 +2553,13 @@
 (deftest pr-test
   (testing "is dynamic"
     (is (= '(1) (binding [pr (fn [& more] more)] (pr 1)))))
+
+  (testing "*print-level* support"
+    (let [v-str (pr-str (range 100))]
+      (is (str/ends-with? v-str " 99)") v-str))
+
+    (binding [*print-length* 4]
+      (is (= "(0 1 2 3 ...)" (pr-str (range 5))))))
 
   (testing "with *print-namespace-maps*"
     (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* false] (pr-str #py {:a/x 5}))))

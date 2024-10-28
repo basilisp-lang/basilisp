@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue where destructuring a vector would throw an exception rather than returning `nil` for invalid key types (#1090)
  * Fix an issue where destructuring default values would take precedence over falsey values in the source data structure (#1078)
  * Fixed a bug where imported Python names containing `-` (in lieu of `_`) could not be referenced using the `-` syntax (#1085)
+ * Fixed a compatibility issue where `*print-length*` defaulted to 50 instead of `nil` (#1093)
 
 ### Removed
  * Removed support for Python 3.8 (#1083)

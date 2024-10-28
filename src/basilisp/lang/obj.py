@@ -20,7 +20,7 @@ SURPASSED_PRINT_LENGTH = "..."
 SURPASSED_PRINT_LEVEL = "#"
 
 PRINT_DUP = False
-PRINT_LENGTH: PrintCountSetting = 50
+PRINT_LENGTH: PrintCountSetting = None
 PRINT_LEVEL: PrintCountSetting = None
 PRINT_META = False
 PRINT_NAMESPACE_MAPS = False
