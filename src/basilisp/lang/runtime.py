@@ -2460,7 +2460,19 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         CORE_NS_SYM, sym.symbol(PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+        CORE_NS_SYM,
+        sym.symbol(PRINT_LENGTH_VAR_NAME),
+        lobj.PRINT_LENGTH,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Limits the number of items printed per collection. If falsy, all items are shown."
+                    " If set to an integer, only that many items are printed,"
+                    " with ``...`` indicating more. By default, it is ``nil``, meaning no limit."
+                )
+            }
+        ),
     )
     Var.intern(
         CORE_NS_SYM, sym.symbol(PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
