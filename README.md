@@ -25,16 +25,20 @@ exploration at the REPL. Additionally, Basilisp features many of the same functi
 and idioms as [Clojure](https://clojure.org/), so you may find guides and
 documentation there helpful for getting started.
 
+For those who prefer a video introduction, feel free to check out this
+[talk](https://youtu.be/ruGRHYpq448?si=0jr2a6uWlq6Vi2_k) hosted by the
+[London Clojurians](https://www.meetup.com/london-clojurians/) group about Basilisp.
+
 ## Why does this project exist?
 
 Basilisp is a project I (@chrisrink10) created to learn about Python, Clojure,
 hosted  languages, and compilers.
 
 That said, it is generally stable at this point with reasonably high test
-coverage, linting, and type checking. Work is ongoing to complete the rest of
+coverage, linting, and type checking. Work is ongoing to complete the rest of the
 standard the library implementations. I suspect it could be used to build small
 applications and tools at this point, though I would not recommend it unless you
-like being a very early adopter.
+like being an early adopter.
 
 _Use in a production setting at your own risk._
 

@@ -3,15 +3,28 @@
 Getting Started
 ===============
 
-.. _installation_and_first_steps:
+.. _installation:
 
-Installation & First Steps
---------------------------
+Installation
+------------
 
 Basilisp is developed on `GitHub <https://github.com/chrisrink10/basilisp>`_ and hosted on `PyPI <https://pypi.python.org/pypi/basilisp>`_.
-You can fetch Basilisp using a simple::
+You can fetch the latest version of Basilisp from PyPI using ``pip``::
 
     pip install basilisp
+
+.. note::
+
+   This will pull the latest version of Basilisp from PyPI, but ``pip`` also offers a variety of other ways to select specific versions of libraries.
+   Users looking to try out cutting edge versions of Basilisp may instead prefer to use ``pip``'s builtin `support for installing libraries directly from VCS <https://pip.pypa.io/en/stable/topics/vcs-support/>`_.
+   You can install Basilisp directly from the Git ``main`` ref (for example) using a command like this::
+
+      pip install "basilisp @ git+https://github.com/basilisp-lang/basilisp.git@main"
+
+.. _first_steps:
+
+First Steps
+-----------
 
 Once Basilisp is installed, you can enter into the REPL using::
 
