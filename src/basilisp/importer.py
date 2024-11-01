@@ -105,7 +105,7 @@ def _is_package(path: str) -> bool:
     or Python code file."""
     for _, _, files in os.walk(path):
         for file in files:
-            if file.endswith(".lpy") or file.endswith(".py"):
+            if file.endswith(".lpy") or file.endswith(".py") or file.endswith(".cljc"):
                 return True
     return False
 
@@ -122,7 +122,7 @@ def _is_namespace_package(path: str) -> bool:
     for file in files:
         if file in {"__init__.lpy", "__init__.py"}:
             no_inits = False
-        elif file.endswith(".lpy"):
+        elif file.endswith(".lpy") or file.endswith(".cljc"):
             has_basilisp_files = True
     return no_inits and has_basilisp_files
 
@@ -161,6 +161,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             filenames = [
                 f"{os.path.join(root_path, '__init__')}.lpy",
                 f"{root_path}.lpy",
+                f"{os.path.join(root_path, '__init__')}.cljc",
+                f"{root_path}.cljc",
             ]
             for filename in filenames:
                 if os.path.isfile(filename):
