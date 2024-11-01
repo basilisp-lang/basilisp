@@ -6742,9 +6742,10 @@
   the body of a method should not include that parameter, as it will be supplied
   automatically."
   [& method-impls]
-  (let [{:keys [interfaces methods]} (collect-methods method-impls)]
+  (let [{:keys [interfaces methods]} (collect-methods method-impls)
+        reify-sym                    (with-meta 'reify* (meta (first &form)))]
     (with-meta
-      `(reify* :implements [~@interfaces python/object]
+      `(~reify-sym :implements [~@interfaces python/object]
                ~@methods)
       (meta &form))))
 

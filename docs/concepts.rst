@@ -1342,6 +1342,13 @@ Reified types always implement :py:class:`basilisp.lang.interfaces.IWithMeta` an
 
    While ``reify`` and ``deftype`` are broadly similar, ``reify`` types may not define class or static methods.
 
+.. warning::
+
+   If a reified type is defined with a mutable "abstract" supertype (such as :external:py:class:`io.IOBase`), users may experience errors arising from the ``attrs``-generated ``__setattr__`` method for the underlying type when mutating methods are called on the resulting object.
+   Reified types are immutable (or "frozen" in ``attrs`` lingo) by default.
+   When a mutating method, such as :external:py:meth:`io.IOBase.close`, is called on the type (which may be called manually or it may be called at VM shutdown), the mutation will fail due to ``attrs`` replacing the ``__setattr__`` method on the type.
+   It is possible to force Basilisp to generate a mutable (non-frozen) type for reified types by applying the ``^:mutable`` metadata on the ``reify`` symbol.
+
 .. _defrecord:
 
 ``defrecord``
