@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for Python 3.13 (#1056)
+ * Added support for `.cljc` files (#1097)
 
 ### Fixed
  * Fix an issue with `basilisp test` standard streams output that can lead to failures on MS-Windows (#1080)
