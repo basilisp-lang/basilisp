@@ -4937,21 +4937,21 @@ class TestReify:
                 (
                     """
                     (import* io)
-                    (reify* :implements [^:abstract ^{:abstract-members '(:read)} io/IOBase]
+                    (^:mutable reify* :implements [^:abstract ^{:abstract-members '(:read)} io/IOBase]
                       (read [this v]))""",
                     compiler.CompilerException,
                 ),
                 (
                     """
                     (import* io)
-                    (reify* :implements [^:abstract ^{:abstract-members [:read]} io/IOBase]
+                    (^:mutable reify* :implements [^:abstract ^{:abstract-members [:read]} io/IOBase]
                       (read [this v]))""",
                     compiler.CompilerException,
                 ),
                 (
                     """
                     (import* io)
-                    (reify* :implements [^:abstract ^{:abstract-members #py [:read]} io/IOBase]
+                    (^:mutable reify* :implements [^:abstract ^{:abstract-members #py [:read]} io/IOBase]
                       (read [this v]))""",
                     compiler.CompilerException,
                 ),
@@ -4968,7 +4968,7 @@ class TestReify:
                 lcompile(
                     """
                     (import* io)
-                    (reify* :implements [^:abstract ^{:abstract-members #{}} io/IOBase]
+                    (^:mutable reify* :implements [^:abstract ^{:abstract-members #{}} io/IOBase]
                       (read [this v]))
                     """
                 )
@@ -4979,7 +4979,7 @@ class TestReify:
             lcompile(
                 """
                 (import* io)
-                (reify* :implements [^:abstract ^{:abstract-members #{:io/read}} io/IOBase]
+                (^:mutable reify* :implements [^:abstract ^{:abstract-members #{:io/read}} io/IOBase]
                   (read [this v]))
                 """
             )
@@ -4997,7 +4997,7 @@ class TestReify:
                 lcompile(
                     """
                     (import* io)
-                    (reify* :implements [^:abstract ^{:abstract-members #{1 :read}} io/IOBase]
+                    (^:mutable reify* :implements [^:abstract ^{:abstract-members #{1 :read}} io/IOBase]
                       (read [this v]))
                     """,
                 )
@@ -5007,19 +5007,19 @@ class TestReify:
             [
                 """
                 (import* io)
-                (reify* :implements [^:abstract ^{:abstract-members #{:read :write}} io/IOBase]
+                (^:mutable reify* :implements [^:abstract ^{:abstract-members #{:read :write}} io/IOBase]
                   (read [this n])
                   (write [this v]))
                 """,
                 """
                 (import* io)
-                (reify* :implements [^:abstract ^{:abstract-members #{read write}} io/IOBase]
+                (^:mutable reify* :implements [^:abstract ^{:abstract-members #{read write}} io/IOBase]
                   (read [this n])
                   (write [this v]))
                 """,
                 """
                 (import* io)
-                (reify* :implements [^:abstract ^{:abstract-members #{"read" "write"}} io/IOBase]
+                (^:mutable reify* :implements [^:abstract ^{:abstract-members #{"read" "write"}} io/IOBase]
                   (read [this n])
                   (write [this v]))
                 """,

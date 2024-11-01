@@ -3107,6 +3107,7 @@ def _reify_ast(form: ISeq, ctx: AnalyzerContext) -> Reify:
             members=vec.vector(members),
             verified_abstract=type_abstractness.is_statically_verified_as_abstract,
             artificially_abstract=type_abstractness.artificially_abstract_supertypes,
+            is_frozen=not _is_mutable(form.first),
             use_weakref_slot=not type_abstractness.supertype_already_weakref,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
