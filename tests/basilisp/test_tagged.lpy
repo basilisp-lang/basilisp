@@ -1,0 +1,33 @@
+(ns tests.basilisp.test-tagged
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest tagged-literal-test
+  (let [tag 'tag
+        form 1
+        tagged (tagged-literal tag form)]
+    (testing "equality"
+      (is (= tagged tagged))
+      (is (= tagged (tagged-literal tag form)))
+      (is (not= tagged (tagged-literal 'foo form)))
+      (is (not= tagged (tagged-literal tag 2))))
+
+    (testing "accessors"
+      (is (= tag (:tag tagged)))
+      (is (= form (:form tagged)))
+      (is (nil? (:key tagged)))
+      (is (= ::default (:key tagged ::default))))
+
+    (testing "predicate"
+      (is (true? (tagged-literal? tagged)))
+      (is (false? (tagged-literal? nil)))
+      (is (false? (tagged-literal? 0)))
+      (is (false? (tagged-literal? ::foo))))
+
+    (testing "printing"
+      (is (= "#tag 1" (pr-str tagged)))
+      (is (= "#js []" (pr-str (tagged-literal 'js []))))
+      (is (= "#js {}" (pr-str (tagged-literal 'js {})))))
+
+    (testing "validation"
+      (is (thrown? TypeError (tagged-literal 1 1)) ))))
