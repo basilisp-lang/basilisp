@@ -547,6 +547,17 @@
     v
     (.-name v)))
 
+(defn tagged-literal
+  "Construct a data representation of a tagged literal from a
+  tag symbol and a form."
+  [tag form]
+  (basilisp.lang.tagged/tagged-literal tag form))
+
+(defn tagged-literal?
+  "Return true if the value is the data representation of a tagged literal"
+  [o]
+  (instance? basilisp.lang.tagged/TaggedLiteral o))
+
 (defn ^:inline namespace
   "Return the namespace of a symbol or keyword, or ``nil`` if no namespace."
   [v]

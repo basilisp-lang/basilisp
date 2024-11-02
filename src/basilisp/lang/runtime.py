@@ -551,6 +551,7 @@ class Namespace(ReferenceBase):
                 "basilisp.lang.seq",
                 "basilisp.lang.set",
                 "basilisp.lang.symbol",
+                "basilisp.lang.tagged",
                 "basilisp.lang.vector",
                 "basilisp.lang.volatile",
                 "basilisp.lang.util",
