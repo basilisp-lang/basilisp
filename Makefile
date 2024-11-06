@@ -23,7 +23,7 @@ format:
 .PHONY: check
 check:
 	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox run-parallel -p auto
+	@TOX_SKIP_ENV='pypy3|bandit|coverage' poetry run tox run-parallel -p auto
 
 
 .PHONY: lint

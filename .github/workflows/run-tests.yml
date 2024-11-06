@@ -19,21 +19,21 @@ jobs:
         version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         include:
           - version: '3.9'
-            tox-env: py39,py39-mypy,py39-lint,safety
+            tox-env: py39,py39-mypy,py39-lint,bandit
           - version: '3.10'
-            tox-env: py310,py310-mypy,py310-lint,safety
+            tox-env: py310,py310-mypy,py310-lint,bandit
           - version: '3.11'
-            tox-env: py311,py311-mypy,py311-lint,safety
+            tox-env: py311,py311-mypy,py311-lint,bandit
           - version: '3.12'
-            tox-env: py312,py312-mypy,py312-lint,format,safety
+            tox-env: py312,py312-mypy,py312-lint,format,bandit
           - version: '3.13'
-            tox-env: py313,py313-mypy,py313-lint,safety
+            tox-env: py313,py313-mypy,py313-lint,bandit
           - os: windows-latest
             version: '3.13'
-            tox-env: py313,safety
+            tox-env: py313,bandit
           - os: macos-latest
             version: '3.13'
-            tox-env: py313,safety
+            tox-env: py313,bandit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

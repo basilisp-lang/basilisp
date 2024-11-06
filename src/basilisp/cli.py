@@ -784,7 +784,7 @@ def run_script():
     if rest := sys.argv[2:]:
         args.append("--")
         args.extend(rest)
-    os.execvp("basilisp", args)
+    os.execvp("basilisp", args)  # nosec B606, B607
 
 
 def invoke_cli(args: Optional[Sequence[str]] = None) -> None:

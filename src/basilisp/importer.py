@@ -85,7 +85,7 @@ def _get_basilisp_bytecode(
         logger.debug(message)
         raise ImportError(message, **exc_details)
 
-    return marshal.loads(cache_data[12:])
+    return marshal.loads(cache_data[12:])  # nosec 6302
 
 
 def _cache_from_source(path: str) -> str:
