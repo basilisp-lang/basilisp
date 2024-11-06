@@ -35,7 +35,7 @@ def test_queue_interface_membership(interface):
 
 
 def test_queue_bool():
-    assert True is bool(lqueue.PersistentQueue.empty())
+    assert True is bool(lqueue.EMPTY)
 
 
 def test_queue_cons():
@@ -47,19 +47,28 @@ def test_queue_cons():
     assert q2 == lqueue.q(keyword("kw1"), keyword("kw2"))
     assert len(q2) == 2
     assert meta == q1.meta
-    assert q2.meta is None
+    assert q2.meta == meta
     q3 = q2.cons(3, "four")
     assert q3 == lqueue.q(keyword("kw1"), keyword("kw2"), 3, "four")
+    assert q3.meta == meta
+
+
+def test_queue_empty():
+    meta = lmap.m(tag="async")
+    q1 = lqueue.q(keyword("kw1"), meta=meta)
+    assert q1.empty() == lqueue.EMPTY
+    assert q1.empty().meta == meta
+    assert lqueue.EMPTY.empty().meta is None
 
 
 def test_queue_equals():
-    q = lqueue.PersistentQueue.empty()
+    q = lqueue.EMPTY
     assert q == q
     assert lqueue.q(1, 2, 3) != (1, 2, 3, 4)
 
 
 def test_queue_peek():
-    assert None is lqueue.PersistentQueue.empty().peek()
+    assert None is lqueue.EMPTY.peek()
 
     assert 1 == lqueue.q(1).peek()
     assert 1 == lqueue.q(1, 2).peek()
@@ -70,9 +79,15 @@ def test_queue_pop():
     with pytest.raises(IndexError):
         lqueue.q().pop()
 
-    assert lqueue.PersistentQueue.empty() == lqueue.q(1).pop()
+    assert lqueue.EMPTY == lqueue.q(1).pop()
     assert lqueue.q(2) == lqueue.q(1, 2).pop()
     assert lqueue.q(2, 3) == lqueue.q(1, 2, 3).pop()
+
+    meta = lmap.m(meta=True)
+    q1 = lqueue.q(1, 2, 3, meta=meta)
+    assert q1.pop().meta == meta
+    assert q1.pop().pop().meta == meta
+    assert q1.pop().pop().pop().meta == meta
 
 
 def test_queue_meta():
@@ -103,7 +118,7 @@ def test_queue_with_meta():
 
 
 def test_queue_seq():
-    assert None is lqueue.PersistentQueue.empty().seq()
+    assert None is lqueue.EMPTY.seq()
     assert lqueue.q(1) == lqueue.q(1).seq()
     assert lqueue.q(1, 2) == lqueue.q(1, 2).seq()
     assert lqueue.q(1, 2, 3) == lqueue.q(1, 2, 3).seq()
@@ -126,7 +141,7 @@ def test_queue_pickleability(pickle_protocol: int, o: lqueue.PersistentQueue):
 @pytest.mark.parametrize(
     "l,str_repr",
     [
-        (lqueue.PersistentQueue.empty(), "#queue ()"),
+        (lqueue.EMPTY, "#queue ()"),
         (lqueue.q(keyword("kw1")), "#queue (:kw1)"),
         (lqueue.q(keyword("kw1"), keyword("kw2")), "#queue (:kw1 :kw2)"),
     ],

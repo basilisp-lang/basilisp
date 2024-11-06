@@ -52,18 +52,29 @@ def test_vector_slice():
 
 
 def test_assoc():
-    v = vec.PersistentVector.empty()
+    v = vec.EMPTY
     assert vec.v("a") == v.assoc(0, "a")
-    assert vec.PersistentVector.empty() == v
+    assert vec.EMPTY == v
     assert vec.vector(["a", "b"]) == v.assoc(0, "a", 1, "b")
 
-    v1 = vec.v("a")
+    meta = lmap.m(meta=True)
+    v1 = vec.v("a", meta=meta)
     assert vec.v("c", "b") == v1.assoc(0, "c", 1, "b")
     assert vec.v("a", "b") == v1.assoc(1, "b")
+    assert v1.assoc(1, "b").meta == meta
+    assert v1.assoc(1, "b", 2, "c").meta == meta
+
+
+def test_vector_empty():
+    meta = lmap.map({"meta": 1})
+    v1 = vec.v(1, 2, 3, meta=meta)
+    assert v1.empty() == vec.EMPTY
+    assert v1.empty().meta == meta
+    assert vec.EMPTY.meta is None
 
 
 def test_vector_bool():
-    assert True is bool(vec.PersistentVector.empty())
+    assert True is bool(vec.EMPTY)
 
 
 def test_contains():
@@ -71,16 +82,16 @@ def test_contains():
     assert True is vec.v("a", "b").contains(1)
     assert False is vec.v("a", "b").contains(2)
     assert False is vec.v("a", "b").contains(-1)
-    assert False is vec.PersistentVector.empty().contains(0)
-    assert False is vec.PersistentVector.empty().contains(1)
-    assert False is vec.PersistentVector.empty().contains(-1)
+    assert False is vec.EMPTY.contains(0)
+    assert False is vec.EMPTY.contains(1)
+    assert False is vec.EMPTY.contains(-1)
 
 
 def test_py_contains():
     assert "a" in vec.v("a")
     assert "a" in vec.v("a", "b")
     assert "b" in vec.v("a", "b")
-    assert "c" not in vec.PersistentVector.empty()
+    assert "c" not in vec.EMPTY
     assert "c" not in vec.v("a")
     assert "c" not in vec.v("a", "b")
 
@@ -101,9 +112,9 @@ def test_entry():
     assert vec.MapEntry.of(1, "b") == vec.v("a", "b").entry(1)
     assert None is vec.v("a", "b").entry(2)
     assert vec.MapEntry.of(-1, "b") == vec.v("a", "b").entry(-1)
-    assert None is vec.PersistentVector.empty().entry(0)
-    assert None is vec.PersistentVector.empty().entry(1)
-    assert None is vec.PersistentVector.empty().entry(-1)
+    assert None is vec.EMPTY.entry(0)
+    assert None is vec.EMPTY.entry(1)
+    assert None is vec.EMPTY.entry(-1)
 
 
 def test_vector_callable():
@@ -111,9 +122,9 @@ def test_vector_callable():
     assert "b" == vec.v("a", "b")(1)
     assert None is vec.v("a", "b")(2)
     assert "b" == vec.v("a", "b")(-1)
-    assert None is vec.PersistentVector.empty()(0)
-    assert None is vec.PersistentVector.empty()(1)
-    assert None is vec.PersistentVector.empty()(-1)
+    assert None is vec.EMPTY(0)
+    assert None is vec.EMPTY(1)
+    assert None is vec.EMPTY(-1)
 
 
 def test_val_at():
@@ -121,13 +132,13 @@ def test_val_at():
     assert "b" == vec.v("a", "b").val_at(1)
     assert None is vec.v("a", "b").val_at(2)
     assert "b" == vec.v("a", "b").val_at(-1)
-    assert None is vec.PersistentVector.empty().val_at(0)
-    assert None is vec.PersistentVector.empty().val_at(1)
-    assert None is vec.PersistentVector.empty().val_at(-1)
-    assert None is vec.PersistentVector.empty().val_at(keyword("blah"))
-    assert "default" == vec.PersistentVector.empty().val_at(keyword("blah"), "default")
-    assert None is vec.PersistentVector.empty().val_at("key")
-    assert "default" == vec.PersistentVector.empty().val_at("key", "default")
+    assert None is vec.EMPTY.val_at(0)
+    assert None is vec.EMPTY.val_at(1)
+    assert None is vec.EMPTY.val_at(-1)
+    assert None is vec.EMPTY.val_at(keyword("blah"))
+    assert "default" == vec.EMPTY.val_at(keyword("blah"), "default")
+    assert None is vec.EMPTY.val_at("key")
+    assert "default" == vec.EMPTY.val_at("key", "default")
 
 
 def test_peek():
@@ -142,13 +153,13 @@ def test_pop():
     with pytest.raises(IndexError):
         vec.v().pop()
 
-    assert vec.PersistentVector.empty() == vec.v(1).pop()
+    assert vec.EMPTY == vec.v(1).pop()
     assert vec.v(1) == vec.v(1, 2).pop()
     assert vec.v(1, 2) == vec.v(1, 2, 3).pop()
 
 
 def test_vector_seq():
-    assert None is vec.PersistentVector.empty().seq()
+    assert None is vec.EMPTY.seq()
     assert vec.v(1) == vec.v(1).seq()
     assert vec.v(1, 2) == vec.v(1, 2).seq()
     assert vec.v(1, 2, 3) == vec.v(1, 2, 3).seq()

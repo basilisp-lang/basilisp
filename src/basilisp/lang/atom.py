@@ -3,8 +3,8 @@ from typing import Callable, Generic, Optional, TypeVar
 
 from typing_extensions import Concatenate, ParamSpec
 
+from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import IPersistentMap, RefValidator
-from basilisp.lang.map import PersistentMap
 from basilisp.lang.reference import RefBase
 
 T = TypeVar("T")
@@ -23,7 +23,7 @@ class Atom(RefBase[T], Generic[T]):
         self._meta: Optional[IPersistentMap] = meta
         self._state = state
         self._lock = threading.RLock()
-        self._watches = PersistentMap.empty()
+        self._watches = lmap.EMPTY
         self._validator = validator
 
         if validator is not None:

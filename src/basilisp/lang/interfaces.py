@@ -323,9 +323,8 @@ class IPersistentCollection(ISeqable[T]):
     def cons(self: Self, *elems: T) -> Self:
         raise NotImplementedError()
 
-    @staticmethod
     @abstractmethod
-    def empty() -> "IPersistentCollection[T]":
+    def empty(self) -> "IPersistentCollection[T]":
         raise NotImplementedError()
 
 

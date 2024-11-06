@@ -250,7 +250,7 @@ class Var(RefBase):
         self._tl = None
         self._meta = meta
         self._lock = threading.RLock()
-        self._watches = lmap.PersistentMap.empty()
+        self._watches = lmap.EMPTY
         self._validator = None
 
         if dynamic:
@@ -460,7 +460,7 @@ FrameStack = IPersistentStack[Frame]
 
 class _ThreadBindings(threading.local):
     def __init__(self):
-        self._bindings: FrameStack = vec.PersistentVector.empty()
+        self._bindings: FrameStack = vec.EMPTY
 
     def get_bindings(self) -> FrameStack:
         return self._bindings
@@ -558,7 +558,7 @@ class Namespace(ReferenceBase):
         )
     )
 
-    _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.PersistentMap.empty())
+    _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.EMPTY)
 
     __slots__ = (
         "_name",
@@ -581,7 +581,7 @@ class Namespace(ReferenceBase):
         self._meta: Optional[IPersistentMap] = None
         self._lock = threading.RLock()
 
-        self._aliases: NamespaceMap = lmap.PersistentMap.empty()
+        self._aliases: NamespaceMap = lmap.EMPTY
         self._imports: ModuleMap = lmap.map(
             dict(
                 map(
@@ -590,9 +590,9 @@ class Namespace(ReferenceBase):
                 )
             )
         )
-        self._import_aliases: AliasMap = lmap.PersistentMap.empty()
-        self._interns: VarMap = lmap.PersistentMap.empty()
-        self._refers: VarMap = lmap.PersistentMap.empty()
+        self._import_aliases: AliasMap = lmap.EMPTY
+        self._interns: VarMap = lmap.EMPTY
+        self._refers: VarMap = lmap.EMPTY
 
     @property
     def name(self) -> str:
@@ -1435,7 +1435,7 @@ def assoc(m, *kvs):
 
 @assoc.register(type(None))
 def _assoc_none(_: None, *kvs) -> lmap.PersistentMap:
-    return lmap.PersistentMap.empty().assoc(*kvs)
+    return lmap.EMPTY.assoc(*kvs)
 
 
 @assoc.register(IAssociative)
@@ -1455,7 +1455,7 @@ def update(m, k, f, *args):
 
 @update.register(type(None))
 def _update_none(_: None, k, f, *args) -> lmap.PersistentMap:
-    return lmap.PersistentMap.empty().assoc(k, f(None, *args))
+    return lmap.EMPTY.assoc(k, f(None, *args))
 
 
 @update.register(IAssociative)
@@ -1550,7 +1550,7 @@ def conj(coll, *xs):
 
 @conj.register(type(None))
 def _conj_none(_: None, *xs):
-    l = llist.PersistentList.empty()
+    l = llist.EMPTY
     return l.cons(*xs)
 
 

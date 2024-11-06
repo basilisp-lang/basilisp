@@ -24,8 +24,8 @@ def test_atom_deref_interface(interface):
 
 
 def test_atom():
-    a = atom.Atom(vec.PersistentVector.empty())
-    assert vec.PersistentVector.empty() == a.deref()
+    a = atom.Atom(vec.EMPTY)
+    assert vec.EMPTY == a.deref()
 
     assert vec.v(1) == a.swap(lambda v, e: v.cons(e), 1)
     assert vec.v(1) == a.deref()
@@ -33,11 +33,11 @@ def test_atom():
     assert vec.v(1, 2) == a.swap(lambda v, e: v.cons(e), 2)
     assert vec.v(1, 2) == a.deref()
 
-    assert lmap.PersistentMap.empty() == a.reset(lmap.PersistentMap.empty())
-    assert lmap.PersistentMap.empty() == a.deref()
+    assert lmap.EMPTY == a.reset(lmap.EMPTY)
+    assert lmap.EMPTY == a.deref()
 
-    assert False is a.compare_and_set("not a map", vec.PersistentVector.empty())
-    assert True is a.compare_and_set(lmap.PersistentMap.empty(), "new string")
+    assert False is a.compare_and_set("not a map", vec.EMPTY)
+    assert True is a.compare_and_set(lmap.EMPTY, "new string")
     assert "new string" == a.deref()
 
 

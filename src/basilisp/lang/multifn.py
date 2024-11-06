@@ -3,9 +3,9 @@ from typing import Any, Callable, Generic, Optional, TypeVar
 
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime
+from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import IPersistentMap, IPersistentSet, IRef
-from basilisp.lang.set import PersistentSet
 
 T = TypeVar("T")
 DispatchFunction = Callable[..., T]
@@ -41,9 +41,9 @@ class MultiFunction(Generic[T]):
         self._default = default
         self._dispatch = dispatch
         self._lock = threading.Lock()
-        self._methods: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
-        self._cache: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
-        self._prefers: IPersistentMap[T, IPersistentSet[T]] = lmap.PersistentMap.empty()
+        self._methods: IPersistentMap[T, Method] = lmap.EMPTY
+        self._cache: IPersistentMap[T, Method] = lmap.EMPTY
+        self._prefers: IPersistentMap[T, IPersistentSet[T]] = lmap.EMPTY
 
         # Fetch some items from basilisp.core that we need to compute the final
         # dispatch method. These cannot be imported statically because that would
@@ -149,7 +149,7 @@ class MultiFunction(Generic[T]):
                     f"due to existing preference for '{other_key}' over "
                     f"'{preferred_key}'"
                 )
-            existing = self._prefers.val_at(preferred_key, PersistentSet.empty())
+            existing = self._prefers.val_at(preferred_key, lset.EMPTY)
             assert existing is not None
             self._prefers = self._prefers.assoc(preferred_key, existing.cons(other_key))
             self._reset_cache()
@@ -171,7 +171,7 @@ class MultiFunction(Generic[T]):
     def remove_all_methods(self) -> None:
         """Remove all methods defined for this multimethod1."""
         with self._lock:
-            self._methods = lmap.PersistentMap.empty()
+            self._methods = lmap.EMPTY
             self._reset_cache()
 
     @property

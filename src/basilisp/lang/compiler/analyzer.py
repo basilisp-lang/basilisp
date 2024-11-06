@@ -331,7 +331,7 @@ class AnalyzerContext:
         self._func_ctx: collections.deque[FunctionContext] = collections.deque([])
         self._is_quoted: collections.deque[bool] = collections.deque([])
         self._opts = (
-            Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore[arg-type, unused-ignore]
+            Maybe(opts).map(lmap.map).or_else_get(lmap.EMPTY)  # type: ignore[arg-type, unused-ignore]
         )
         self._recur_points: collections.deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
@@ -808,7 +808,7 @@ def _call_args_ast(
                 kwargs = lmap.map(kw_map)
         else:
             args = vec.vector(map(lambda form: _analyze_form(form, ctx), form))
-            kwargs = lmap.PersistentMap.empty()
+            kwargs = lmap.EMPTY
 
         return args, kwargs
 
@@ -940,7 +940,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     if nelems == 2:
         init_idx = None
         doc = None
-        children = vec.PersistentVector.empty()
+        children = vec.EMPTY
     elif nelems == 3:
         init_idx = 2
         doc = None
@@ -2823,9 +2823,7 @@ def __letfn_fn_body(form: ISeq, ctx: AnalyzerContext) -> Fn:
     fn_body = _analyze_form(
         fn_rest.cons(
             fn_name.with_meta(
-                (fn_name.meta or lmap.PersistentMap.empty()).assoc(
-                    SYM_NO_WARN_ON_SHADOW_META_KEY, True
-                )
+                (fn_name.meta or lmap.EMPTY).assoc(SYM_NO_WARN_ON_SHADOW_META_KEY, True)
             )
         ).cons(fn_sym),
         ctx,
@@ -3456,7 +3454,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
 @_analyze_form.register(ISeq)
 @_with_loc
 def _list_node(form: ISeq, ctx: AnalyzerContext) -> Node:
-    if form == llist.PersistentList.empty():
+    if form == llist.EMPTY:
         with ctx.quoted():
             return _const_node(form, ctx)
 

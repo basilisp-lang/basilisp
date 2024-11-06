@@ -43,7 +43,7 @@ def test_set_as_function():
 
 
 def test_set_bool():
-    assert True is bool(lset.PersistentSet.empty())
+    assert True is bool(lset.EMPTY)
 
 
 def test_set_conj():
@@ -55,6 +55,30 @@ def test_set_conj():
     assert len(s2) == 2
     assert meta == s1.meta
     assert meta == s2.meta
+
+
+def test_set_disj():
+    meta = lmap.m(tag="async")
+    s1 = lset.s(keyword("kw1"), keyword("kw2"), meta=meta)
+    s2 = s1.disj(keyword("kw2"))
+    s3 = s2.disj(keyword("kw1"))
+    assert s1 is not s2
+    assert s2 is not s3
+    assert s1 != s2
+    assert s2 != s3
+    assert len(s2) == 1
+    assert len(s3) == 0
+    assert meta == s1.meta
+    assert meta == s2.meta
+    assert meta == s3.meta
+
+
+def test_set_empty():
+    meta = lmap.map({"meta": 1})
+    s1 = lset.s(1, 2, 3, meta=meta)
+    assert s1.empty() == lset.EMPTY
+    assert s1.empty().meta == meta
+    assert lset.EMPTY.meta is None
 
 
 def test_set_meta():
@@ -85,7 +109,7 @@ def test_set_with_meta():
 
 
 def test_set_seq():
-    assert None is lset.PersistentSet.empty().seq()
+    assert None is lset.EMPTY.seq()
     assert {1} == set(lset.s(1).seq())
     assert {1, 2} == set(lset.s(1, 2).seq())
     assert {1, 2, 3} == set(lset.s(1, 2, 3).seq())
