@@ -55,6 +55,11 @@ def test_assoc():
     assert lmap.map({"a": 1, "b": 2}) == m1.assoc("a", 1, "b", 2)
     assert lmap.map({"a": 3, "b": 2}) == m1.assoc("b", 2)
 
+    meta = lmap.map({"meta": True})
+    m2 = lmap.map({"b": 3}, meta=meta)
+    assert m2.assoc("b", 4).meta == meta
+    assert m2.assoc("c", 8, "d", 12).meta == meta
+
 
 def test_map_bool():
     assert True is bool(lmap.EMPTY)
@@ -82,10 +87,22 @@ def test_dissoc():
     assert m1 == m1.dissoc("b")
     assert lmap.EMPTY == m1.dissoc("a")
 
-    m2 = lmap.map({"a": 3, "b": 2})
+    meta = lmap.map({"meta": True})
+    m2 = lmap.map({"a": 3, "b": 2}, meta=meta)
     assert lmap.map({"a": 3}) == m2.dissoc("b")
+    assert m2.dissoc("b").meta == meta
     assert lmap.map({"b": 2}) == m2.dissoc("a")
+    assert m2.dissoc("a").meta == meta
     assert lmap.EMPTY == m2.dissoc("a", "b")
+    assert m2.dissoc("a", "b").meta == meta
+
+
+def test_map_empty():
+    meta = lmap.map({"meta": 1})
+    m1 = lmap.map({"a": 1}, meta=meta)
+    assert m1.empty() == lmap.EMPTY
+    assert m1.empty().meta == meta
+    assert lmap.EMPTY.meta is None
 
 
 def test_entry():

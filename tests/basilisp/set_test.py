@@ -57,6 +57,30 @@ def test_set_conj():
     assert meta == s2.meta
 
 
+def test_set_disj():
+    meta = lmap.m(tag="async")
+    s1 = lset.s(keyword("kw1"), keyword("kw2"), meta=meta)
+    s2 = s1.disj(keyword("kw2"))
+    s3 = s2.disj(keyword("kw1"))
+    assert s1 is not s2
+    assert s2 is not s3
+    assert s1 != s2
+    assert s2 != s3
+    assert len(s2) == 1
+    assert len(s3) == 0
+    assert meta == s1.meta
+    assert meta == s2.meta
+    assert meta == s3.meta
+
+
+def test_set_empty():
+    meta = lmap.map({"meta": 1})
+    s1 = lset.s(1, 2, 3, meta=meta)
+    assert s1.empty() == lset.EMPTY
+    assert s1.empty().meta == meta
+    assert lset.EMPTY.meta is None
+
+
 def test_set_meta():
     assert lset.s("vec").meta is None
     meta = lmap.m(type=symbol("str"))

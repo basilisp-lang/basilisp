@@ -57,9 +57,20 @@ def test_assoc():
     assert vec.EMPTY == v
     assert vec.vector(["a", "b"]) == v.assoc(0, "a", 1, "b")
 
-    v1 = vec.v("a")
+    meta = lmap.m(meta=True)
+    v1 = vec.v("a", meta=meta)
     assert vec.v("c", "b") == v1.assoc(0, "c", 1, "b")
     assert vec.v("a", "b") == v1.assoc(1, "b")
+    assert v1.assoc(1, "b").meta == meta
+    assert v1.assoc(1, "b", 2, "c").meta == meta
+
+
+def test_vector_empty():
+    meta = lmap.map({"meta": 1})
+    v1 = vec.v(1, 2, 3, meta=meta)
+    assert v1.empty() == vec.EMPTY
+    assert v1.empty().meta == meta
+    assert vec.EMPTY.meta is None
 
 
 def test_vector_bool():

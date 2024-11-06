@@ -53,9 +53,18 @@ def test_list_cons():
     assert l2 == llist.l(keyword("kw2"), keyword("kw1"))
     assert len(l2) == 2
     assert meta == l1.meta
-    assert l2.meta is None
+    assert l2.meta == meta
     l3 = l2.cons(3, "four")
     assert l3 == llist.l("four", 3, keyword("kw2"), keyword("kw1"))
+    assert l3.meta == meta
+
+
+def test_list_empty():
+    meta = lmap.m(tag="async")
+    l1 = llist.l(keyword("kw1"), meta=meta)
+    assert l1.empty() == llist.EMPTY
+    assert l1.empty().meta == meta
+    assert llist.EMPTY.empty().meta is None
 
 
 def test_peek():

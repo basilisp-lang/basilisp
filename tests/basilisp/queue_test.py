@@ -47,9 +47,18 @@ def test_queue_cons():
     assert q2 == lqueue.q(keyword("kw1"), keyword("kw2"))
     assert len(q2) == 2
     assert meta == q1.meta
-    assert q2.meta is None
+    assert q2.meta == meta
     q3 = q2.cons(3, "four")
     assert q3 == lqueue.q(keyword("kw1"), keyword("kw2"), 3, "four")
+    assert q3.meta == meta
+
+
+def test_queue_empty():
+    meta = lmap.m(tag="async")
+    q1 = lqueue.q(keyword("kw1"), meta=meta)
+    assert q1.empty() == lqueue.EMPTY
+    assert q1.empty().meta == meta
+    assert lqueue.EMPTY.empty().meta is None
 
 
 def test_queue_equals():
@@ -73,6 +82,12 @@ def test_queue_pop():
     assert lqueue.EMPTY == lqueue.q(1).pop()
     assert lqueue.q(2) == lqueue.q(1, 2).pop()
     assert lqueue.q(2, 3) == lqueue.q(1, 2, 3).pop()
+
+    meta = lmap.m(meta=True)
+    q1 = lqueue.q(1, 2, 3, meta=meta)
+    assert q1.pop().meta == meta
+    assert q1.pop().pop().meta == meta
+    assert q1.pop().pop().pop().meta == meta
 
 
 def test_queue_meta():
