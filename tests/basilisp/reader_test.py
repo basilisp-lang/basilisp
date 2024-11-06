@@ -594,6 +594,7 @@ class TestKeyword:
             ("*muffs*", ":*muffs*"),
             ("yay!", ":yay!"),
             ("*'", ":*'"),
+            ("a:b", ":a:b"),
         ],
     )
     def test_legal_bare_symbol(self, v: str, raw: str):
@@ -605,6 +606,8 @@ class TestKeyword:
             ("kw", "ns", ":ns/kw"),
             ("kw", "qualified.ns", ":qualified.ns/kw"),
             ("kw", "really.qualified.ns", ":really.qualified.ns/kw"),
+            ("a:b", "ab", ":ab/a:b"),
+            ("a:b", "a:b", ":a:b/a:b"),
         ],
     )
     def test_legal_ns_symbol(self, k: str, ns: str, raw: str):
@@ -661,6 +664,7 @@ class TestSymbol:
             ".interop",
             "ns.name",
             "*'",
+            "a:b",
         ],
     )
     def test_legal_bare_symbol(self, s: str):
@@ -672,6 +676,8 @@ class TestSymbol:
             ("sym", "ns", "ns/sym"),
             ("sym", "qualified.ns", "qualified.ns/sym"),
             ("sym", "really.qualified.ns", "really.qualified.ns/sym"),
+            ("sy:m", "ns", "ns/sy:m"),
+            ("sy:m", "n:s", "n:s/sy:m"),
         ],
     )
     def test_legal_ns_symbol(self, s: str, ns: str, raw: str):
