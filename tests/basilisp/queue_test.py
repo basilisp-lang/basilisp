@@ -35,7 +35,7 @@ def test_queue_interface_membership(interface):
 
 
 def test_queue_bool():
-    assert True is bool(lqueue.PersistentQueue.empty())
+    assert True is bool(lqueue.EMPTY)
 
 
 def test_queue_cons():
@@ -53,13 +53,13 @@ def test_queue_cons():
 
 
 def test_queue_equals():
-    q = lqueue.PersistentQueue.empty()
+    q = lqueue.EMPTY
     assert q == q
     assert lqueue.q(1, 2, 3) != (1, 2, 3, 4)
 
 
 def test_queue_peek():
-    assert None is lqueue.PersistentQueue.empty().peek()
+    assert None is lqueue.EMPTY.peek()
 
     assert 1 == lqueue.q(1).peek()
     assert 1 == lqueue.q(1, 2).peek()
@@ -70,7 +70,7 @@ def test_queue_pop():
     with pytest.raises(IndexError):
         lqueue.q().pop()
 
-    assert lqueue.PersistentQueue.empty() == lqueue.q(1).pop()
+    assert lqueue.EMPTY == lqueue.q(1).pop()
     assert lqueue.q(2) == lqueue.q(1, 2).pop()
     assert lqueue.q(2, 3) == lqueue.q(1, 2, 3).pop()
 
@@ -103,7 +103,7 @@ def test_queue_with_meta():
 
 
 def test_queue_seq():
-    assert None is lqueue.PersistentQueue.empty().seq()
+    assert None is lqueue.EMPTY.seq()
     assert lqueue.q(1) == lqueue.q(1).seq()
     assert lqueue.q(1, 2) == lqueue.q(1, 2).seq()
     assert lqueue.q(1, 2, 3) == lqueue.q(1, 2, 3).seq()
@@ -126,7 +126,7 @@ def test_queue_pickleability(pickle_protocol: int, o: lqueue.PersistentQueue):
 @pytest.mark.parametrize(
     "l,str_repr",
     [
-        (lqueue.PersistentQueue.empty(), "#queue ()"),
+        (lqueue.EMPTY, "#queue ()"),
         (lqueue.q(keyword("kw1")), "#queue (:kw1)"),
         (lqueue.q(keyword("kw1"), keyword("kw2")), "#queue (:kw1 :kw2)"),
     ],
