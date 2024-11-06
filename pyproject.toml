@@ -72,6 +72,9 @@ basilisp_test_runner = "basilisp.contrib.pytest.testrunner"
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.bandit]
+skips = ["B101"]
+
 [tool.black]
 line-length = 88
 target-version = ["py39"]
