@@ -6842,12 +6842,12 @@
   in the body of a method should not include that parameter, as it will be supplied
   automatically."
   [type-name fields & method-impls]
-  (let [ctor-name     (with-meta
-                        (symbol (str "->" (name type-name)))
-                        (meta type-name))
-        map-ctor      (with-meta
-                        (symbol (str "map->" (name type-name)))
-                        (meta type-name))
+  (let [ctor-name (with-meta
+                    (symbol (str "->" (name type-name)))
+                    (meta type-name))
+        map-ctor  (with-meta
+                    (symbol (str "map->" (name type-name)))
+                    (meta type-name))
 
         record-fields (vec (concat fields
                                    ['^{:default nil} meta
@@ -6861,6 +6861,7 @@
                            '[basilisp.lang.interfaces/IPersistentMap
                              basilisp.lang.interfaces/IWithMeta
                              basilisp.lang.interfaces/IRecord
+                             basilisp.lang.interfaces/IReduceKV
                              python/object])
 
         ;; We can use these gensyms repeatedly and interpolate them in
@@ -7004,6 +7005,17 @@
                           (repr)
                           (str "#" ~(name *ns*) "." qual-name))
               print-meta (str "^" (repr (meta ~this-gs)) " "))))
+
+         ;; IReduceKV
+         (~'reduce-kv [~this-gs f# init#]
+          (loop [res#    init#
+                 fields# (seq ~this-gs)]
+            (cond
+              (reduced? res#) (deref res#)
+              (seq fields#)   (let [[k# v#] (first fields#)]
+                                (recur (f# res# k# v#)
+                                       (rest fields#)))
+              :else           res#)))
 
          ;; object
          (~'__eq__ [~this-gs ~other-gs]

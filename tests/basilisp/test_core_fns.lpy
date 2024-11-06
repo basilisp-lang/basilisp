@@ -833,6 +833,8 @@
       (is (= 6 (reduce (f) (range))))
       (is (= 9 (reduce (f) 6 (range)))))))
 
+(defrecord ReduceKVRecord [a b c])
+
 (deftest reduce-kv-test
   (testing "reduce-kv does not execute f if no elems in coll"
     (let [a (atom false)]
@@ -864,7 +866,31 @@
                    (update :ks conj i)
                    (update :vs conj v)))
              {:ks [] :vs []}
-             [:a :b :c])))))
+             [:a :b :c]))))
+
+  (testing "works on records"
+    (is (= :reduced (reduce-kv (fn [acc k v]
+                                 (reduced :reduced))
+                               {:ks #{} :vs #{}}
+                               (->ReduceKVRecord 1 2 3))))
+
+    (let [rec (reduce-kv
+               (fn [acc k v]
+                 (assoc acc k v))
+               (->ReduceKVRecord 0 1 2)
+               {:d 4 :e 5})]
+      (is (record? rec))
+      (is (instance? ReduceKVRecord rec)))
+
+    (are [res input] (= res (reduce-kv
+                             (fn [acc k v]
+                               (-> acc
+                                   (update :ks conj k)
+                                   (update :vs conj v)))
+                             {:ks #{} :vs #{}}
+                             input))
+      {:ks #{:a :b :c} :vs #{1 2 3}}           (->ReduceKVRecord 1 2 3)
+      {:ks #{:a :b :c :d :e} :vs #{1 2 3 4 5}} (assoc (->ReduceKVRecord 1 2 3) :d 4 :e 5))))
 
 (deftest fnil-test
   (let [f (fnil (fn [x] x) :yes)]
