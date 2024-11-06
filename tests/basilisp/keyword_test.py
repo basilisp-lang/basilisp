@@ -86,7 +86,7 @@ def test_keyword_pickleability(pickle_protocol: int, o: Keyword):
 class TestKeywordCompletion:
     @pytest.fixture
     def empty_cache(self) -> lmap.PersistentMap[int, Keyword]:
-        return lmap.PersistentMap.empty()
+        return lmap.EMPTY
 
     def test_empty_cache_no_completion(
         self, empty_cache: lmap.PersistentMap[int, Keyword]

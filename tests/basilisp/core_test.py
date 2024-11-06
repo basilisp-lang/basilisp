@@ -45,19 +45,19 @@ TRUTHY_VALUES = [
     kw.keyword("name", ns="ns"),
     "",
     "not empty",
-    llist.PersistentList.empty(),
+    llist.EMPTY,
     llist.l(0),
     llist.l(False),
     llist.l(True),
-    lmap.PersistentMap.empty(),
+    lmap.EMPTY,
     lmap.map({0: 0}),
     lmap.map({False: False}),
     lmap.map({True: True}),
-    lset.PersistentSet.empty(),
+    lset.EMPTY,
     lset.s(0),
     lset.s(False),
     lset.s(True),
-    vec.PersistentVector.empty(),
+    vec.EMPTY,
     vec.v(0),
     vec.v(False),
     vec.v(True),
@@ -80,19 +80,19 @@ NON_NIL_VALUES = [
     kw.keyword("name", ns="ns"),
     "",
     "not empty",
-    llist.PersistentList.empty(),
+    llist.EMPTY,
     llist.l(0),
     llist.l(False),
     llist.l(True),
-    lmap.PersistentMap.empty(),
+    lmap.EMPTY,
     lmap.map({0: 0}),
     lmap.map({False: False}),
     lmap.map({True: True}),
-    lset.PersistentSet.empty(),
+    lset.EMPTY,
     lset.s(0),
     lset.s(False),
     lset.s(True),
-    vec.PersistentVector.empty(),
+    vec.EMPTY,
     vec.v(0),
     vec.v(False),
     vec.v(True),
@@ -197,12 +197,12 @@ def test_ex_info():
 
 
 def test_last():
-    assert None is core.last(llist.PersistentList.empty())
+    assert None is core.last(llist.EMPTY)
     assert 1 == core.last(llist.l(1))
     assert 2 == core.last(llist.l(1, 2))
     assert 3 == core.last(llist.l(1, 2, 3))
 
-    assert None is core.last(vec.PersistentVector.empty())
+    assert None is core.last(vec.EMPTY)
     assert 1 == core.last(vec.v(1))
     assert 2 == core.last(vec.v(1, 2))
     assert 3 == core.last(vec.v(1, 2, 3))
@@ -527,15 +527,11 @@ class TestIsAny:
 
 
 class TestIsAssociative:
-    @pytest.mark.parametrize(
-        "v", [lmap.PersistentMap.empty(), vec.PersistentVector.empty()]
-    )
+    @pytest.mark.parametrize("v", [lmap.EMPTY, vec.EMPTY])
     def test_is_associative(self, v):
         assert True is core.associative__Q__(v)
 
-    @pytest.mark.parametrize(
-        "v", [llist.PersistentList.empty(), lset.PersistentSet.empty()]
-    )
+    @pytest.mark.parametrize("v", [llist.EMPTY, lset.EMPTY])
     def test_is_not_associative(self, v):
         assert False is core.associative__Q__(v)
 
@@ -563,10 +559,10 @@ class TestIsColl:
     @pytest.mark.parametrize(
         "v",
         [
-            llist.PersistentList.empty(),
-            lmap.PersistentMap.empty(),
-            lset.PersistentSet.empty(),
-            vec.PersistentVector.empty(),
+            llist.EMPTY,
+            lmap.EMPTY,
+            lset.EMPTY,
+            vec.EMPTY,
         ],
     )
     def test_is_coll(self, v):
@@ -613,10 +609,10 @@ class TestIsFn:
             1,
             1.6,
             kw.keyword("a"),
-            lmap.PersistentMap.empty(),
-            lset.PersistentSet.empty(),
+            lmap.EMPTY,
+            lset.EMPTY,
             sym.symbol("a"),
-            vec.PersistentVector.empty(),
+            vec.EMPTY,
         ],
     )
     def test_is_not_fn(self, v):
@@ -626,9 +622,7 @@ class TestIsFn:
         assert True is core.ifn__Q__(basilisp_fn)
         assert True is core.ifn__Q__(py_fn)
 
-    @pytest.mark.parametrize(
-        "v", [kw.keyword("a"), lmap.PersistentMap.empty(), lset.PersistentSet.empty()]
-    )
+    @pytest.mark.parametrize("v", [kw.keyword("a"), lmap.EMPTY, lset.EMPTY])
     def test_other_is_ifn(self, v):
         assert True is core.ifn__Q__(v)
 
@@ -707,7 +701,7 @@ class TestIsIdent:
 
 def test_is_map_entry():
     assert True is core.map_entry__Q__(lmap.MapEntry.of("a", "b"))
-    assert False is core.map_entry__Q__(vec.PersistentVector.empty())
+    assert False is core.map_entry__Q__(vec.EMPTY)
     assert False is core.map_entry__Q__(vec.v("a", "b"))
     assert False is core.map_entry__Q__(vec.v("a", "b", "c"))
 
@@ -911,7 +905,7 @@ class TestIsPy:
     def test_is_py_dict(self, v):
         assert True is core.py_dict__Q__(v)
 
-    @pytest.mark.parametrize("v", [lmap.PersistentMap.empty(), lmap.map({"a": "b"})])
+    @pytest.mark.parametrize("v", [lmap.EMPTY, lmap.map({"a": "b"})])
     def test_is_not_py_dict(self, v):
         assert False is core.py_dict__Q__(v)
 
@@ -919,7 +913,7 @@ class TestIsPy:
     def test_is_py_frozenset(self, v):
         assert True is core.py_frozenset__Q__(v)
 
-    @pytest.mark.parametrize("v", [lset.PersistentSet.empty(), lset.s("a", "b")])
+    @pytest.mark.parametrize("v", [lset.EMPTY, lset.s("a", "b")])
     def test_is_not_py_frozenset(self, v):
         assert False is core.py_frozenset__Q__(v)
 
@@ -927,7 +921,7 @@ class TestIsPy:
     def test_is_py_list(self, v):
         assert True is core.py_list__Q__(v)
 
-    @pytest.mark.parametrize("v", [vec.PersistentVector.empty(), vec.v("a", "b")])
+    @pytest.mark.parametrize("v", [vec.EMPTY, vec.v("a", "b")])
     def test_is_not_py_list(self, v):
         assert False is core.py_list__Q__(v)
 
@@ -935,7 +929,7 @@ class TestIsPy:
     def test_is_py_set(self, v):
         assert True is core.py_set__Q__(v)
 
-    @pytest.mark.parametrize("v", [lset.PersistentSet.empty(), lset.s("a", "b")])
+    @pytest.mark.parametrize("v", [lset.EMPTY, lset.s("a", "b")])
     def test_is_not_py_set(self, v):
         assert False is core.py_set__Q__(v)
 
@@ -943,7 +937,7 @@ class TestIsPy:
     def test_is_py_tuple(self, v):
         assert True is core.py_tuple__Q__(v)
 
-    @pytest.mark.parametrize("v", [llist.PersistentList.empty(), llist.l("a", "b")])
+    @pytest.mark.parametrize("v", [llist.EMPTY, llist.l("a", "b")])
     def test_is_not_py_tuple(self, v):
         assert False is core.py_tuple__Q__(v)
 
@@ -1151,15 +1145,15 @@ class TestAssociativeFunctions:
         assert None is core.disj(None)
         assert None is core.disj(None, "a")
         assert None is core.disj(None, "a", "b", "c")
-        assert lset.PersistentSet.empty() == core.disj(lset.PersistentSet.empty(), "a")
-        assert lset.PersistentSet.empty() == core.disj(lset.s("a"), "a")
+        assert lset.EMPTY == core.disj(lset.EMPTY, "a")
+        assert lset.EMPTY == core.disj(lset.s("a"), "a")
         assert lset.s("b", "d") == core.disj(lset.s("a", "b", "c", "d"), "a", "c", "e")
 
     def test_dissoc(self):
         assert None is core.dissoc(None)
         assert None is core.dissoc(None, "a")
         assert None is core.dissoc(None, "a", "b", "c")
-        assert lmap.PersistentMap.empty() == core.dissoc(lmap.map({"a": 1}), "a", "c")
+        assert lmap.EMPTY == core.dissoc(lmap.map({"a": 1}), "a", "c")
         assert lmap.map({"a": 1}) == core.dissoc(lmap.map({"a": 1}), "b", "c")
 
     def test_get(self):
@@ -1216,7 +1210,7 @@ class TestAssociativeFunctions:
             lmap.map({"f": 6}),
         )
 
-        assert vec.v("a") == core.assoc_in(vec.PersistentVector.empty(), vec.v(0), "a")
+        assert vec.v("a") == core.assoc_in(vec.EMPTY, vec.v(0), "a")
         assert vec.v("c", "b") == core.assoc_in(vec.v("a", "b"), vec.v(0), "c")
         assert vec.v("a", "c") == core.assoc_in(vec.v("a", "b"), vec.v(1), "c")
         assert vec.v("a", "d", "c") == core.assoc_in(
@@ -1343,11 +1337,9 @@ class TestAssociativeFunctions:
         )
 
     def test_select_keys(self):
-        assert lmap.PersistentMap.empty() == core.select_keys(
-            lmap.PersistentMap.empty(), vec.PersistentVector.empty()
-        )
-        assert lmap.PersistentMap.empty() == core.select_keys(
-            lmap.PersistentMap.empty(), vec.v(kw.keyword("a"), kw.keyword("b"))
+        assert lmap.EMPTY == core.select_keys(lmap.EMPTY, vec.EMPTY)
+        assert lmap.EMPTY == core.select_keys(
+            lmap.EMPTY, vec.v(kw.keyword("a"), kw.keyword("b"))
         )
         assert lmap.map(
             {kw.keyword("a"): "a", kw.keyword("b"): "b"}
@@ -1429,9 +1421,7 @@ def test_partial_kw():
 
 
 class TestIsEvery:
-    @pytest.mark.parametrize(
-        "coll", [vec.PersistentVector.empty(), vec.v(3), vec.v(3, 5, 7, 9, 11)]
-    )
+    @pytest.mark.parametrize("coll", [vec.EMPTY, vec.v(3), vec.v(3, 5, 7, 9, 11)])
     def test_is_every(self, coll):
         assert True is core.every__Q__(core.odd__Q__, coll)
 
@@ -1444,9 +1434,7 @@ class TestIsEvery:
 
 
 class TestIsNotEvery:
-    @pytest.mark.parametrize(
-        "coll", [vec.PersistentVector.empty(), vec.v(3), vec.v(3, 5, 7, 9, 11)]
-    )
+    @pytest.mark.parametrize("coll", [vec.EMPTY, vec.v(3), vec.v(3, 5, 7, 9, 11)])
     def test_is_not_every(self, coll):
         assert False is core.not_every__Q__(core.odd__Q__, coll)
 
@@ -1472,9 +1460,7 @@ class TestSome:
     def test_is_some(self, coll):
         assert True is core.some(core.odd__Q__, coll)
 
-    @pytest.mark.parametrize(
-        "coll", [vec.PersistentVector.empty(), vec.v(2), vec.v(2, 4, 6, 8, 10)]
-    )
+    @pytest.mark.parametrize("coll", [vec.EMPTY, vec.v(2), vec.v(2, 4, 6, 8, 10)])
     def test_is_not_some(self, coll):
         assert None is core.some(core.odd__Q__, coll)
 
@@ -1493,9 +1479,7 @@ class TestNotAny:
     def test_is_not_any(self, coll):
         assert False is core.not_any__Q__(core.odd__Q__, coll)
 
-    @pytest.mark.parametrize(
-        "coll", [vec.PersistentVector.empty(), vec.v(2), vec.v(2, 4, 6, 8, 10)]
-    )
+    @pytest.mark.parametrize("coll", [vec.EMPTY, vec.v(2), vec.v(2, 4, 6, 8, 10)])
     def test_not_is_not_any(self, coll):
         assert True is core.not_any__Q__(core.odd__Q__, coll)
 
@@ -1561,7 +1545,7 @@ def test_string_format():
 
 def test_merge():
     assert None is core.merge()
-    assert lmap.PersistentMap.empty() == core.merge(lmap.PersistentMap.empty())
+    assert lmap.EMPTY == core.merge(lmap.EMPTY)
     assert lmap.map({kw.keyword("a"): 1}) == core.merge(lmap.map({kw.keyword("a"): 1}))
     assert lmap.map({kw.keyword("a"): 53, kw.keyword("b"): "hi"}) == core.merge(
         lmap.map({kw.keyword("a"): 1, kw.keyword("b"): "hi"}),
@@ -1570,42 +1554,30 @@ def test_merge():
 
 
 def test_split_at():
-    assert vec.v(
-        llist.PersistentList.empty(), llist.PersistentList.empty()
-    ) == core.split_at(3, vec.PersistentVector.empty())
-    assert vec.v(llist.PersistentList.empty(), llist.l(1, 2, 3)) == core.split_at(
-        0, vec.v(1, 2, 3)
-    )
+    assert vec.v(llist.EMPTY, llist.EMPTY) == core.split_at(3, vec.EMPTY)
+    assert vec.v(llist.EMPTY, llist.l(1, 2, 3)) == core.split_at(0, vec.v(1, 2, 3))
     assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_at(1, vec.v(1, 2, 3))
     assert vec.v(llist.l(1, 2), llist.l(3)) == core.split_at(2, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2, 3), llist.PersistentList.empty()) == core.split_at(
-        3, vec.v(1, 2, 3)
-    )
-    assert vec.v(llist.l(1, 2, 3), llist.PersistentList.empty()) == core.split_at(
-        4, vec.v(1, 2, 3)
-    )
+    assert vec.v(llist.l(1, 2, 3), llist.EMPTY) == core.split_at(3, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 2, 3), llist.EMPTY) == core.split_at(4, vec.v(1, 2, 3))
     assert vec.v(llist.l(1, 2, 3), llist.l(4)) == core.split_at(3, vec.v(1, 2, 3, 4))
 
 
 def test_split_with():
-    assert vec.v(
-        llist.PersistentList.empty(), llist.PersistentList.empty()
-    ) == core.split_with(core.odd__Q__, vec.PersistentVector.empty())
+    assert vec.v(llist.EMPTY, llist.EMPTY) == core.split_with(core.odd__Q__, vec.EMPTY)
     assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_with(
         core.odd__Q__, vec.v(1, 2, 3)
     )
-    assert vec.v(llist.l(1, 3, 5, 7), llist.PersistentList.empty()) == core.split_with(
+    assert vec.v(llist.l(1, 3, 5, 7), llist.EMPTY) == core.split_with(
         core.odd__Q__, vec.v(1, 3, 5, 7)
     )
-    assert vec.v(llist.PersistentList.empty(), llist.l(2, 4, 6, 8)) == core.split_with(
+    assert vec.v(llist.EMPTY, llist.l(2, 4, 6, 8)) == core.split_with(
         core.odd__Q__, vec.v(2, 4, 6, 8)
     )
 
 
 def test_group_by():
-    assert lmap.PersistentMap.empty() == core.group_by(
-        core.inc, vec.PersistentVector.empty()
-    )
+    assert lmap.EMPTY == core.group_by(core.inc, vec.EMPTY)
     assert lmap.map({True: vec.v(1, 3), False: vec.v(2, 4)}) == core.group_by(
         core.odd__Q__, vec.v(1, 2, 3, 4)
     )

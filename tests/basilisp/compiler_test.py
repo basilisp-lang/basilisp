@@ -3242,8 +3242,8 @@ class TestMacroexpandFunctions:
         assert llist.l(
             sym.symbol("defmacro", ns="basilisp.core"),
             sym.symbol("child"),
-            vec.PersistentVector.empty(),
-            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()),
+            vec.EMPTY,
+            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.EMPTY),
         ) == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
 
         assert llist.l(
@@ -3253,9 +3253,7 @@ class TestMacroexpandFunctions:
         assert llist.l(sym.symbol("map")) == compiler.macroexpand_1(
             llist.l(sym.symbol("map"))
         )
-        assert vec.PersistentVector.empty() == compiler.macroexpand_1(
-            vec.PersistentVector.empty()
-        )
+        assert vec.EMPTY == compiler.macroexpand_1(vec.EMPTY)
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand_1(
             sym.symbol("non-existent-symbol")
@@ -3280,7 +3278,7 @@ class TestMacroexpandFunctions:
                 vec.v(sym.symbol("&env"), sym.symbol("&form")),
                 llist.l(
                     sym.symbol("fn", ns="basilisp.core"),
-                    vec.PersistentVector.empty(),
+                    vec.EMPTY,
                 ),
             ),
         ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
@@ -3292,9 +3290,7 @@ class TestMacroexpandFunctions:
         assert llist.l(sym.symbol("map")) == compiler.macroexpand(
             llist.l(sym.symbol("map"), meta=meta)
         )
-        assert vec.PersistentVector.empty() == compiler.macroexpand(
-            vec.PersistentVector.empty().with_meta(meta)
-        )
+        assert vec.EMPTY == compiler.macroexpand(vec.EMPTY.with_meta(meta))
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand(
             sym.symbol("non-existent-symbol")
@@ -4221,7 +4217,7 @@ class TestQuote:
         )
 
     def test_quoted_map(self, lcompile: CompileFn):
-        assert lcompile("'{}") == lmap.PersistentMap.empty()
+        assert lcompile("'{}") == lmap.EMPTY
         assert lcompile("'{:a 2}") == lmap.map({kw.keyword("a"): 2})
         assert lcompile('\'{:a 2 "str" s}') == lmap.map(
             {kw.keyword("a"): 2, "str": sym.symbol("s")}
@@ -4235,7 +4231,7 @@ class TestQuote:
         assert lcompile("'#queue (1 2 3)") == lqueue.q(1, 2, 3)
 
     def test_quoted_set(self, lcompile: CompileFn):
-        assert lcompile("'#{}") == lset.PersistentSet.empty()
+        assert lcompile("'#{}") == lset.EMPTY
         assert lcompile("'#{:a 2}") == lset.s(kw.keyword("a"), 2)
         assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
 

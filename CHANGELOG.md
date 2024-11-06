@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug where symbols and keyword containing `:` characters in the name were rejected by the reader (#1105)
  * Fix a bug where records did not support reducing via `reduce-kv` (#1102)
+ * Fix a bug where collection modifying library functions such as `conj`, `disj`, `assoc`, and `dissoc` would not preserve collection metadata (#1103)
 
 ## [v0.3.0]
 ### Added

@@ -16,7 +16,7 @@ from basilisp.lang.interfaces import (
 from basilisp.lang.obj import PrintSettings
 
 _LOCK = threading.Lock()
-_INTERN: IPersistentMap[int, "Keyword"] = lmap.PersistentMap.empty()
+_INTERN: IPersistentMap[int, "Keyword"] = lmap.EMPTY
 
 
 @total_ordering

@@ -177,7 +177,7 @@ class PersistentVector(
         return PersistentVector(e.persistent(), meta=self.meta)
 
     def assoc(self, *kvs: T) -> "PersistentVector[T]":
-        return PersistentVector(self._inner.mset(*kvs))  # type: ignore[arg-type]
+        return PersistentVector(self._inner.mset(*kvs), meta=self._meta)  # type: ignore[arg-type]
 
     def contains(self, k: int) -> bool:
         return 0 <= k < len(self._inner)
@@ -194,9 +194,8 @@ class PersistentVector(
         except (IndexError, TypeError):
             return default
 
-    @staticmethod
-    def empty() -> "PersistentVector[T]":
-        return EMPTY
+    def empty(self) -> "PersistentVector[T]":
+        return EMPTY.with_meta(self._meta)
 
     def seq(self) -> Optional[ISeq[T]]:  # type: ignore[override]
         if len(self._inner) == 0:

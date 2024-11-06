@@ -380,7 +380,7 @@ class ProtocolDocumenter(VarDocumenter):
         assert isinstance(proto, IPersistentMap)
         proto_methods = cast(
             IPersistentMap[kw.Keyword, Any],
-            proto.val_at(_METHODS_KW, lmap.PersistentMap.empty()),
+            proto.val_at(_METHODS_KW, lmap.EMPTY),
         )
         return False, list(
             map(

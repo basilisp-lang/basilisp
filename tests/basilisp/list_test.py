@@ -41,7 +41,7 @@ def test_list_slice():
 
 
 def test_list_bool():
-    assert True is bool(llist.PersistentList.empty())
+    assert True is bool(llist.EMPTY)
 
 
 def test_list_cons():
@@ -70,7 +70,7 @@ def test_pop():
     with pytest.raises(IndexError):
         llist.l().pop()
 
-    assert llist.PersistentList.empty() == llist.l(1).pop()
+    assert llist.EMPTY == llist.l(1).pop()
     assert llist.l(2) == llist.l(1, 2).pop()
     assert llist.l(2, 3) == llist.l(1, 2, 3).pop()
 
@@ -103,14 +103,14 @@ def test_list_with_meta():
 
 
 def test_list_seq():
-    assert None is llist.PersistentList.empty().seq()
+    assert None is llist.EMPTY.seq()
     assert llist.l(1) == llist.l(1).seq()
     assert llist.l(1, 2) == llist.l(1, 2).seq()
     assert llist.l(1, 2, 3) == llist.l(1, 2, 3).seq()
 
 
 def test_list_first():
-    assert None is llist.PersistentList.empty().first
+    assert None is llist.EMPTY.first
     assert None is llist.l().first
     assert 1 == llist.l(1).first
     assert 1 == llist.l(1, 2).first

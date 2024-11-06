@@ -69,11 +69,10 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
         l = self._inner
         for elem in elems:
             l = l.cons(elem)
-        return PersistentList(l)
+        return PersistentList(l, meta=self._meta)
 
-    @staticmethod
-    def empty() -> "PersistentList":
-        return EMPTY
+    def empty(self) -> "PersistentList":
+        return EMPTY.with_meta(self._meta)
 
     def seq(self) -> Optional[ISeq[T]]:
         if len(self._inner) == 0:

@@ -55,8 +55,7 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
             l = Cons(elem, l)
         return l
 
-    @staticmethod
-    def empty():
+    def empty(self):
         return EMPTY
 
 
@@ -94,8 +93,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
             l = Cons(elem, l)
         return l
 
-    @staticmethod
-    def empty():
+    def empty(self):
         return EMPTY
 
     @property
@@ -216,8 +214,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         with self._lock:
             return self._gen is None
 
-    @staticmethod
-    def empty():
+    def empty(self):
         return EMPTY
 
 

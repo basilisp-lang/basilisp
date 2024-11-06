@@ -166,9 +166,8 @@ class PersistentSet(
                     pass
             return PersistentSet(m.finish(), meta=self.meta)
 
-    @staticmethod
-    def empty() -> "PersistentSet":
-        return EMPTY
+    def empty(self) -> "PersistentSet":
+        return EMPTY.with_meta(self._meta)
 
     def seq(self) -> Optional[ISeq[T]]:
         if len(self._inner) == 0:

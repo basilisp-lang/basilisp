@@ -60,11 +60,10 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
         return queue(self._inner, meta=meta)
 
     def cons(self, *elems: T) -> "PersistentQueue[T]":
-        return PersistentQueue(self._inner.extend(elems))
+        return PersistentQueue(self._inner.extend(elems), meta=self._meta)
 
-    @staticmethod
-    def empty() -> "PersistentQueue":
-        return EMPTY
+    def empty(self) -> "PersistentQueue":
+        return EMPTY.with_meta(self._meta)
 
     def peek(self):
         try:
@@ -75,7 +74,7 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
     def pop(self) -> "PersistentQueue[T]":
         if len(self._inner) == 0:
             raise IndexError("Cannot pop an empty queue")
-        return PersistentQueue(self._inner.popleft())
+        return PersistentQueue(self._inner.popleft(), meta=self._meta)
 
     def seq(self) -> Optional[ISeq[T]]:
         if len(self._inner) == 0:

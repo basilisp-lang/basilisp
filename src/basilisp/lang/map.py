@@ -283,7 +283,7 @@ class PersistentMap(
         with self._inner.mutate() as m:
             for k, v in partition(kvs, 2):
                 m[k] = v
-            return PersistentMap(m.finish())
+            return PersistentMap(m.finish(), meta=self._meta)
 
     def contains(self, k):
         return k in self._inner
@@ -295,7 +295,7 @@ class PersistentMap(
                     del m[k]
                 except KeyError:
                     pass
-            return PersistentMap(m.finish())
+            return PersistentMap(m.finish(), meta=self._meta)
 
     def entry(self, k):
         v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
@@ -308,7 +308,7 @@ class PersistentMap(
 
     def update(self, *maps: Mapping[K, V]) -> "PersistentMap":
         m: _Map = self._inner.update(*(m.items() for m in maps))
-        return PersistentMap(m)
+        return PersistentMap(m, meta=self._meta)
 
     def update_with(  # type: ignore[return]
         self, merge_fn: Callable[[V, V], V], *maps: Mapping[K, V]
@@ -317,7 +317,7 @@ class PersistentMap(
             for map in maps:
                 for k, v in map.items():
                     m.set(k, merge_fn(m[k], v) if k in m else v)
-            return PersistentMap(m.finish())
+            return PersistentMap(m.finish(), meta=self._meta)
 
     def cons(  # type: ignore[override, return]
         self,
@@ -348,9 +348,8 @@ class PersistentMap(
             else:
                 return PersistentMap(m.finish(), meta=self.meta)
 
-    @staticmethod
-    def empty() -> "PersistentMap":
-        return EMPTY
+    def empty(self) -> "PersistentMap":
+        return EMPTY.with_meta(self._meta)
 
     def seq(self) -> Optional[ISeq[IMapEntry[K, V]]]:
         if len(self._inner) == 0:

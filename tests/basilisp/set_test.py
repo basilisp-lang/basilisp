@@ -43,7 +43,7 @@ def test_set_as_function():
 
 
 def test_set_bool():
-    assert True is bool(lset.PersistentSet.empty())
+    assert True is bool(lset.EMPTY)
 
 
 def test_set_conj():
@@ -85,7 +85,7 @@ def test_set_with_meta():
 
 
 def test_set_seq():
-    assert None is lset.PersistentSet.empty().seq()
+    assert None is lset.EMPTY.seq()
     assert {1} == set(lset.s(1).seq())
     assert {1, 2} == set(lset.s(1, 2).seq())
     assert {1, 2, 3} == set(lset.s(1, 2, 3).seq())
