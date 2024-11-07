@@ -1309,101 +1309,144 @@ def test_var():
     )
 
 
-def test_meta():
-    def issubmap(m, sub):
+class TestMetadata:
+    @staticmethod
+    def assert_is_submap(m, sub):
         for k, subv in sub.items():
             try:
                 mv = m[k]
-                return subv == mv
+                if subv != mv:
+                    pytest.fail(f"Map key {k}: {mv} != {subv}")
             except KeyError:
-                return False
-        return False
+                pytest.fail(f"Missing key {k}")
+        return True
 
-    s = read_str_first("^str s")
-    assert s == sym.symbol("s")
-    assert issubmap(s.meta, lmap.map({kw.keyword("tag"): sym.symbol("str")}))
-    assert issubmap(s.meta, lmap.map({reader.READER_LINE_KW: 1}))
-    assert issubmap(s.meta, lmap.map({reader.READER_END_LINE_KW: 1}))
-    assert issubmap(s.meta, lmap.map({reader.READER_COL_KW: 5}))
-    assert issubmap(s.meta, lmap.map({reader.READER_END_COL_KW: 6}))
-
-    s = read_str_first("^:dynamic *ns*")
-    assert s == sym.symbol("*ns*")
-    assert issubmap(s.meta, lmap.map({kw.keyword("dynamic"): True}))
-
-    s = read_str_first('^{:doc "If true, assert."} *assert*')
-    assert s == sym.symbol("*assert*")
-    assert issubmap(s.meta, lmap.map({kw.keyword("doc"): "If true, assert."}))
-
-    v = read_str_first("^:has-meta [:a]")
-    assert v == vec.v(kw.keyword("a"))
-    assert issubmap(v.meta, lmap.map({kw.keyword("has-meta"): True}))
-
-    l = read_str_first("^:has-meta (:a)")
-    assert l == llist.l(kw.keyword("a"))
-    assert issubmap(l.meta, lmap.map({kw.keyword("has-meta"): True}))
-
-    m = read_str_first('^:has-meta {:key "val"}')
-    assert m == lmap.map({kw.keyword("key"): "val"})
-    assert issubmap(m.meta, lmap.map({kw.keyword("has-meta"): True}))
-
-    t = read_str_first("^:has-meta #{:a}")
-    assert t == lset.s(kw.keyword("a"))
-    assert issubmap(t.meta, lmap.map({kw.keyword("has-meta"): True}))
-
-    s = read_str_first('^:dynamic ^{:doc "If true, assert."} *assert*')
-    assert s == sym.symbol("*assert*")
-    assert issubmap(
-        s.meta,
-        lmap.map({kw.keyword("dynamic"): True, kw.keyword("doc"): "If true, assert."}),
+    @pytest.mark.parametrize(
+        "s,form,expected_meta",
+        [
+            (
+                "^str s",
+                sym.symbol("s"),
+                lmap.map(
+                    {
+                        kw.keyword("tag"): sym.symbol("str"),
+                        reader.READER_LINE_KW: 1,
+                        reader.READER_END_LINE_KW: 1,
+                        reader.READER_COL_KW: 5,
+                        reader.READER_END_COL_KW: 6,
+                    }
+                ),
+            ),
+            (
+                "^:dynamic *ns*",
+                sym.symbol("*ns*"),
+                lmap.map({kw.keyword("dynamic"): True}),
+            ),
+            (
+                '^{:doc "If true, assert."} *assert*',
+                sym.symbol("*assert*"),
+                lmap.map({kw.keyword("doc"): "If true, assert."}),
+            ),
+            (
+                "^[] {}",
+                lmap.EMPTY,
+                lmap.map({kw.keyword("param-tags"): vec.EMPTY}),
+            ),
+            (
+                '^[:a b "c"] {}',
+                lmap.EMPTY,
+                lmap.map(
+                    {
+                        kw.keyword("param-tags"): vec.v(
+                            kw.keyword("a"), sym.symbol("b"), "c"
+                        )
+                    }
+                ),
+            ),
+            (
+                "^:has-meta [:a]",
+                vec.v(kw.keyword("a")),
+                lmap.map({kw.keyword("has-meta"): True}),
+            ),
+            (
+                "^:has-meta (:a)",
+                llist.l(kw.keyword("a")),
+                lmap.map({kw.keyword("has-meta"): True}),
+            ),
+            (
+                '^:has-meta {:key "val"}',
+                lmap.map({kw.keyword("key"): "val"}),
+                lmap.map({kw.keyword("has-meta"): True}),
+            ),
+            (
+                "^:has-meta #{:a}",
+                lset.s(kw.keyword("a")),
+                lmap.map({kw.keyword("has-meta"): True}),
+            ),
+            (
+                '^:dynamic ^{:doc "If true, assert."} ^python/bool ^[:dynamic :muffs] *assert*',
+                sym.symbol("*assert*"),
+                lmap.map(
+                    {
+                        kw.keyword("dynamic"): True,
+                        kw.keyword("doc"): "If true, assert.",
+                        kw.keyword("tag"): sym.symbol("bool", ns="python"),
+                        kw.keyword("param-tags"): vec.v(
+                            kw.keyword("dynamic"), kw.keyword("muffs")
+                        ),
+                    }
+                ),
+            ),
+            (
+                "^{:always true} ^{:always false} *assert*",
+                sym.symbol("*assert*"),
+                lmap.map({kw.keyword("always"): True}),
+            ),
+        ],
     )
+    def test_legal_reader_metadata(
+        self, s: str, form, expected_meta: lmap.PersistentMap
+    ):
+        v = read_str_first(s)
+        assert v == form
+        self.assert_is_submap(v.meta, expected_meta)
 
-    s = read_str_first("^{:always true} ^{:always false} *assert*")
-    assert s == sym.symbol("*assert*")
-    assert issubmap(s.meta, lmap.map({kw.keyword("always"): True}))
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "^35233 {}",
+            "^583.28 {}",
+            "^12.6J {}",
+            "^22/7 {}",
+            "^12.6M {}",
+            "^true {}",
+            "^false {}",
+            "^nil {}",
+            '^"String value" {}',
+        ],
+    )
+    def test_syntax_error_attaching_unsupported_type_as_metadata(self, s: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(s)
 
-
-def test_invalid_meta_structure():
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^35233 {}")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^583.28 {}")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^true {}")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^false {}")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^nil {}")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('^"String value" {}')
-
-
-def test_invalid_meta_attachment():
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^:has-meta 35233")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^:has-meta 583.28")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^:has-meta :i-am-a-keyword")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^:has-meta true")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^:has-meta false")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("^:has-meta nil")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('^:has-meta "String value"')
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "^:has-meta 35233",
+            "^:has-meta 583.28",
+            "^:has-meta 12.6J",
+            "^:has-meta 22/7",
+            "^:has-meta 12.6M",
+            "^:has-meta :i-am-a-keyword",
+            "^:has-meta true",
+            "^:has-meta false",
+            "^:has-meta nil",
+            '^:has-meta "String value"',
+        ],
+    )
+    def test_syntax_error_attaching_metadata_to_unsupported_type(self, s: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(s)
 
 
 def test_comment_reader_macro():

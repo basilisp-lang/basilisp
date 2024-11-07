@@ -417,6 +417,7 @@ Metadata applied to a form must be one of: :ref:`maps`, :ref:`symbols`, :ref:`ke
 
 * Symbol metadata will be normalized to a Map with the symbol as the value for the key ``:tag``.
 * Keyword metadata will be normalized to a Map with the keyword as the key with the value of ``true``.
+* Vector metadata will be normalized to a Map with the vector as the value for the key ``:param-tags``.
 * Map metadata will not be modified when it is read.
 
 .. seealso::

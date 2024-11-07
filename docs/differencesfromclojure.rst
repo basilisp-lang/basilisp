@@ -192,7 +192,7 @@ Host interoperability features generally match those of Clojure.
 Type Hinting
 ^^^^^^^^^^^^
 
-Type hints may be applied anywhere they are supported in Clojure (as the ``:tag`` metadata key), but the compiler does not currently use them for any purpose.
+Type hints may be applied anywhere they are supported in Clojure (as the ``:tag`` or ``:param-tags`` metadata keys), but the compiler does not currently use them for any purpose.
 Tags provided for ``def`` names, function arguments and return values, and :lpy:form:`let` locals will be applied to the resulting Python AST by the compiler wherever possible.
 Particularly in the case of function arguments and return values, these tags maybe introspected from the Python :external:py:mod:`inspect` module.
 There is no need for type hints anywhere in Basilisp right now, however.
