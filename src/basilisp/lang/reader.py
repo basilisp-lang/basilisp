@@ -83,6 +83,9 @@ READER_COL_KW = kw.keyword("col", ns="basilisp.lang.reader")
 READER_END_LINE_KW = kw.keyword("end-line", ns="basilisp.lang.reader")
 READER_END_COL_KW = kw.keyword("end-col", ns="basilisp.lang.reader")
 
+READER_TAG_KW = kw.keyword("tag")
+READER_PARAM_TAGS_KW = kw.keyword("param-tags")
+
 READER_COND_FORM_KW = kw.keyword("form")
 READER_COND_SPLICING_KW = kw.keyword("splicing?")
 
@@ -1077,11 +1080,13 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
 
     meta_map: Optional[lmap.PersistentMap[LispForm, LispForm]]
     if isinstance(meta, sym.Symbol):
-        meta_map = lmap.map({kw.keyword("tag"): meta})
+        meta_map = lmap.map({READER_TAG_KW: meta})
     elif isinstance(meta, kw.Keyword):
         meta_map = lmap.map({meta: True})
     elif isinstance(meta, lmap.PersistentMap):
         meta_map = meta
+    elif isinstance(meta, vec.PersistentVector):
+        meta_map = lmap.map({READER_PARAM_TAGS_KW: meta})
     else:
         raise ctx.syntax_error(
             f"Expected symbol, keyword, or map for metadata, not {type(meta)}"
