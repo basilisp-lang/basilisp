@@ -1054,8 +1054,6 @@ def _read_sym(ctx: ReaderContext, is_reader_macro_sym: bool = False) -> MaybeSym
                 "All '.' separated segments of a namespace "
                 "must contain at least one character."
             )
-    if name.startswith(".") and ns is not None:
-        raise ctx.syntax_error("Symbols starting with '.' may not have a namespace")
     if ns is None:
         if name == "nil":
             return None

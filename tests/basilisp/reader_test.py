@@ -679,6 +679,7 @@ class TestSymbol:
             ("sym", "ns", "ns/sym"),
             ("sym", "qualified.ns", "qualified.ns/sym"),
             ("sym", "really.qualified.ns", "really.qualified.ns/sym"),
+            (".interop", "ns.second", "ns.second/.interop"),
             ("sy:m", "ns", "ns/sy:m"),
             ("sy:m", "n:s", "n:s/sy:m"),
         ],
@@ -696,7 +697,6 @@ class TestSymbol:
             "/sym",
             ".second.ns/name",
             "ns..third/name",
-            "ns.second/.interop",
             # This will raise because the default pushback depth of the
             # reader.StreamReader instance used by the reader is 5, so
             # we are unable to pushback more - characters consumed by
