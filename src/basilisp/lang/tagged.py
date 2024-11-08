@@ -36,7 +36,7 @@ class TaggedLiteral(
     ) -> None:
         self._tag = tag
         self._form = form
-        self._hash : Union[None, int] = None
+        self._hash : Optional[int] = None
 
     @property
     def tag(self) -> Symbol:
