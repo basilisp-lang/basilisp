@@ -1,6 +1,7 @@
 from typing import (
     Optional,
     TypeVar,
+    Union,
 )
 
 from typing_extensions import Unpack
@@ -10,16 +11,20 @@ from basilisp.lang.interfaces import (
     ILookup,
 )
 
-from basilisp.lang.keyword import Keyword
+from basilisp.lang.keyword import keyword
 from basilisp.lang.obj import PrintSettings, lrepr
 from basilisp.lang.symbol import Symbol
 
 K = TypeVar("K")
 V = TypeVar("V")
+T = Union[None, V, Symbol]
+
+_TAG_KW = keyword("tag")
+_FORM_KW = keyword("form")
 
 class TaggedLiteral(
     ILispObject,
-    ILookup[K, V],
+    ILookup[K, T],
 ):
     """Basilisp TaggedLiteral. https://clojure.org/reference/reader#tagged_literals
     """
@@ -31,7 +36,7 @@ class TaggedLiteral(
     ) -> None:
         self._tag = tag
         self._form = form
-        self._hash = -1
+        self._hash : Union[None, int] = None
 
     @property
     def tag(self) -> Symbol:
@@ -52,22 +57,17 @@ class TaggedLiteral(
         return self._tag == other._tag and self._form == other._form
 
     def __hash__(self):
-        if self._hash == -1:
+        if self._hash == None:
             self._hash = hash((self._tag, self._form))
         return self._hash
 
     def __getitem__(self, item):
-        if item == Keyword("tag"):
-            return self._tag
-        elif item == Keyword("form"):
-            return self._form
-        else:
-            return None
+        return self.val_at(item)
 
-    def val_at(self, k: K, default: Optional[V] = None) -> Optional[V]:
-        if k == Keyword("tag"):
+    def val_at(self, k: K, default: Optional[V] = None) -> T:
+        if k == _TAG_KW:
             return self._tag
-        elif k == Keyword("form"):
+        elif k == _FORM_KW:
             return self._form
         else:
             return default

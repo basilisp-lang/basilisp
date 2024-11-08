@@ -30,4 +30,4 @@
       (is (= "#js {}" (pr-str (tagged-literal 'js {})))))
 
     (testing "validation"
-      (is (thrown? TypeError (tagged-literal 1 1)) ))))
+      (is (thrown? TypeError (tagged-literal 1 1))))))
