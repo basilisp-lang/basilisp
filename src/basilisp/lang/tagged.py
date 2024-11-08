@@ -57,7 +57,7 @@ class TaggedLiteral(
         return self._tag == other._tag and self._form == other._form
 
     def __hash__(self):
-        if self._hash == None:
+        if self._hash is None:
             self._hash = hash((self._tag, self._form))
         return self._hash
 
