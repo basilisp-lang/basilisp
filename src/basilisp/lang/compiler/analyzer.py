@@ -3594,7 +3594,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     # Basilisp supported this from the beginning:
     #
     #     (python.str/split "a b c")  ;;=> #py ["a" "b" "c"]
-    if form.name.startswith("."):
+    if form.name.startswith(".") and form.name != _DOUBLE_DOT_MACRO_NAME:
         form = sym.symbol(form.name[1:], ns=form.ns, meta=form.meta)
 
     assert form.ns is not None
