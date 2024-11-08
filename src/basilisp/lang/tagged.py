@@ -1,16 +1,8 @@
-from typing import (
-    Optional,
-    TypeVar,
-    Union,
-)
+from typing import Optional, TypeVar, Union
 
 from typing_extensions import Unpack
 
-from basilisp.lang.interfaces import (
-    ILispObject,
-    ILookup,
-)
-
+from basilisp.lang.interfaces import ILispObject, ILookup
 from basilisp.lang.keyword import keyword
 from basilisp.lang.obj import PrintSettings, lrepr
 from basilisp.lang.symbol import Symbol
@@ -22,21 +14,19 @@ T = Union[None, V, Symbol]
 _TAG_KW = keyword("tag")
 _FORM_KW = keyword("form")
 
+
 class TaggedLiteral(
     ILispObject,
     ILookup[K, T],
 ):
-    """Basilisp TaggedLiteral. https://clojure.org/reference/reader#tagged_literals
-    """
+    """Basilisp TaggedLiteral. https://clojure.org/reference/reader#tagged_literals"""
 
     __slots__ = ("_tag", "_form", "_hash")
 
-    def __init__(
-        self, tag: Symbol, form
-    ) -> None:
+    def __init__(self, tag: Symbol, form) -> None:
         self._tag = tag
         self._form = form
-        self._hash : Optional[int] = None
+        self._hash: Optional[int] = None
 
     @property
     def tag(self) -> Symbol:
@@ -75,9 +65,8 @@ class TaggedLiteral(
     def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return f"#{self._tag} {lrepr(self._form, **kwargs)}"
 
-def tagged_literal(
-    tag: Symbol, form
-):
+
+def tagged_literal(tag: Symbol, form):
     """Construct a data representation of a tagged literal from a
     tag symbol and a form."""
     if not isinstance(tag, Symbol):
