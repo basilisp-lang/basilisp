@@ -698,6 +698,7 @@ _RUNTIME_ALIAS = genname("runtime")
 _SEQ_ALIAS = genname("seq")
 _SET_ALIAS = genname("lset")
 _SYM_ALIAS = genname("sym")
+_TAGGED_ALIAS = genname("tagged")
 _VEC_ALIAS = genname("vec")
 _VOLATILE_ALIAS = genname("volatile")
 _VAR_ALIAS = genname("Var")
@@ -731,6 +732,7 @@ _MODULE_ALIASES = {
     "basilisp.lang.seq": _SEQ_ALIAS,
     "basilisp.lang.set": _SET_ALIAS,
     "basilisp.lang.symbol": _SYM_ALIAS,
+    "basilisp.lang.tagged": _TAGGED_ALIAS,
     "basilisp.lang.vector": _VEC_ALIAS,
     "basilisp.lang.volatile": _VOLATILE_ALIAS,
     "basilisp.lang.util": _UTIL_ALIAS,
