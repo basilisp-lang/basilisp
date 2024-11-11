@@ -22,6 +22,7 @@ from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IPersistentSet
+from basilisp.lang.tagged import tagged_literal
 
 
 @pytest.fixture
@@ -1551,12 +1552,13 @@ class TestReaderConditional:
             "#?(clj 1 :lpy 2 :default)",
         ],
     )
-    def test_basic_form_syntax(self, v: str):
+    def test_invalid_basic_form_syntax(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
 
     def test_basic_form(self):
         assert 2 == read_str_first("#?(:clj 1 :lpy 2 :default 3)")
+        assert 2 == read_str_first("#?(:clj #_1 1 #_:lpy :lpy 2 :default 3)")
         assert 1 == read_str_first("#?(:default 1 :lpy 2)")
         assert None is read_str_first("#?(:clj 1 :cljs 2)")
 
@@ -1569,6 +1571,28 @@ class TestReaderConditional:
             kw.keyword("clj"), 1, kw.keyword("lpy"), 2, kw.keyword("default"), 3
         ) == c.val_at(reader.READER_COND_FORM_KW)
         assert "#?(:clj 1 :lpy 2 :default 3)" == c.lrepr()
+
+    def test_form_preserving_with_unknown_data_readers(self):
+        c = read_str_first(
+            "#?(:cljs #js [] :lpy #py [] :default [])", process_reader_cond=False
+        )
+        assert isinstance(c, reader.ReaderConditional)
+        assert not c.is_splicing
+        assert False is c.val_at(reader.READER_COND_SPLICING_KW)
+        assert llist.l(
+            kw.keyword("cljs"),
+            tagged_literal(sym.symbol("js"), vec.EMPTY),
+            kw.keyword("lpy"),
+            [],
+            kw.keyword("default"),
+            vec.EMPTY,
+        ) == c.val_at(reader.READER_COND_FORM_KW)
+        assert "#?(:cljs #js [] :lpy #py [] :default [])" == c.lrepr()
+
+    def test_ignore_unknown_data_readers_in_non_selected_conditional(self):
+        v = read_str_first("#?(:cljs #js [] :default [])")
+        assert isinstance(v, vec.PersistentVector)
+        assert v == vec.EMPTY
 
     @pytest.mark.parametrize(
         "v",
@@ -1644,9 +1668,6 @@ class TestReaderConditional:
         assert lmap.map({kw.keyword("a"): 2, kw.keyword("e"): 5}) == read_str_first(
             "{#?@(:clj [:a 1 :b] :lpy [:a 2 :e]) 5}"
         )
-
-    def test_ignore_unknown_data_readers_in_non_selected_conditional(self):
-        read_str_first("#?(:cljs #js [] :default [])")
 
 
 def test_function_reader_macro():
