@@ -1645,6 +1645,9 @@ class TestReaderConditional:
             "{#?@(:clj [:a 1 :b] :lpy [:a 2 :e]) 5}"
         )
 
+    def test_ignore_unknown_data_readers_in_non_selected_conditional(self):
+        read_str_first("#?(:cljs #js [] :default [])")
+
 
 def test_function_reader_macro():
     assert read_str_first("#()") == llist.l(sym.symbol("fn*"), vec.v(), None)

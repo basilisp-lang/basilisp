@@ -51,6 +51,7 @@ from basilisp.lang.runtime import (
     lrepr,
 )
 from basilisp.lang.source import format_source_context
+from basilisp.lang.tagged import tagged_literal
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -363,6 +364,7 @@ class ReaderContext:
         "_default_data_reader_fn",
         "_features",
         "_process_reader_cond",
+        "_process_tagged_literals",
         "_reader",
         "_resolve",
         "_in_anon_fn",
@@ -389,6 +391,7 @@ class ReaderContext:
         self._process_reader_cond = process_reader_cond
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
+        self._process_tagged_literals: collections.deque[bool] = collections.deque([])
         self._in_anon_fn: collections.deque[bool] = collections.deque([])
         self._syntax_quoted: collections.deque[bool] = collections.deque([])
         self._gensym_env: collections.deque[GenSymEnvironment] = collections.deque([])
@@ -433,6 +436,19 @@ class ReaderContext:
             return self._in_anon_fn[-1] is True
         except IndexError:
             return False
+
+    @contextlib.contextmanager
+    def process_tagged_literals(self, v: bool):
+        self._process_tagged_literals.append(v)
+        yield
+        self._process_tagged_literals.pop()
+
+    @property
+    def should_process_tagged_literals(self) -> bool:
+        try:
+            return self._process_tagged_literals[-1] is True
+        except IndexError:
+            return True
 
     @property
     def gensym_env(self) -> GenSymEnvironment:
@@ -1453,9 +1469,85 @@ def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) 
     )
 
 
-def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional:
-    """Read a reader conditional form and return the unprocessed reader
-    conditional object."""
+def _read_reader_conditional_preserving(
+    ctx: ReaderContext,
+    is_splicing: bool,
+):
+    """Read a reader conditional form from the input stream."""
+    coll: list = []
+    feature_was_selected = False
+    reader = ctx.reader
+    while True:
+        char = reader.peek()
+        if char == "":
+            raise ctx.eof_error("Unexpected EOF in reader conditional")
+        if whitespace_chars.match(char):
+            reader.advance()
+            continue
+        if char == ")":
+            reader.next_char()
+            return ReaderConditional(llist.list(coll), is_splicing=is_splicing)
+
+        # Read the feature key
+        while (key := _read_next_consuming_whitespace(ctx)) is COMMENT or isinstance(
+            key, Comment
+        ):
+            pass
+
+        if not isinstance(key, kw.Keyword):
+            raise ctx.syntax_error(
+                f"Reader conditional feature must be a keyword, not {type(key)}"
+            )
+
+        coll.append(key)
+
+        # If we haven't previously selected a feature and this feature is supported on
+        # this reader, then mark it as being selected.
+        is_selecting_feature = False
+        if not feature_was_selected and key in ctx.reader_features:
+            is_selecting_feature = True
+            feature_was_selected = True
+
+        # Read the associated value from the stream
+        with ctx.process_tagged_literals(is_selecting_feature):
+            while (
+                val := _read_next_consuming_whitespace(ctx)
+            ) is COMMENT or isinstance(key, Comment):
+                pass
+
+        if _should_splice_reader_conditional(ctx, val):
+            assert isinstance(val, ReaderConditional)
+            selected_feature = val.select_feature(ctx.reader_features)
+            if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
+                continue
+            elif isinstance(selected_feature, vec.PersistentVector):
+                coll.extend(selected_feature)
+            else:
+                raise ctx.syntax_error(
+                    "Expecting Vector for splicing reader conditional "
+                    f"form; got {type(selected_feature)}"
+                )
+        else:
+            assert (
+                not isinstance(val, ReaderConditional)
+                or not ctx.should_process_reader_cond
+            ), "Reader conditionals must be processed if specified"
+            coll.append(val)
+
+
+def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
+    """Read a reader conditional form and either return it or process it and
+    return the resulting form.
+
+    If the reader is not set to process the reader conditional, it will always
+    be returned as a ReaderConditional object.
+
+    If the reader is set to process reader conditionals, only non-splicing reader
+    conditionals are processed here. If no matching feature is found in a
+    non-splicing reader conditional, a comment will be emitted (which is ultimately
+    discarded downstream in the reader).
+
+    Splicing reader conditionals are processed in the respective collection readers."""
     reader = ctx.reader
     start = reader.advance()
     assert start == "?"
@@ -1477,25 +1569,7 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
             f"Expected opening '(' for reader conditional; got '{open_char}'"
         )
 
-    feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
-    assert isinstance(feature_list, llist.PersistentList)
-    return ReaderConditional(feature_list, is_splicing=is_splicing)
-
-
-def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
-    """Read a reader conditional form and either return it or process it and
-    return the resulting form.
-
-    If the reader is not set to process the reader conditional, it will always
-    be returned as a ReaderConditional object.
-
-    If the reader is set to process reader conditionals, only non-splicing reader
-    conditionals are processed here. If no matching feature is found in a
-    non-splicing reader conditional, a comment will be emitted (which is ultimately
-    discarded downstream in the reader).
-
-    Splicing reader conditionals are processed in the respective collection readers."""
-    reader_cond = _read_reader_conditional_preserving(ctx)
+    reader_cond = _read_reader_conditional_preserving(ctx, is_splicing)
     if ctx.should_process_reader_cond and not reader_cond.is_splicing:
         form = reader_cond.select_feature(ctx.reader_features)
         return cast(
@@ -1586,6 +1660,9 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
             return _read_byte_str(ctx)
 
         v = _read_next_consuming_comment(ctx)
+
+        if not ctx.should_process_tagged_literals:
+            return tagged_literal(s, v)
 
         data_reader = None
         if s in ctx.data_readers:
