@@ -1470,10 +1470,13 @@ def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) 
 
 
 def _read_reader_conditional_preserving(
-    ctx: ReaderContext,
-    is_splicing: bool,
-):
-    """Read a reader conditional form from the input stream."""
+    ctx: ReaderContext, is_splicing: bool
+) -> ReaderConditional:
+    """Read a reader conditional form and return the reader conditional object.
+
+    This function effectively selects the reader conditional feature at read time.
+    Non-selected features forms are read without processing data readers, instead
+    returning tagged literal objects."""
     coll: list = []
     feature_was_selected = False
     reader = ctx.reader
@@ -1488,7 +1491,7 @@ def _read_reader_conditional_preserving(
             reader.next_char()
             return ReaderConditional(llist.list(coll), is_splicing=is_splicing)
 
-        # Read the feature key
+        # Read the feature key and check that it's a keyword.
         while (key := _read_next_consuming_whitespace(ctx)) is COMMENT or isinstance(
             key, Comment
         ):
@@ -1508,7 +1511,11 @@ def _read_reader_conditional_preserving(
             is_selecting_feature = True
             feature_was_selected = True
 
-        # Read the associated value from the stream
+        # Read the associated value from the stream, suppressing processing of data
+        # readers if this is not the selected feature. Suppressing data readers on
+        # non-selected branches allows reading unknown readers such as `#js []` without
+        # throwing an exception, especially in cases where the feature is for another
+        # platform.
         with ctx.process_tagged_literals(is_selecting_feature):
             while (
                 val := _read_next_consuming_whitespace(ctx)
