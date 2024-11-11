@@ -1489,11 +1489,7 @@ def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) 
 def _read_reader_conditional_preserving(
     ctx: ReaderContext, is_splicing: bool
 ) -> ReaderConditional:
-    """Read a reader conditional form and return the reader conditional object.
-
-    This function effectively selects the reader conditional feature at read time.
-    Non-selected features forms are read without processing data readers, instead
-    returning tagged literal objects."""
+    """Read a reader conditional form and return the reader conditional object."""
     coll: list = []
     reader = ctx.reader
     while True:
