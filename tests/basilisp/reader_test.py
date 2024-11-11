@@ -1595,6 +1595,38 @@ class TestReaderConditional:
         assert v == vec.EMPTY
 
     @pytest.mark.parametrize(
+        "s,expected",
+        [
+            (
+                "#?(:cljs [#?(:lpy :py :default :other)] :default :none)",
+                kw.keyword("none"),
+            ),
+            (
+                "#?(:lpy [#?(:lpy :py :default :other)] :default :none)",
+                vec.v(kw.keyword("py")),
+            ),
+            (
+                "#?(:lpy [#?(:clj :py :default :other)] :default :none)",
+                vec.v(kw.keyword("other")),
+            ),
+            (
+                "#?(:cljs [#?@(:clj [1 2] :default [3 4])] :default :none)",
+                kw.keyword("none"),
+            ),
+            (
+                "#?(:lpy [#?@(:clj [1 2] :default [3 4])] :default :none)",
+                vec.v(3, 4),
+            ),
+            (
+                "#?(:lpy [#?@(:clj [1 2] :cljs [3 4])] :default :none)",
+                vec.EMPTY,
+            ),
+        ],
+    )
+    def test_nested_reader_conditionals(self, s: str, expected):
+        assert expected == read_str_first(s)
+
+    @pytest.mark.parametrize(
         "v",
         [
             # No splice context
