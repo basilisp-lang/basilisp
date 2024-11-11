@@ -51,7 +51,7 @@ from basilisp.lang.runtime import (
     lrepr,
 )
 from basilisp.lang.source import format_source_context
-from basilisp.lang.tagged import tagged_literal
+from basilisp.lang.tagged import TaggedLiteral, tagged_literal
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -671,7 +671,7 @@ def _read_coll(
             continue
         elif _should_splice_reader_conditional(ctx, elem):
             assert isinstance(elem, ReaderConditional)
-            selected_feature = elem.select_feature(ctx.reader_features)
+            selected_feature = _select_reader_conditional_branch(ctx, elem)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
             elif isinstance(selected_feature, vec.PersistentVector):
@@ -742,7 +742,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
             continue
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
-            selected_feature = v.select_feature(ctx.reader_features)
+            selected_feature = _select_reader_conditional_branch(ctx, v)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
             elif isinstance(selected_feature, vec.PersistentVector):
@@ -1459,6 +1459,23 @@ def _read_numeric_constant(ctx: ReaderContext) -> float:
     return c
 
 
+def _select_reader_conditional_branch(
+    ctx: ReaderContext, reader_cond: ReaderConditional
+) -> LispReaderForm:
+    """Select the reader conditional branch by feature and then resolve any tagged
+    literals for the selected feature."""
+
+    def resolve_tagged_literals(form: LispReaderForm):
+        if isinstance(form, TaggedLiteral):
+            resolved = _postwalk(resolve_tagged_literals, form.form)
+            return _resolve_tagged_literal(ctx, form.tag, resolved)
+        return form
+
+    return _postwalk(
+        resolve_tagged_literals, reader_cond.select_feature(ctx.reader_features)
+    )
+
+
 def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) -> bool:
     """Return True if and only if form is a ReaderConditional which should be spliced
     into a surrounding collection context."""
@@ -1478,7 +1495,6 @@ def _read_reader_conditional_preserving(
     Non-selected features forms are read without processing data readers, instead
     returning tagged literal objects."""
     coll: list = []
-    feature_was_selected = False
     reader = ctx.reader
     while True:
         char = reader.peek()
@@ -1491,40 +1507,14 @@ def _read_reader_conditional_preserving(
             reader.next_char()
             return ReaderConditional(llist.list(coll), is_splicing=is_splicing)
 
-        # Read the feature key and check that it's a keyword.
-        while (key := _read_next_consuming_whitespace(ctx)) is COMMENT or isinstance(
-            key, Comment
-        ):
-            pass
+        with ctx.process_tagged_literals(False):
+            elem = _read_next(ctx)
 
-        if not isinstance(key, kw.Keyword):
-            raise ctx.syntax_error(
-                f"Reader conditional feature must be a keyword, not {type(key)}"
-            )
-
-        coll.append(key)
-
-        # If we haven't previously selected a feature and this feature is supported on
-        # this reader, then mark it as being selected.
-        is_selecting_feature = False
-        if not feature_was_selected and key in ctx.reader_features:
-            is_selecting_feature = True
-            feature_was_selected = True
-
-        # Read the associated value from the stream, suppressing processing of data
-        # readers if this is not the selected feature. Suppressing data readers on
-        # non-selected branches allows reading unknown readers such as `#js []` without
-        # throwing an exception, especially in cases where the feature is for another
-        # platform.
-        with ctx.process_tagged_literals(is_selecting_feature):
-            while (
-                val := _read_next_consuming_whitespace(ctx)
-            ) is COMMENT or isinstance(key, Comment):
-                pass
-
-        if _should_splice_reader_conditional(ctx, val):
-            assert isinstance(val, ReaderConditional)
-            selected_feature = val.select_feature(ctx.reader_features)
+        if elem is COMMENT or isinstance(elem, Comment):
+            continue
+        elif _should_splice_reader_conditional(ctx, elem):
+            assert isinstance(elem, ReaderConditional)
+            selected_feature = _select_reader_conditional_branch(ctx, elem)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
             elif isinstance(selected_feature, vec.PersistentVector):
@@ -1536,10 +1526,10 @@ def _read_reader_conditional_preserving(
                 )
         else:
             assert (
-                not isinstance(val, ReaderConditional)
+                not isinstance(elem, ReaderConditional)
                 or not ctx.should_process_reader_cond
             ), "Reader conditionals must be processed if specified"
-            coll.append(val)
+            coll.append(elem)
 
 
 def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
@@ -1578,7 +1568,7 @@ def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
 
     reader_cond = _read_reader_conditional_preserving(ctx, is_splicing)
     if ctx.should_process_reader_cond and not reader_cond.is_splicing:
-        form = reader_cond.select_feature(ctx.reader_features)
+        form = _select_reader_conditional_branch(ctx, reader_cond)
         return cast(
             LispReaderForm,
             COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form,
@@ -1625,9 +1615,32 @@ def _load_record_or_type(
         raise ctx.syntax_error("Records may only be constructed from Vectors and Maps")
 
 
+def _resolve_tagged_literal(
+    ctx: ReaderContext, s: sym.Symbol, v: RawReaderForm
+) -> LispReaderForm:
+    """Resolve a tagged literal into whatever value is returned by the associated data reader."""
+    data_reader = None
+    if s in ctx.data_readers:
+        data_reader = ctx.data_readers[s]
+    elif s in ReaderContext._DATA_READERS:
+        data_reader = ReaderContext._DATA_READERS[s]
+
+    if data_reader is not None:
+        try:
+            return data_reader(v)
+        except SyntaxError as e:
+            raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
+    elif s.ns is None and "." in s.name:
+        return _load_record_or_type(ctx, s, v)
+    else:
+        try:
+            return ctx.default_data_reader_fn(s, v)
+        except SyntaxError as e:
+            raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
+
+
 def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
-    """Return a data structure evaluated as a reader
-    macro from the input stream."""
+    """Return a data structure evaluated as a reader macro from the input stream."""
     start = ctx.reader.advance()
     assert start == "#"
     char = ctx.reader.peek()
@@ -1671,28 +1684,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
         if not ctx.should_process_tagged_literals:
             return tagged_literal(s, v)
 
-        data_reader = None
-        if s in ctx.data_readers:
-            data_reader = ctx.data_readers[s]
-        elif s in ReaderContext._DATA_READERS:
-            data_reader = ReaderContext._DATA_READERS[s]
-
-        if data_reader is not None:
-            try:
-                return data_reader(v)
-            except SyntaxError as e:
-                raise ctx.syntax_error(e.message).with_traceback(
-                    e.__traceback__
-                ) from None
-        elif s.ns is None and "." in s.name:
-            return _load_record_or_type(ctx, s, v)
-        else:
-            try:
-                return ctx.default_data_reader_fn(s, v)
-            except SyntaxError as e:
-                raise ctx.syntax_error(e.message).with_traceback(
-                    e.__traceback__
-                ) from None
+        return _resolve_tagged_literal(ctx, s, v)
 
     raise ctx.syntax_error(f"Unexpected char '{char}' in reader macro")
 

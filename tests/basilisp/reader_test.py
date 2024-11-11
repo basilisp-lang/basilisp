@@ -1561,6 +1561,9 @@ class TestReaderConditional:
         assert 2 == read_str_first("#?(:clj #_1 1 #_:lpy :lpy 2 :default 3)")
         assert 1 == read_str_first("#?(:default 1 :lpy 2)")
         assert None is read_str_first("#?(:clj 1 :cljs 2)")
+        assert [[], (), {}, set()] == read_str_first(
+            "#?(:cljs #js [] :lpy #py [#py [] #py () #py {} #py #{}] :default [])"
+        )
 
     def test_basic_form_preserving(self):
         c = read_str_first("#?(:clj 1 :lpy 2 :default 3)", process_reader_cond=False)
@@ -1583,7 +1586,7 @@ class TestReaderConditional:
             kw.keyword("cljs"),
             tagged_literal(sym.symbol("js"), vec.EMPTY),
             kw.keyword("lpy"),
-            [],
+            tagged_literal(sym.symbol("py"), vec.EMPTY),
             kw.keyword("default"),
             vec.EMPTY,
         ) == c.val_at(reader.READER_COND_FORM_KW)
@@ -1621,6 +1624,18 @@ class TestReaderConditional:
                 "#?(:lpy [#?@(:clj [1 2] :cljs [3 4])] :default :none)",
                 vec.EMPTY,
             ),
+            (
+                "#?(#?@(:clj [:clj [1 2]] :lpy [:lpy [3 4]]) :default [])",
+                vec.v(3, 4),
+            ),
+            (
+                "#?(#?@(:clj [:clj [1 2]] :lpy [:cljs [3 4]]) :default [])",
+                vec.EMPTY,
+            ),
+            (
+                "#?(#?@(:clj [1 2]) :default :none)",
+                kw.keyword("none"),
+            ),
         ],
     )
     def test_nested_reader_conditionals(self, s: str, expected):
@@ -1654,6 +1669,8 @@ class TestReaderConditional:
             "#?@(:clj)",
             "#?@(:clj [1] lpy)",
             "#?@(clj [1] :lpy [2] :default)",
+            # Invalid splice connection (in nested reader conditional)
+            "#?(#?@(:lpy (:lpy [])) :default :none)",
         ],
     )
     def test_splicing_form_syntax(self, v: str):
