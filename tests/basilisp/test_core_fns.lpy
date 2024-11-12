@@ -461,8 +461,6 @@
   (is (= 1 (rand-nth [1])))
   (is (#{1 2} (rand-nth [1 2]))))
 
-
-
 (deftest subvec-test
   (is (= [] (subvec [] 0)))
   (is (thrown? python/IndexError (subvec [] 3)))

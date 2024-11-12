@@ -2434,7 +2434,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
             {
                 _DOC_META_KEY: (
                     "The set of all currently supported "
-                    ":ref:`reader features <reader_conditions>`."
+                    ":ref:`reader features <reader_conditionals>`."
                 )
             }
         ),

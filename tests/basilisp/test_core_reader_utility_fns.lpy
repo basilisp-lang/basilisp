@@ -1,0 +1,68 @@
+(ns tests.basilisp.test-core-reader-utility-fns
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest reader-conditional-test
+  (let [form         '()
+        is-splicing? true
+        reader-cond  (reader-conditional form is-splicing?)]
+    (testing "equality"
+      (is (= reader-cond reader-cond))
+      (is (= reader-cond (reader-conditional form is-splicing?)))
+      (is (not= reader-cond (reader-conditional '(:clj [] :lpy [true]) is-splicing?)))
+      (is (not= reader-cond (reader-conditional form false))))
+
+    (testing "accessors"
+      (is (= form (:form reader-cond)))
+      (is (= is-splicing? (:splicing? reader-cond)))
+      (is (nil? (:key reader-cond)))
+      (is (= ::default (:key reader-cond ::default))))
+
+    (testing "predicate"
+      (is (true? (reader-conditional? reader-cond)))
+      (is (false? (reader-conditional? nil)))
+      (is (false? (reader-conditional? 0)))
+      (is (false? (reader-conditional? ::foo))))
+
+    (testing "printing"
+      (is (= "#?@()" (pr-str reader-cond)))
+      (is (= "#?()" (pr-str (reader-conditional '() false))))
+      (is (= "#?@(:clj [] :lpy [true])" (pr-str (reader-conditional '(:clj [] :lpy [true]) true)))))
+
+    (testing "validation"
+      (is (thrown? basilisp.lang.reader/SyntaxError
+                   (reader-conditional '(:clj) true)))
+      (is (thrown? basilisp.lang.reader/SyntaxError
+                   (reader-conditional '(:clj [] :lpy) true)))
+      (is (thrown? basilisp.lang.reader/SyntaxError
+                   (reader-conditional '('lpy [] :clj [true]) true))))))
+
+(deftest tagged-literal-test
+  (let [tag 'tag
+        form 1
+        tagged (tagged-literal tag form)]
+    (testing "equality"
+      (is (= tagged tagged))
+      (is (= tagged (tagged-literal tag form)))
+      (is (not= tagged (tagged-literal 'foo form)))
+      (is (not= tagged (tagged-literal tag 2))))
+
+    (testing "accessors"
+      (is (= tag (:tag tagged)))
+      (is (= form (:form tagged)))
+      (is (nil? (:key tagged)))
+      (is (= ::default (:key tagged ::default))))
+
+    (testing "predicate"
+      (is (true? (tagged-literal? tagged)))
+      (is (false? (tagged-literal? nil)))
+      (is (false? (tagged-literal? 0)))
+      (is (false? (tagged-literal? ::foo))))
+
+    (testing "printing"
+      (is (= "#tag 1" (pr-str tagged)))
+      (is (= "#js []" (pr-str (tagged-literal 'js []))))
+      (is (= "#js {}" (pr-str (tagged-literal 'js {})))))
+
+    (testing "validation"
+      (is (thrown? TypeError (tagged-literal 1 1))))))
