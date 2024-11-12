@@ -12,7 +12,7 @@
 (extend-protocol IWalkable
   basilisp.lang.interfaces/IPersistentList
   (walk* [this inner outer]
-    (outer (apply list (map inner this))))
+    (outer (with-meta (apply list (map inner this)) (meta this))))
 
   basilisp.lang.interfaces/IMapEntry
   (walk* [this inner outer]
@@ -20,19 +20,19 @@
 
   basilisp.lang.interfaces/ISeq
   (walk* [this inner outer]
-    (outer (doall (map inner this))))
+    (outer (with-meta (doall (map inner this)) (meta this))))
 
   basilisp.lang.interfaces/IPersistentVector
   (walk* [this inner outer]
-    (outer (apply vector (map inner this))))
+    (outer (with-meta (apply vector (map inner this)) (meta this))))
 
   basilisp.lang.interfaces/IPersistentMap
   (walk* [this inner outer]
-    (outer (apply hash-map (mapcat inner this))))
+    (outer (with-meta (apply hash-map (mapcat inner this)) (meta this))))
 
   basilisp.lang.interfaces/IPersistentSet
   (walk* [this inner outer]
-    (outer (apply hash-set (map inner this))))
+    (outer (with-meta (apply hash-set (map inner this)) (meta this))))
 
   basilisp.lang.interfaces/IRecord
   (walk* [this inner outer]

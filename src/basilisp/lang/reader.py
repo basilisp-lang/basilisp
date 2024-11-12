@@ -1116,22 +1116,34 @@ def _walk(form, _, outer_f):
 @_walk.register(IPersistentList)
 @_walk.register(ISeq)
 def _walk_ipersistentlist(form: Union[IPersistentList, ISeq], inner_f, outer_f):
-    return outer_f(llist.list(map(inner_f, form)))
+    coll = llist.list(map(inner_f, form))
+    if isinstance(form, IMeta) and form.meta is not None:
+        coll = coll.with_meta(form.meta)
+    return outer_f(coll)
 
 
 @_walk.register(IPersistentVector)
 def _walk_ipersistentvector(form: IPersistentVector, inner_f, outer_f):
-    return outer_f(vec.vector(map(inner_f, form)))
+    coll = vec.vector(map(inner_f, form))
+    if isinstance(form, IMeta) and form.meta is not None:
+        coll = coll.with_meta(form.meta)
+    return outer_f(coll)
 
 
 @_walk.register(IPersistentMap)
 def _walk_ipersistentmap(form: IPersistentMap, inner_f, outer_f):
-    return outer_f(lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq() or ()))))
+    coll = lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq() or ())))
+    if isinstance(form, IMeta) and form.meta is not None:
+        coll = coll.with_meta(form.meta)
+    return outer_f(coll)
 
 
 @_walk.register(IPersistentSet)
 def _walk_ipersistentset(form: IPersistentSet, inner_f, outer_f):
-    return outer_f(lset.set(map(inner_f, form)))
+    coll = lset.set(map(inner_f, form))
+    if isinstance(form, IMeta) and form.meta is not None:
+        coll = coll.with_meta(form.meta)
+    return outer_f(coll)
 
 
 def _postwalk(f, form):
