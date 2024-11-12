@@ -752,7 +752,9 @@ def test(
     allows_extra=True,
 )
 def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("args", nargs=-1, help="arguments passed on to Pytest")
+    parser.add_argument(
+        "args", nargs=argparse.REMAINDER, help="arguments passed on to Pytest"
+    )
     _add_compiler_arg_group(parser)
     _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
