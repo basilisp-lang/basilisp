@@ -72,7 +72,8 @@ newline_chars = re.compile("(\r\n|\r|\n)")
 fn_macro_args = re.compile("(%)(&|[0-9])?")
 unicode_char = re.compile(r"u(\w+)")
 
-DataReaders = Optional[lmap.PersistentMap]
+DataReaderFn = Callable[[Any], Any]
+DataReaders = lmap.PersistentMap[sym.Symbol, DataReaderFn]
 GenSymEnvironment = MutableMapping[str, sym.Symbol]
 Resolver = Callable[[sym.Symbol], sym.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
@@ -348,7 +349,7 @@ def _raise_unknown_tag(s: sym.Symbol, v: LispReaderForm) -> NoReturn:
 
 
 class ReaderContext:
-    _DATA_READERS = lmap.map(
+    _DATA_READERS: DataReaders = lmap.map(
         {
             sym.symbol("inst"): _inst_from_str,
             sym.symbol("py"): _py_from_lisp,
@@ -394,7 +395,7 @@ class ReaderContext:
         self._eof = eof
 
     @property
-    def data_readers(self) -> lmap.PersistentMap:
+    def data_readers(self) -> DataReaders:
         return self._data_readers
 
     @property
@@ -486,6 +487,13 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
         self._form = form
         self._feature_vec = self._compile_feature_vec(form)
         self._is_splicing = is_splicing
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, ReaderConditional):
+            return NotImplemented
+        return self._form == other._form and self._is_splicing == other._is_splicing
 
     @staticmethod
     def _compile_feature_vec(form: IPersistentList[tuple[kw.Keyword, ReaderForm]]):
