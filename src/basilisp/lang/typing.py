@@ -19,6 +19,7 @@ from basilisp.lang.interfaces import (
     ISeq,
     IType,
 )
+from basilisp.lang.tagged import TaggedLiteral
 
 CompilerOpts = IPersistentMap[kw.Keyword, bool]
 
@@ -48,7 +49,7 @@ LispForm = Union[
     uuid.UUID,
 ]
 PyCollectionForm = Union[dict, list, set, tuple]
-ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm]
+ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm, TaggedLiteral]
 SpecialForm = Union[llist.PersistentList, ISeq]
 
 

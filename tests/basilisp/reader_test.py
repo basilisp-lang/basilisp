@@ -22,6 +22,7 @@ from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IPersistentSet
+from basilisp.lang.tagged import tagged_literal
 
 
 @pytest.fixture
@@ -1551,14 +1552,18 @@ class TestReaderConditional:
             "#?(clj 1 :lpy 2 :default)",
         ],
     )
-    def test_basic_form_syntax(self, v: str):
+    def test_invalid_basic_form_syntax(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
 
     def test_basic_form(self):
         assert 2 == read_str_first("#?(:clj 1 :lpy 2 :default 3)")
+        assert 2 == read_str_first("#?(:clj #_1 1 #_:lpy :lpy 2 :default 3)")
         assert 1 == read_str_first("#?(:default 1 :lpy 2)")
         assert None is read_str_first("#?(:clj 1 :cljs 2)")
+        assert [[], (), {}, set()] == read_str_first(
+            "#?(:cljs #js [] :lpy #py [#py [] #py () #py {} #py #{}] :default [])"
+        )
 
     def test_basic_form_preserving(self):
         c = read_str_first("#?(:clj 1 :lpy 2 :default 3)", process_reader_cond=False)
@@ -1569,6 +1574,72 @@ class TestReaderConditional:
             kw.keyword("clj"), 1, kw.keyword("lpy"), 2, kw.keyword("default"), 3
         ) == c.val_at(reader.READER_COND_FORM_KW)
         assert "#?(:clj 1 :lpy 2 :default 3)" == c.lrepr()
+
+    def test_form_preserving_with_unknown_data_readers(self):
+        c = read_str_first(
+            "#?(:cljs #js [] :lpy #py [] :default [])", process_reader_cond=False
+        )
+        assert isinstance(c, reader.ReaderConditional)
+        assert not c.is_splicing
+        assert False is c.val_at(reader.READER_COND_SPLICING_KW)
+        assert llist.l(
+            kw.keyword("cljs"),
+            tagged_literal(sym.symbol("js"), vec.EMPTY),
+            kw.keyword("lpy"),
+            tagged_literal(sym.symbol("py"), vec.EMPTY),
+            kw.keyword("default"),
+            vec.EMPTY,
+        ) == c.val_at(reader.READER_COND_FORM_KW)
+        assert "#?(:cljs #js [] :lpy #py [] :default [])" == c.lrepr()
+
+    def test_ignore_unknown_data_readers_in_non_selected_conditional(self):
+        v = read_str_first("#?(:cljs #js [] :default [])")
+        assert isinstance(v, vec.PersistentVector)
+        assert v == vec.EMPTY
+
+    @pytest.mark.parametrize(
+        "s,expected",
+        [
+            (
+                "#?(:cljs [#?(:lpy :py :default :other)] :default :none)",
+                kw.keyword("none"),
+            ),
+            (
+                "#?(:lpy [#?(:lpy :py :default :other)] :default :none)",
+                vec.v(kw.keyword("py")),
+            ),
+            (
+                "#?(:lpy [#?(:clj :py :default :other)] :default :none)",
+                vec.v(kw.keyword("other")),
+            ),
+            (
+                "#?(:cljs [#?@(:clj [1 2] :default [3 4])] :default :none)",
+                kw.keyword("none"),
+            ),
+            (
+                "#?(:lpy [#?@(:clj [1 2] :default [3 4])] :default :none)",
+                vec.v(3, 4),
+            ),
+            (
+                "#?(:lpy [#?@(:clj [1 2] :cljs [3 4])] :default :none)",
+                vec.EMPTY,
+            ),
+            (
+                "#?(#?@(:clj [:clj [1 2]] :lpy [:lpy [3 4]]) :default [])",
+                vec.v(3, 4),
+            ),
+            (
+                "#?(#?@(:clj [:clj [1 2]] :lpy [:cljs [3 4]]) :default [])",
+                vec.EMPTY,
+            ),
+            (
+                "#?(#?@(:clj [1 2]) :default :none)",
+                kw.keyword("none"),
+            ),
+        ],
+    )
+    def test_nested_reader_conditionals(self, s: str, expected):
+        assert expected == read_str_first(s)
 
     @pytest.mark.parametrize(
         "v",
@@ -1598,6 +1669,8 @@ class TestReaderConditional:
             "#?@(:clj)",
             "#?@(:clj [1] lpy)",
             "#?@(clj [1] :lpy [2] :default)",
+            # Invalid splice connection (in nested reader conditional)
+            "#?(#?@(:lpy (:lpy [])) :default :none)",
         ],
     )
     def test_splicing_form_syntax(self, v: str):
