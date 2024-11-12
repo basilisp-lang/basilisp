@@ -537,7 +537,7 @@ In nearly all cases, this will be the return value from a macro function, which 
 
    :ref:`macros`
 
-.. _reader_conditions:
+.. _reader_conditionals:
 
 Reader Conditionals
 -------------------
@@ -571,6 +571,10 @@ Splicing reader conditionals may only appear within other collection literal for
     [1 2 3]
     basilisp.user=> #?@(:lpy [1 2 3])
     basilisp.lang.reader.SyntaxError: Unexpected reader conditional
+
+.. seealso::
+
+   :lpy:fn:`reader-conditional`, :lpy:fn:`reader-conditional?`
 
 .. _python_version_reader_features:
 

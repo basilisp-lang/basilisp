@@ -548,14 +548,14 @@
     (.-name v)))
 
 (defn ^:inline reader-conditional
-  "Construct a data representation of a reader conditional.
+  "Construct a data representation of a :ref:`reader conditional <reader_conditionals>`.
 
   The form must contain balanced key-value pairs."
   [form is-splicing?]
   (basilisp.lang.reader/ReaderConditional form is-splicing?))
 
 (defn ^:inline reader-conditional?
-  "Return true if the value is the data representation of a reader conditional."
+  "Return true if the value is the data representation of a :ref:`reader conditional <reader_conditionals>`."
   [o]
   (instance? basilisp.lang.reader/ReaderConditional o))
 
