@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `basilisp test` command fails due to an invalid `argparse` configuration (#1119)
  * Fix a bug where `basilisp.walk/walk` (and any functions that depend on it) did not preserve collection metadata (#1123)
  * Fix a bug where the private `postwalk` implementation in the reader did not preserve collection metadata (#1123)
+ * Fix a bug where unknown data reader tags in non-selected reader conditional branches prevented reading the forms (#1118)
 
 ## [v0.3.1]
 ### Added
