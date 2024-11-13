@@ -734,6 +734,10 @@ def test(
 ) -> None:  # pragma: no cover
     init_path(args)
     basilisp.init(_compiler_opts(args))
+    # parse_known_args leaves the `--` separator as the first element if it is present
+    # but retaining that causes PyTest to interpret all the arguments as positional
+    if extra and extra[0] == "--":
+        extra = extra[1:]
     try:
         import pytest
     except (ImportError, ModuleNotFoundError):
@@ -747,14 +751,29 @@ def test(
 @_subcommand(
     "test",
     help="run tests in a Basilisp project",
-    description="Run tests in a Basilisp project.",
+    description=textwrap.dedent(
+        """Run tests in a Basilisp project.
+
+        Any options not recognized by Basilisp and all positional arguments will
+        be collected and passed on to PyTest. It is possible to directly signal
+        the end of option processing using an explicit `--` as in:
+
+            `basilisp test -p other_dir -- -k vector`
+
+        This can be useful to also directly execute PyTest commands with Basilisp.
+        For instance, you can directly print the PyTest command-line help text using:
+
+            `basilisp test -- -h`
+
+        If all options are unambiguous (e.g. they are only either used by Basilisp
+        or by PyTest), then you can omit the `--`:
+
+            `basilisp test -k vector -p other_dir`"""
+    ),
     handler=test,
     allows_extra=True,
 )
 def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "args", nargs=argparse.REMAINDER, help="arguments passed on to Pytest"
-    )
     _add_compiler_arg_group(parser)
     _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
