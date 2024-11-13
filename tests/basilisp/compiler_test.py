@@ -6125,6 +6125,18 @@ class TestSymbolResolution:
             lcompile("basilisp.lang.map.MapEntry.of")
 
     @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("python.str/split", str.split),
+            ("python.str/.split", str.split),
+            ("python.int/from_bytes", int.from_bytes),
+            ("python.int/.from_bytes", int.from_bytes),
+        ],
+    )
+    def test_qualified_method_resolves(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
+    @pytest.mark.parametrize(
         "code",
         [
             "(import* abc) abc",

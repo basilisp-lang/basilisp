@@ -3468,7 +3468,9 @@ def _list_node(form: ISeq, ctx: AnalyzerContext) -> Node:
             return handle_special_form(form, ctx)
         elif s.name.startswith(".-"):
             return _host_prop_ast(form, ctx)
-        elif s.name.startswith(".") and s.name != _DOUBLE_DOT_MACRO_NAME:
+        elif (
+            s.name.startswith(".") and s.ns is None and s.name != _DOUBLE_DOT_MACRO_NAME
+        ):
             return _host_call_ast(form, ctx)
 
     return _invoke_ast(form, ctx)
