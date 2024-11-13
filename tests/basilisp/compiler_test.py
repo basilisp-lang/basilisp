@@ -3652,6 +3652,18 @@ class TestPythonInterop:
         assert "example" == lcompile('(. "www.example.com" (strip "cmowz."))')
         assert "example" == lcompile('(. "www.example.com" strip "cmowz.")')
 
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ('(python.str/split "a b c")', ["a", "b", "c"]),
+            ('(python.str/.split "a b c")', ["a", "b", "c"]),
+            ('(python.int/from_bytes #b"\\x00\\x10")', 16),
+            ('(python.int/.from_bytes #b"\\x00\\x10")', 16),
+        ],
+    )
+    def test_interop_qualified_method(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
     def test_interop_prop_field_is_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(.- 'some.ns/sym :ns)")
