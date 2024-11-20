@@ -1063,6 +1063,8 @@ def _read_sym(ctx: ReaderContext, is_reader_macro_sym: bool = False) -> MaybeSym
             return False
         elif name == "&":
             return _AMPERSAND
+        elif name.startswith("."):
+            return sym.symbol(name)
     if ctx.is_syntax_quoted and not name.endswith("#") and not is_reader_macro_sym:
         return ctx.resolve(sym.symbol(name, ns))
     return sym.symbol(name, ns=ns)
