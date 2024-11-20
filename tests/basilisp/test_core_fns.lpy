@@ -42,6 +42,8 @@
   (testing "name only"
     (are [res name] (= res (keyword name))
       (keyword "")                     ""
+      (keyword "/")                    "/"
+      (keyword "" "/")                 "//"
       :name                            "name"
       :ns/name                         "ns/name"
       (keyword "ns" "name/with-slash") "ns/name/with-slash"
@@ -68,6 +70,8 @@
   (testing "name only"
     (are [res name] (= res (symbol name))
       (symbol "")                     ""
+      (symbol "/")                    "/"
+      (symbol "" "/")                 "//"
       'name                           "name"
       'ns/name                        "ns/name"
       (symbol "ns" "name/with-slash") "ns/name/with-slash"

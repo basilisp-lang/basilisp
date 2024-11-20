@@ -1081,7 +1081,7 @@ def _keyword_from_name_symbol(o: sym.Symbol) -> kw.Keyword:
 
 @keyword_from_name.register(str)
 def _keyword_from_name_str(o: str) -> kw.Keyword:
-    if "/" in o:
+    if "/" in o and o != "/":
         ns, name = o.split("/", maxsplit=1)
         return kw.keyword(name, ns=ns)
     return kw.keyword(o)
@@ -1113,7 +1113,7 @@ def _symbol_from_name_symbol(o: sym.Symbol) -> sym.Symbol:
 
 @symbol_from_name.register(str)
 def _symbol_from_name_str(o: str) -> sym.Symbol:
-    if "/" in o:
+    if "/" in o and o != "/":
         ns, name = o.split("/", maxsplit=1)
         return sym.symbol(name, ns=ns)
     return sym.symbol(o)
