@@ -600,7 +600,7 @@ class TestKeyword:
             ("a:b", ":a:b"),
         ],
     )
-    def test_legal_bare_symbol(self, v: str, raw: str):
+    def test_legal_bare_keyword(self, v: str, raw: str):
         assert kw.keyword(v) == read_str_first(raw)
 
     @pytest.mark.parametrize(
@@ -613,13 +613,13 @@ class TestKeyword:
             ("a:b", "a:b", ":a:b/a:b"),
         ],
     )
-    def test_legal_ns_symbol(self, k: str, ns: str, raw: str):
+    def test_legal_ns_keyword(self, k: str, ns: str, raw: str):
         assert kw.keyword(k, ns=ns) == read_str_first(raw)
 
     @pytest.mark.parametrize(
         "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw"]
     )
-    def test_illegal_symbol(self, v: str):
+    def test_illegal_keyword(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
 
@@ -1161,15 +1161,43 @@ class TestSyntaxQuote:
             ),
         ) == read_str_first("`(#'~'a-symbol)"), "Reader var macro works with unquote"
 
-    def test_do_not_resolve_unnamespaced_ampersand(self):
-        assert llist.l(sym.symbol("quote"), sym.symbol("&")) == read_str_first(
-            "`&"
-        ), "do not resolve the not namespaced ampersand"
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("`&", llist.l(sym.symbol("quote"), sym.symbol("&"))),
+            ("`nil", None),
+            ("`true", True),
+            ("`false", False),
+            ("`.interop", llist.l(sym.symbol("quote"), sym.symbol(".interop"))),
+        ],
+    )
+    def test_do_not_resolve_unnamespaced_special_symbols(self, code: str, v):
+        assert v == read_str_first(code)
 
-    def test_resolve_namespaced_ampersand(self):
-        assert llist.l(
-            sym.symbol("quote"), sym.symbol("&", ns="test-ns")
-        ) == read_str_first("`test-ns/&"), "resolve fq namespaced ampersand"
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("`test-ns/&", llist.l(sym.symbol("quote"), sym.symbol("&", ns="test-ns"))),
+            (
+                "`test-ns/nil",
+                llist.l(sym.symbol("quote"), sym.symbol("nil", ns="test-ns")),
+            ),
+            (
+                "`test-ns/true",
+                llist.l(sym.symbol("quote"), sym.symbol("true", ns="test-ns")),
+            ),
+            (
+                "`test-ns/false",
+                llist.l(sym.symbol("quote"), sym.symbol("false", ns="test-ns")),
+            ),
+            (
+                "`test-ns/.interop",
+                llist.l(sym.symbol("quote"), sym.symbol(".interop", ns="test-ns")),
+            ),
+        ],
+    )
+    def test_resolve_namespaced_special_symbols(self, code: str, v):
+        assert v == read_str_first(code)
 
     @pytest.mark.parametrize(
         "code,v",
