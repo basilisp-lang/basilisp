@@ -4,6 +4,7 @@ import math
 import os
 import re
 import textwrap
+import uuid
 from fractions import Fraction
 from pathlib import Path
 from typing import Optional
@@ -22,6 +23,7 @@ from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IPersistentSet
+from basilisp.lang.reader import Resolver
 from basilisp.lang.tagged import tagged_literal
 
 
@@ -1045,162 +1047,201 @@ def test_quoted():
     )
 
 
-def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
-    resolver = lambda s: sym.symbol(s.name, ns="test-ns")
-    assert llist.l(
-        reader._SEQ,
-        llist.l(
-            reader._CONCAT,
+class TestSyntaxQuote:
+    def test_resolve_with_simple_resolver(self):
+        resolver = lambda s: sym.symbol(s.name, ns="test-ns")
+        assert llist.l(
+            reader._SEQ,
             llist.l(
-                reader._LIST,
-                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
-            ),
-        ),
-    ) == read_str_first(
-        "`(my-symbol)", resolver=resolver
-    ), "Resolve fully qualified symbol in syntax quote"
-
-    assert llist.l(
-        reader._SEQ,
-        llist.l(
-            reader._CONCAT,
-            llist.l(
-                reader._LIST,
-                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns=test_ns)),
-            ),
-        ),
-    ) == read_str_first(
-        "`(my-symbol)", resolver=runtime.resolve_alias
-    ), "Resolve a symbol in the current namespace"
-
-    def complex_resolver(s: sym.Symbol) -> sym.Symbol:
-        if s.name == "other-symbol":
-            return s
-        return sym.symbol(s.name, ns="test-ns")
-
-    assert llist.l(
-        reader._SEQ,
-        llist.l(
-            reader._CONCAT,
-            llist.l(
-                reader._LIST,
-                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
-            ),
-            llist.l(
-                reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("other-symbol"))
-            ),
-        ),
-    ) == read_str_first(
-        "`(my-symbol other-symbol)", resolver=complex_resolver
-    ), "Resolve multiple symbols together"
-
-    assert llist.l(
-        reader._SEQ,
-        llist.l(
-            reader._CONCAT,
-            llist.l(
-                reader._LIST,
+                reader._CONCAT,
                 llist.l(
-                    reader._SEQ,
+                    reader._LIST,
+                    llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+                ),
+            ),
+        ) == read_str_first(
+            "`(my-symbol)", resolver=resolver
+        ), "Resolve fully qualified symbol in syntax quote"
+
+    def test_resolve_with_standard_resolver(self, test_ns: str, ns: runtime.Namespace):
+        assert llist.l(
+            reader._SEQ,
+            llist.l(
+                reader._CONCAT,
+                llist.l(
+                    reader._LIST,
+                    llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns=test_ns)),
+                ),
+            ),
+        ) == read_str_first(
+            "`(my-symbol)", resolver=runtime.resolve_alias
+        ), "Resolve a symbol in the current namespace"
+
+    def test_resolve_with_custom_resolver(self):
+        def complex_resolver(s: sym.Symbol) -> sym.Symbol:
+            if s.name == "other-symbol":
+                return s
+            return sym.symbol(s.name, ns="test-ns")
+
+        assert llist.l(
+            reader._SEQ,
+            llist.l(
+                reader._CONCAT,
+                llist.l(
+                    reader._LIST,
+                    llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+                ),
+                llist.l(
+                    reader._LIST,
+                    llist.l(sym.symbol("quote"), sym.symbol("other-symbol")),
+                ),
+            ),
+        ) == read_str_first(
+            "`(my-symbol other-symbol)", resolver=complex_resolver
+        ), "Resolve multiple symbols together"
+
+    def test_resolve_inner_forms_even_in_quote(self):
+        assert llist.l(
+            reader._SEQ,
+            llist.l(
+                reader._CONCAT,
+                llist.l(
+                    reader._LIST,
                     llist.l(
-                        reader._CONCAT,
+                        reader._SEQ,
                         llist.l(
-                            reader._LIST,
-                            llist.l(sym.symbol("quote"), sym.symbol("quote")),
-                        ),
-                        llist.l(
-                            reader._LIST,
-                            llist.l(sym.symbol("quote"), sym.symbol("my-symbol")),
+                            reader._CONCAT,
+                            llist.l(
+                                reader._LIST,
+                                llist.l(sym.symbol("quote"), sym.symbol("quote")),
+                            ),
+                            llist.l(
+                                reader._LIST,
+                                llist.l(sym.symbol("quote"), sym.symbol("my-symbol")),
+                            ),
                         ),
                     ),
                 ),
             ),
-        ),
-    ) == read_str_first("`('my-symbol)"), "Resolver inner forms, even in quote"
+        ) == read_str_first("`('my-symbol)"), "Resolver inner forms, even in quote"
 
-    assert llist.l(
-        reader._SEQ,
-        llist.l(
-            reader._CONCAT,
+    def test_do_not_resolve_unquoted_quoted_symbols(self):
+        assert llist.l(
+            reader._SEQ,
             llist.l(
-                reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("my-symbol"))
-            ),
-        ),
-    ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
-
-    assert llist.l(
-        reader._SEQ,
-        llist.l(
-            reader._CONCAT,
-            llist.l(
-                reader._LIST,
+                reader._CONCAT,
                 llist.l(
-                    reader._SEQ,
+                    reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("my-symbol"))
+                ),
+            ),
+        ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
+
+    def test_reader_var_macro_works_with_unquote(self):
+        assert llist.l(
+            reader._SEQ,
+            llist.l(
+                reader._CONCAT,
+                llist.l(
+                    reader._LIST,
                     llist.l(
-                        reader._CONCAT,
+                        reader._SEQ,
                         llist.l(
-                            reader._LIST,
-                            llist.l(sym.symbol("quote"), sym.symbol("var")),
-                        ),
-                        llist.l(
-                            reader._LIST,
-                            llist.l(sym.symbol("quote"), sym.symbol("a-symbol")),
+                            reader._CONCAT,
+                            llist.l(
+                                reader._LIST,
+                                llist.l(sym.symbol("quote"), sym.symbol("var")),
+                            ),
+                            llist.l(
+                                reader._LIST,
+                                llist.l(sym.symbol("quote"), sym.symbol("a-symbol")),
+                            ),
                         ),
                     ),
                 ),
             ),
-        ),
-    ) == read_str_first("`(#'~'a-symbol)"), "Reader var macro works with unquote"
+        ) == read_str_first("`(#'~'a-symbol)"), "Reader var macro works with unquote"
 
-    assert llist.l(sym.symbol("quote"), sym.symbol("&")) == read_str_first(
-        "`&"
-    ), "do not resolve the not namespaced ampersand"
+    def test_do_not_resolve_unnamespaced_ampersand(self):
+        assert llist.l(sym.symbol("quote"), sym.symbol("&")) == read_str_first(
+            "`&"
+        ), "do not resolve the not namespaced ampersand"
 
-    assert llist.l(
-        sym.symbol("quote"), sym.symbol("&", ns="test-ns")
-    ) == read_str_first("`test-ns/&"), "resolve fq namespaced ampersand"
+    def test_resolve_namespaced_ampersand(self):
+        assert llist.l(
+            sym.symbol("quote"), sym.symbol("&", ns="test-ns")
+        ) == read_str_first("`test-ns/&"), "resolve fq namespaced ampersand"
 
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("`#py []", []),
+            ("`#py [1 2 3]", [1, 2, 3]),
+            ("`#py ()", tuple()),
+            ("`#py (1 2 3)", (1, 2, 3)),
+            ("`#py #{}", set()),
+            ("`#py #{1 2 3}", {1, 2, 3}),
+            ("`#py {}", {}),
+            ("`#py {1 2 3 4}", {1: 2, 3: 4}),
+            (
+                '`#uuid "c28f97e2-15b3-445f-91f9-c57fc71c9556"',
+                uuid.UUID("c28f97e2-15b3-445f-91f9-c57fc71c9556"),
+            ),
+            (
+                '#inst "2024-11-19T15:55:58.000000+00:00"',
+                datetime.datetime(
+                    2024, 11, 19, 15, 55, 58, tzinfo=datetime.timezone.utc
+                ),
+            ),
+        ],
+    )
+    def test_do_not_resolve_data_reader_tags(self, code: str, v):
+        assert v == read_str_first(code)
 
-def test_syntax_quote_gensym():
-    resolver = lambda s: sym.symbol(s.name, ns="test-ns")
+    class TestGensym:
+        @pytest.fixture
+        def resolver(self) -> Resolver:
+            return lambda s: sym.symbol(s.name, ns="test-ns")
 
-    gensym = read_str_first("`s#", resolver=resolver)
-    assert isinstance(gensym, llist.PersistentList)
-    assert gensym.first == reader._QUOTE
-    genned_sym: sym.Symbol = gensym[1]
-    assert genned_sym.name.startswith("s_")
+        def test_lone_gensym(self, resolver: Resolver):
+            gensym = read_str_first("`s#", resolver=resolver)
+            assert isinstance(gensym, llist.PersistentList)
+            assert gensym.first == reader._QUOTE
+            genned_sym: sym.Symbol = gensym[1]
+            assert genned_sym.name.startswith("s_")
 
-    # Verify that identical gensym forms resolve to the same
-    # symbol inside the same syntax quote expansion
-    multisym = read_str_first("`(s1# s2# s1#)", resolver=resolver)[1].rest
+        def test_multiple_gensyms(self, resolver: Resolver):
+            # Verify that identical gensym forms resolve to the same
+            # symbol inside the same syntax quote expansion
+            multisym = read_str_first("`(s1# s2# s1#)", resolver=resolver)[1].rest
 
-    multisym1 = multisym[0][1]
-    assert reader._QUOTE == multisym1[0]
-    genned_sym1: sym.Symbol = multisym1[1]
-    assert genned_sym1.ns is None
-    assert genned_sym1.name.startswith("s1_")
-    assert "#" not in genned_sym1.name
+            multisym1 = multisym[0][1]
+            assert reader._QUOTE == multisym1[0]
+            genned_sym1: sym.Symbol = multisym1[1]
+            assert genned_sym1.ns is None
+            assert genned_sym1.name.startswith("s1_")
+            assert "#" not in genned_sym1.name
 
-    multisym2 = multisym[1][1]
-    assert reader._QUOTE == multisym2[0]
-    genned_sym2: sym.Symbol = multisym2[1]
-    assert genned_sym2.ns is None
-    assert genned_sym2.name.startswith("s2_")
-    assert "#" not in genned_sym2.name
+            multisym2 = multisym[1][1]
+            assert reader._QUOTE == multisym2[0]
+            genned_sym2: sym.Symbol = multisym2[1]
+            assert genned_sym2.ns is None
+            assert genned_sym2.name.startswith("s2_")
+            assert "#" not in genned_sym2.name
 
-    multisym3 = multisym[2][1]
-    assert reader._QUOTE == multisym3[0]
-    genned_sym3: sym.Symbol = multisym3[1]
-    assert genned_sym3.ns is None
-    assert genned_sym3.name.startswith("s1_")
-    assert "#" not in genned_sym3.name
+            multisym3 = multisym[2][1]
+            assert reader._QUOTE == multisym3[0]
+            genned_sym3: sym.Symbol = multisym3[1]
+            assert genned_sym3.ns is None
+            assert genned_sym3.name.startswith("s1_")
+            assert "#" not in genned_sym3.name
 
-    assert genned_sym1 == genned_sym3
-    assert genned_sym1 != genned_sym2
+            assert genned_sym1 == genned_sym3
+            assert genned_sym1 != genned_sym2
 
-    # Gensym literals must appear inside of syntax quote
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("s#")
+        def test_cannot_gensym_outside_syntax_quote(self):
+            # Gensym literals must appear inside of syntax quote
+            with pytest.raises(reader.SyntaxError):
+                read_str_first("s#")
 
 
 def test_unquote():
@@ -1851,108 +1892,110 @@ def test_fraction_literal():
         read_str_first("3/7/14")
 
 
-def test_inst_reader_literal():
-    assert (
-        read_str_first('#inst "2018-01-18T03:26:57.296-00:00"')
-        == langutil.inst_from_str("2018-01-18T03:26:57.296-00:00")
-        == datetime.datetime(
-            2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+class TestDataReaders:
+    def test_inst_reader_literal(self):
+        assert (
+            read_str_first('#inst "2018-01-18T03:26:57.296-00:00"')
+            == langutil.inst_from_str("2018-01-18T03:26:57.296-00:00")
+            == datetime.datetime(
+                2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+            )
         )
+
+    def test_invalid_inst_reader_literal(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('#inst "I am a little teapot short and stout"')
+
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("#queue ()", lqueue.EMPTY),
+            ("#queue (1 2 3)", lqueue.q(1, 2, 3)),
+            (
+                '#queue ([1 2 3] :a "b" {:c :d})',
+                lqueue.q(
+                    vec.v(1, 2, 3),
+                    kw.keyword("a"),
+                    "b",
+                    lmap.map({kw.keyword("c"): kw.keyword("d")}),
+                ),
+            ),
+        ],
     )
+    def test_queue_reader_literal(self, code: str, v):
+        assert v == read_str_first(code)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('#inst "I am a little teapot short and stout"')
+    @pytest.mark.parametrize("code,pattern", [('#"hi"', "hi"), (r'#"\s"', r"\s")])
+    def test_regex_reader_literal(self, code: str, pattern: str):
+        assert read_str_first(code) == langutil.regex_from_str(pattern)
+        assert read_str_first(r'#"\s"') == langutil.regex_from_str(r"\s")
 
+    def test_invalid_regex_reader_literal(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(r'#"\y"')
 
-def test_queue_reader_literal():
-    assert read_str_first("#queue ()") == lqueue.EMPTY
-    assert read_str_first("#queue (1 2 3)") == lqueue.q(1, 2, 3)
-    assert read_str_first('#queue ([1 2 3] :a "b" {:c :d})') == lqueue.q(
-        vec.v(1, 2, 3),
-        kw.keyword("a"),
-        "b",
-        lmap.map({kw.keyword("c"): kw.keyword("d")}),
+    def test_numeric_constant_literal(self):
+        assert math.isnan(read_str_first("##NaN"))
+        assert read_str_first("##Inf") == float("inf")
+        assert read_str_first("##-Inf") == -float("inf")
+
+    @pytest.mark.parametrize("code", ["##float/NaN", "##e"])
+    def test_invalid_numeric_constant_literal(self, code: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(code)
+
+    def test_uuid_reader_literal(self):
+        assert read_str_first(
+            '#uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230"'
+        ) == langutil.uuid_from_str("4ba98ef0-0620-4966-af61-f0f6c2dbf230")
+
+    def test_invalid_uuid_reader_literal(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('#uuid "I am a little teapot short and stout"')
+
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("#py []", []),
+            ('#py [1 :a "str"]', [1, kw.keyword("a"), "str"]),
+            ("#py ()", ()),
+            ('#py (1 :a "str")', (1, kw.keyword("a"), "str")),
+            ("#py {}", {}),
+            (
+                '#py {:a 1 :other "str"}',
+                {kw.keyword("a"): 1, kw.keyword("other"): "str"},
+            ),
+            ("#py #{}", set()),
+            ('#py #{1 :a "str"}', {1, kw.keyword("a"), "str"}),
+        ],
     )
+    def test_python_data_structure_literals(self, code: str, v):
+        assert v == read_str_first(code)
 
+    @pytest.mark.parametrize("code", ["#py :kw", '#py "s"', "#py 3"])
+    def test_invalid_python_data_structure_literals(self, code: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(code)
 
-def test_regex_reader_literal():
-    assert read_str_first('#"hi"') == langutil.regex_from_str("hi")
-    assert read_str_first(r'#"\s"') == langutil.regex_from_str(r"\s")
+    def test_data_readers_qualified_tag(self):
+        assert "s" == read_str_first(
+            '#foo/bar "s"',
+            data_readers=lmap.map({sym.symbol("bar", ns="foo"): lambda v: v}),
+        )
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(r'#"\y"')
+    def test_data_readers_simple_tag(self):
+        assert "s" == read_str_first(
+            '#bar "s"',
+            data_readers=lmap.map({sym.symbol("bar"): lambda v: v}),
+        )
 
+    def test_default_data_reader_fn(self):
+        tag = sym.symbol("bar", ns="foo")
+        assert (tag, "s") == read_str_first(
+            '#foo/bar "s"', default_data_reader_fn=lambda tag, v: (tag, v)
+        )
 
-def test_numeric_constant_literal():
-    assert math.isnan(read_str_first("##NaN"))
-    assert read_str_first("##Inf") == float("inf")
-    assert read_str_first("##-Inf") == -float("inf")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("##float/NaN")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("##e")
-
-
-def test_uuid_reader_literal():
-    assert read_str_first(
-        '#uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230"'
-    ) == langutil.uuid_from_str("4ba98ef0-0620-4966-af61-f0f6c2dbf230")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('#uuid "I am a little teapot short and stout"')
-
-
-def test_python_literals():
-    assert [] == read_str_first("#py []")
-    assert [1, kw.keyword("a"), "str"] == read_str_first('#py [1 :a "str"]')
-
-    assert () == read_str_first("#py ()")
-    assert (1, kw.keyword("a"), "str") == read_str_first('#py (1 :a "str")')
-
-    assert {} == read_str_first("#py {}")
-    assert {kw.keyword("a"): 1, kw.keyword("other"): "str"} == read_str_first(
-        '#py {:a 1 :other "str"}'
-    )
-
-    assert set() == read_str_first("#py #{}")
-    assert {1, kw.keyword("a"), "str"} == read_str_first('#py #{1 :a "str"}')
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("#py :kw")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('#py "s"')
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("#py 3")
-
-
-def test_data_readers_qualified_tag():
-    assert "s" == read_str_first(
-        '#foo/bar "s"',
-        data_readers=lmap.map({sym.symbol("bar", ns="foo"): lambda v: v}),
-    )
-
-
-def test_data_readers_simple_tag():
-    assert "s" == read_str_first(
-        '#bar "s"',
-        data_readers=lmap.map({sym.symbol("bar"): lambda v: v}),
-    )
-
-
-def test_default_data_reader_fn():
-    tag = sym.symbol("bar", ns="foo")
-    assert (tag, "s") == read_str_first(
-        '#foo/bar "s"', default_data_reader_fn=lambda tag, v: (tag, v)
-    )
-
-
-def test_not_found_tag_error():
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("#boop :hi")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("#ns/boop :hi")
+    @pytest.mark.parametrize("code", ["#boop :hi", "#ns/boop :hi"])
+    def test_not_found_tag_error(self, code: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(code)

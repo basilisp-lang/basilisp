@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+ * Fix a bug where tags in data readers were resolved as Vars within syntax quotes, rather than using standard data readers rules (#1129)
 
 ## [v0.3.2]
 ### Added
