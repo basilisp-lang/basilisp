@@ -3,8 +3,6 @@ name: Release to PyPI
 on:
   release:
     types: [ published ]
-  pull_request:
-    types: [ opened, synchronize, reopened ]
 
 concurrency:
   group: pypi-release
@@ -19,8 +17,8 @@ jobs:
           python-version: ${{ vars.PYTHON_VERSION }}
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
-#      - name: Validate Release Version
-#        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
+      - name: Validate Release Version
+        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
       - name: Build Basilisp distributions
         run: poetry build
       - name: Upload build artifact
@@ -35,14 +33,13 @@ jobs:
       name: release
     needs:
       - build
-#    permissions:
-#      id-token: write
+    permissions:
+      id-token: write
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           path: dist/
           merge-multiple: true
-      - run: ls -laR
-#      g - name: Publish package distributions to PyPI
-#        uses: pypa/gh-action-pypi-publish@release/v1.12.2
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1.12.2
