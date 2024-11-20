@@ -507,9 +507,11 @@
 (defn symbol
   "Create a new symbol with ``name`` and optional namespace ``ns``.
 
-  ``name`` may be keyword, symbol, string, or Var. If ``name`` is a keyword or symbol with a
-  namespace, the namespace will be included in the resulting value. If ``name`` is a Var,
-  the Var's namespace will always be the namespace of the resulting value.
+  ``name`` may be keyword, symbol, string, or Var. If ``name`` is a keyword or symbol
+  with a namespace, the namespace will be included in the resulting value. If ``name``
+  is a Var, the Var's namespace will always be the namespace of the resulting value. If
+  ``name`` is a string with at least one '/', the string will be split on the first '/'
+  character with the first segment being used as ``ns`` and the second as ``name``.
 
   If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
@@ -522,7 +524,9 @@
   have the colon prefix added automatically, so it should not be provided.
 
   ``name`` may be keyword, symbol, or string. If ``name`` is a keyword or symbol with a
-  namespace, the namespace will be included in the resulting value.
+  namespace, the namespace will be included in the resulting value. If ``name`` is a
+  string with at least one '/', the string will be split on the first '/' character
+  with the first segment being used as ``ns`` and the second as ``name``.
 
   If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
