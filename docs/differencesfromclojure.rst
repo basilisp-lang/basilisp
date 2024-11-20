@@ -182,6 +182,8 @@ Host interoperability features generally match those of Clojure.
 
 * :lpy:fn:`new` is a macro for Clojure compatibility, as the ``new`` keyword is not required for constructing new objects in Python.
 * `Python builtins <https://docs.python.org/3/library/functions.html>`_ are available under the special namespace ``python`` (as ``python/abs``, for instance) without requiring an import.
+* The qualified constructor form ``Classname/new`` introduced in Clojure 1.12 is not supported, because ``new`` is a valid Python method identifier unlike in Java.
+* Qualified methods may be referenced with or without a leading ``.`` character regardless of whether they are static, class, or instance methods.
 
 .. seealso::
 

@@ -116,6 +116,20 @@ As a convenience, Basilisp offers a more compact syntax for method names known a
 
     (.strftime now "%Y-%m-%d")  ;;=> "2020-03-31"
 
+Basilisp also supports the "qualified method" syntax introduced in Clojure 1.12, albeit with fewer restrictions than the Clojure implementation.
+In particular, there is no distinction between instance and static (or class) methods in syntax -- instance methods need not be prefixed with a leading ``.`` nor is it an error to prefix a static or class method with a leading ``.``.
+Static and class methods typically do not take an instance of their class as the first argument, so the distinction should already be clear by usage.
+
+.. code-block:: clojure
+
+   ;; Python str instance method str.split()
+   (python.str/split "a b c")   ;;=> #py ["a" "b" "c"]
+   (python.str/.split "a b c")  ;;=> #py ["a" "b" "c"]
+
+   ;; Python int classmethod int.from_bytes()
+   (python.int/from_bytes #b"\x00\x10")   ;;=> 16
+   (python.int/.from_bytes #b"\x00\x10")  ;;=> 16
+
 In Python, objects often expose properties which can be read directly from the instance.
 To read properties from the instance, you can use the ``(.- object property)`` syntax.
 

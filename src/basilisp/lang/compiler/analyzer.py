@@ -3468,13 +3468,15 @@ def _list_node(form: ISeq, ctx: AnalyzerContext) -> Node:
             return handle_special_form(form, ctx)
         elif s.name.startswith(".-"):
             return _host_prop_ast(form, ctx)
-        elif s.name.startswith(".") and s.name != _DOUBLE_DOT_MACRO_NAME:
+        elif (
+            s.name.startswith(".") and s.ns is None and s.name != _DOUBLE_DOT_MACRO_NAME
+        ):
             return _host_call_ast(form, ctx)
 
     return _invoke_ast(form, ctx)
 
 
-def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
+def __resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     """Resolve an attribute by recursively accessing the parent object
     as if it were its own namespaced symbol."""
     assert form.ns is not None
@@ -3580,6 +3582,23 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     ctx: AnalyzerContext, form: sym.Symbol
 ) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
+    # Support Clojure 1.12 qualified method names
+    #
+    # Does not discriminate between static/class and instance methods (the latter of
+    # which must include a leading `.` in Clojure). In Basilisp it was always possible
+    # to access object methods (static or otherwise) using the `Classname/field` form
+    # because Python objects are essentially just fancy dicts. It is possible to call
+    # Python methods by referencing the method directly on the class with the instance
+    # as an argument:
+    #
+    #     "a b c".split() == str.split("a b c")  # => ["a", "b", "c"]
+    #
+    # Basilisp supported this from the beginning:
+    #
+    #     (python.str/split "a b c")  ;;=> #py ["a" "b" "c"]
+    if form.name.startswith(".") and form.name != _DOUBLE_DOT_MACRO_NAME:
+        form = sym.symbol(form.name[1:], ns=form.ns, meta=form.meta)
+
     assert form.ns is not None
 
     current_ns = ctx.current_ns
@@ -3632,7 +3651,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
 
     if "." in form.ns:
         try:
-            return _resolve_nested_symbol(ctx, form)
+            return __resolve_nested_symbol(ctx, form)
         except CompilerException:
             raise ctx.AnalyzerException(
                 f"unable to resolve symbol '{form}' in this context", form=form

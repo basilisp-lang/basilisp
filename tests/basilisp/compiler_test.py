@@ -3652,6 +3652,24 @@ class TestPythonInterop:
         assert "example" == lcompile('(. "www.example.com" (strip "cmowz."))')
         assert "example" == lcompile('(. "www.example.com" strip "cmowz.")')
 
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ('(python.str/split "a b c")', ["a", "b", "c"]),
+            ('(python.str/.split "a b c")', ["a", "b", "c"]),
+            (
+                '(python.int/from_bytes #b"\\x00\\x10" #?@(:lpy310- [** :byteorder "big"]))',
+                16,
+            ),
+            (
+                '(python.int/.from_bytes #b"\\x00\\x10" #?@(:lpy310- [** :byteorder "big"]))',
+                16,
+            ),
+        ],
+    )
+    def test_interop_qualified_method(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
     def test_interop_prop_field_is_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(.- 'some.ns/sym :ns)")
@@ -6123,6 +6141,18 @@ class TestSymbolResolution:
     def test_nested_bare_sym_will_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
+
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("python.str/split", str.split),
+            ("python.str/.split", str.split),
+            ("python.int/from_bytes", int.from_bytes),
+            ("python.int/.from_bytes", int.from_bytes),
+        ],
+    )
+    def test_qualified_method_resolves(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
 
     @pytest.mark.parametrize(
         "code",
