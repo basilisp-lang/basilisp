@@ -3657,8 +3657,14 @@ class TestPythonInterop:
         [
             ('(python.str/split "a b c")', ["a", "b", "c"]),
             ('(python.str/.split "a b c")', ["a", "b", "c"]),
-            ('(python.int/from_bytes #b"\\x00\\x10")', 16),
-            ('(python.int/.from_bytes #b"\\x00\\x10")', 16),
+            (
+                '(python.int/from_bytes #b"\\x00\\x10" #?@(:lpy310- [** :byteorder "big"]))',
+                16,
+            ),
+            (
+                '(python.int/.from_bytes #b"\\x00\\x10" #?@(:lpy310- [** :byteorder "big"]))',
+                16,
+            ),
         ],
     )
     def test_interop_qualified_method(self, lcompile: CompileFn, code: str, v):
