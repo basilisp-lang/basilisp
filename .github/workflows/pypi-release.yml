@@ -19,11 +19,12 @@ jobs:
           python-version: ${{ vars.PYTHON_VERSION }}
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
-      - name: Validate Release Version
-        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
-      - name: Publish to PyPI
+#      - name: Validate Release Version
+#        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
+      - name: Build Basilisp distributions
         run: poetry build
-      - uses: actions/upload-artifact@v4
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
           path: dist/
           if-no-files-found: error
@@ -37,7 +38,8 @@ jobs:
 #    permissions:
 #      id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
         with:
           path: dist/
       - run: ls -laR
