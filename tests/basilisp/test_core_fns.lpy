@@ -41,10 +41,12 @@
 (deftest keyword-test
   (testing "name only"
     (are [res name] (= res (keyword name))
-      (keyword "") ""
-      :name        "name"
-      :ns/name     :ns/name
-      :ns/name     'ns/name)
+      (keyword "")                     ""
+      :name                            "name"
+      :ns/name                         "ns/name"
+      (keyword "ns" "name/with-slash") "ns/name/with-slash"
+      :ns/name                         :ns/name
+      :ns/name                         'ns/name)
 
     (are [v] (thrown? python/TypeError (keyword v))
       nil
@@ -58,25 +60,27 @@
       :dotted.ns/name "dotted.ns" "name")
 
     (are [ns name] (thrown? python/TypeError (keyword ns name))
-      nil nil
-      :kw :kw
+      nil  nil
+      :kw  :kw
       'sym 'sym)))
 
 (deftest symbol-test
   (testing "name only"
     (are [res name] (= res (symbol name))
-      (symbol "")        ""
-      'name              "name"
-      'ns/name           :ns/name
-      'ns/name           'ns/name
-      'basilisp.core/map #'basilisp.core/map)
+      (symbol "")                     ""
+      'name                           "name"
+      'ns/name                        "ns/name"
+      (symbol "ns" "name/with-slash") "ns/name/with-slash"
+      'ns/name                        :ns/name
+      'ns/name                        'ns/name
+      'basilisp.core/map              #'basilisp.core/map)
 
     (are [v] (thrown? python/TypeError (symbol v))
       nil))
 
   (testing "name and namespace"
     (are [res ns name] (= res (symbol ns name))
-      (symbol "" "") ""          ""
+      (symbol "" "")  ""          ""
       'name           nil         "name"
       'ns/name        "ns"        "name"
       'dotted.ns/name "dotted.ns" "name")
