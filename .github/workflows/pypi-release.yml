@@ -42,6 +42,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist/
-      - run: ls -laR
+          merge-multiple: true
+       - run: ls -laR
 #      - name: Publish package distributions to PyPI
 #        uses: pypa/gh-action-pypi-publish@release/v1.12.2
