@@ -3,12 +3,14 @@ name: Release to PyPI
 on:
   release:
     types: [ published ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
 
 concurrency:
   group: pypi-release
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +22,24 @@ jobs:
       - name: Validate Release Version
         run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
       - name: Publish to PyPI
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}
-        run: poetry publish --build
+        run: poetry build
+      - uses: actions/upload-artifact@v4
+        with:
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    needs:
+      - build
+#    permissions:
+#      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+      - run: ls -laR
+#      - name: Publish package distributions to PyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1.12.2
