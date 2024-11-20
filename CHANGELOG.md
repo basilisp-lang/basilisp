@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added support for a subset of qualified method syntax introduced in Clojure 1.12 (#1109)
+
 ### Fixed
  * Fix a bug where tags in data readers were resolved as Vars within syntax quotes, rather than using standard data readers rules (#1129)
  * Fix a bug where `keyword` and `symbol` functions did not treat string arguments as potentially namespaced (#1131)
@@ -12,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.3.2]
 ### Added
  * Added support for constructing a data representation of reader conditionals (#1125)
- * Added support for a subset of qualified method syntax introduced in Clojure 1.12 (#1109)
 
 ### Fixed
  * Fix a bug where `basilisp test` command fails due to an invalid `argparse` configuration (#1119)
