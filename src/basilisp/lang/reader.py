@@ -1036,7 +1036,7 @@ def _read_byte_str(ctx: ReaderContext) -> bytes:
 
 
 @_with_loc
-def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
+def _read_sym(ctx: ReaderContext, is_reader_macro_sym: bool = False) -> MaybeSymbol:
     """Return a symbol from the input stream.
 
     If a symbol appears in a syntax quoted form, the reader will attempt
@@ -1065,7 +1065,7 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
             return False
         elif name == "&":
             return _AMPERSAND
-    if ctx.is_syntax_quoted and not name.endswith("#"):
+    if ctx.is_syntax_quoted and not name.endswith("#") and not is_reader_macro_sym:
         return ctx.resolve(sym.symbol(name, ns))
     return sym.symbol(name, ns=ns)
 
@@ -1670,7 +1670,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
     elif char == "#":
         return _read_numeric_constant(ctx)
     elif ns_name_chars.match(char):
-        s = _read_sym(ctx)
+        s = _read_sym(ctx, is_reader_macro_sym=True)
         assert isinstance(s, sym.Symbol)
         if s.ns is None and s.name == "b":
             return _read_byte_str(ctx)
