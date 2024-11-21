@@ -3565,7 +3565,11 @@
   - ``test-expr :>> result-fn`` where :>> is a keyword literal
 
   For the ternary expression clause, the unary ``result-fn`` will be called with the
-  result of the predicate."
+  result of the predicate.
+
+  A single final expression can be included at the end with no test expression which
+  will be returned if no other clause matches the predicate. If no default is provided
+  and no clause matches the predicate, a ``ValueError`` will be thrown."
   [pred expr & clauses]
   (when (seq clauses)
     (let [test-expr (first clauses)
@@ -3574,16 +3578,16 @@
         (let [result    (first remaining)
               remaining (rest remaining)]
           (cond
-            (= result :>>) `(let [res# ~(list pred test-expr expr)]
-                              (if res#
-                                (~(first remaining) res#)
-                                (condp ~pred ~expr ~@(rest remaining))))
-            result         `(if ~(list pred test-expr expr)
-                              ~result
-                              (condp ~pred ~expr ~@remaining))
-            :else          (throw
-                            (ex-info "expected result expression"
-                                     {:test test-expr}))))
+            (not (seq remaining)) `(throw
+                                    (python/ValueError
+                                     (str "Expected result expression for condp " {:test ~test-expr})))
+            (= result :>>)        `(let [res# ~(list pred test-expr expr)]
+                                     (if res#
+                                       (~(first remaining) res#)
+                                       (condp ~pred ~expr ~@(rest remaining))))
+            :else                 `(if ~(list pred test-expr expr)
+                                     ~result
+                                     (condp ~pred ~expr ~@remaining))))
         test-expr))))
 
 (defmacro declare

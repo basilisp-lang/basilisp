@@ -347,7 +347,16 @@
     (is (= :a (condp = "a"
                 "b" :b
                 "c" :c
-                :a))))
+                :a)))
+    (is (nil? (condp = "a"
+                "b" :b
+                "a" nil
+                "c" :c
+                :a)))
+    (is (thrown? python/ValueError
+                 (condp = "a"
+                   "b" :b
+                   "c" :c))))
 
   (testing "condp result function"
     (is (= :a (condp some [1 8 10 12]
