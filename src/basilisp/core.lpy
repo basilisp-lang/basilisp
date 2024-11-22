@@ -7507,7 +7507,7 @@
         (mapcat #(make-custom-data-readers % nil))
         doall)))
 
-(time (load-data-readers))
+(load-data-readers)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Stateful Iteration ;;
