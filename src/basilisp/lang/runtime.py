@@ -1656,7 +1656,8 @@ def divide(x: LispNumber, y: LispNumber) -> LispNumber:
 def _divide_ints(x: int, y: LispNumber) -> LispNumber:
     if isinstance(y, int):
         frac = Fraction(x, y)
-        return frac.numerator if frac.is_integer() else frac
+        # fractions.Fraction.is_integer() wasn't added until 3.12
+        return frac.numerator if frac.denominator == 1 else frac
     return x / y
 
 
