@@ -7470,20 +7470,23 @@
 (defn- data-readers-files
   "Return a list of :external:py:class:`pathlib/Path`s pointing to
   `data_readers.lpy` and `data_readers.cljc` found in each top
-  directory and immediate subdirectories of
+  directory and up to its immediate subdirectories of
   the :external:py:data:`sys.path` entries. The list is ordered such
   that entries with the filename `data_readers.lpy` appear first."
   []
   (->> sys/path
        (mapcat (fn [dir] (when (os.path/isdir dir)
                            (-> (comp
-                                (map #(os.path/join dir %))
-                                (mapcat (fn [sdir] (when (os.path/isdir sdir)
-                                                     (map #(os.path/join dir sdir %) (os/listdir sdir)))))
-                                (filter #(os.path/isfile %))
-                                (map pathlib/Path)
+                                (mapcat (fn [^os/DirEntry entry]
+                                          (if (.is-dir entry)
+                                            ;; immediate subdirectory
+                                            (os/scandir (.-path entry))
+                                            ;; top level file
+                                            [entry])))
+                                (filter #(.is-file %))
+                                (map #(pathlib/Path (.-path %)))
                                 (filter (comp #{"data_readers.lpy" "data_readers.cljc"} name)))
-                               (eduction (into ["."] (os/listdir dir)))))))
+                               (eduction (os/scandir dir))))))
        (group-by #(.-parent %))
        vals
        ;; Only load one data readers file per directory and prefer
