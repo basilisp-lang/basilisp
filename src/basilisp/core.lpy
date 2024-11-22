@@ -7214,95 +7214,6 @@
     (.write writer content)
     nil))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Custom Data Readers ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defmulti ^:private make-custom-data-readers
-  (fn [obj ^:no-warn-when-unused metadata]
-    (type obj)))
-
-(defmethod make-custom-data-readers :default
-  [obj metadata]
-  (throw (ex-info "Not a valid data-reader map" (assoc metadata :object obj))))
-
-(defmethod make-custom-data-readers basilisp.lang.interfaces/IPersistentMap
-  [mappings metadata]
-  (reduce (fn [m [k v]]
-            (let [v' (if (qualified-symbol? v)
-                       (intern (create-ns (symbol (namespace v)))
-                               (symbol (name v)))
-                       v)]
-              (cond
-                (not (qualified-symbol? k))
-                (throw
-                 (ex-info "Invalid tag in data-readers. Expected qualified symbol."
-                          (merge metadata {:form k})))
-
-                (not (ifn? v'))
-                (throw (ex-info "Invalid reader function in data-readers"
-                                (merge metadata {:form v})))
-
-                :else
-                (assoc m (with-meta k metadata) v'))))
-          mappings
-          mappings))
-
-(defmethod make-custom-data-readers importlib.metadata/EntryPoint
-  [entry-point metadata]
-  (make-custom-data-readers (.load entry-point)
-                            (assoc metadata
-                                   :basilisp.entry-point/name (.-name entry-point)
-                                   :basilisp.entry-point/group (.-group entry-point))))
-
-(defmethod make-custom-data-readers pathlib/Path
-  [file metadata]
-  (make-custom-data-readers
-   (with-open [rdr (basilisp.io/reader file)]
-     (read (if (.endswith (name file) "cljc")
-             {:eof nil :read-cond :allow}
-             {:eof nil})
-           rdr))
-   (assoc metadata :file (str file))))
-
-(defn- data-readers-entry-points []
-  (when (#{"true" "t" "1" "yes" "y"} (.lower
-                                      (os/getenv
-                                       "BASILISP_USE_DATA_READERS_ENTRY_POINT"
-                                       "true")))
-    (#?@(:lpy39-  [get (.entry_points importlib/metadata)]
-         :lpy310+ [.entry_points importlib/metadata ** :group])
-     "basilisp_data_readers")))
-
-(defn- data-readers-files []
-  (->> sys/path
-       (mapcat file-seq)
-       (filter (comp #{"data_readers.lpy" "data_readers.cljc"} name))
-       (group-by #(.-parent %))
-       vals
-       ;; Only load one data readers file per directory and prefer
-       ;; `data_readers.lpy` to `data_readers.cljc`
-       (map #(first (sort-by name > %)))))
-
-(defn- load-data-readers []
-  (alter-var-root
-   #'*data-readers*
-   (fn [mappings additional-mappings]
-     (reduce (fn [m [k v]]
-               (if (not= (get m k v) v)
-                 (throw (ex-info "Conflicting data-reader mapping"
-                                 (merge (meta k) {:conflict k, :mappings m})))
-                 (assoc m k v)))
-             mappings
-             additional-mappings))
-   ;; Can't use `read` when altering `*data-readers*` so do reads ahead of time
-   (->> (concat (data-readers-files)
-                (data-readers-entry-points))
-        (mapcat #(make-custom-data-readers % nil))
-        doall)))
-
-(load-data-readers)
-
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
@@ -7495,6 +7406,111 @@
     ([result] (rf result))
     ([result input]
      (reduce rf result input))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Custom Data Readers ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmulti ^:private make-custom-data-readers
+  (fn [obj ^:no-warn-when-unused metadata]
+    (type obj)))
+
+(defmethod make-custom-data-readers :default
+  [obj metadata]
+  (throw (ex-info "Not a valid data-reader map" (assoc metadata :object obj))))
+
+(defmethod make-custom-data-readers basilisp.lang.interfaces/IPersistentMap
+  [mappings metadata]
+  (reduce (fn [m [k v]]
+            (let [v' (if (qualified-symbol? v)
+                       (intern (create-ns (symbol (namespace v)))
+                               (symbol (name v)))
+                       v)]
+              (cond
+                (not (qualified-symbol? k))
+                (throw
+                 (ex-info "Invalid tag in data-readers. Expected qualified symbol."
+                          (merge metadata {:form k})))
+
+                (not (ifn? v'))
+                (throw (ex-info "Invalid reader function in data-readers"
+                                (merge metadata {:form v})))
+
+                :else
+                (assoc m (with-meta k metadata) v'))))
+          mappings
+          mappings))
+
+(defmethod make-custom-data-readers importlib.metadata/EntryPoint
+  [entry-point metadata]
+  (make-custom-data-readers (.load entry-point)
+                            (assoc metadata
+                                   :basilisp.entry-point/name (.-name entry-point)
+                                   :basilisp.entry-point/group (.-group entry-point))))
+
+(defmethod make-custom-data-readers pathlib/Path
+  [file metadata]
+  (make-custom-data-readers
+   (with-open [rdr (basilisp.io/reader file)]
+     (read (if (.endswith (name file) "cljc")
+             {:eof nil :read-cond :allow}
+             {:eof nil})
+           rdr))
+   (assoc metadata :file (str file))))
+
+(defn- data-readers-entry-points []
+  (when (#{"true" "t" "1" "yes" "y"} (.lower
+                                      (os/getenv
+                                       "BASILISP_USE_DATA_READERS_ENTRY_POINT"
+                                       "true")))
+    (#?@(:lpy39-  [get (.entry_points importlib/metadata)]
+         :lpy310+ [.entry_points importlib/metadata ** :group])
+     "basilisp_data_readers")))
+
+(defn- data-readers-files
+  "Return a list of :external:py:class:`pathlib/Path`s pointing to
+  `data_readers.lpy` and `data_readers.cljc` found in each top
+  directory and up to its immediate subdirectories of
+  the :external:py:data:`sys.path` entries. The list is ordered such
+  that entries with the filename `data_readers.lpy` appear first."
+  []
+  (->> sys/path
+       (mapcat (fn [dir] (when (os.path/isdir dir)
+                           (-> (comp
+                                (mapcat (fn [^os/DirEntry entry]
+                                          (if (.is-dir entry)
+                                            ;; immediate subdirectory
+                                            (os/scandir (.-path entry))
+                                            ;; top level file
+                                            [entry])))
+                                (filter #(.is-file %))
+                                (map #(pathlib/Path (.-path %)))
+                                (filter (comp #{"data_readers.lpy" "data_readers.cljc"} name)))
+                               (eduction (os/scandir dir))))))
+       (group-by #(.-parent %))
+       vals
+       ;; Only load one data readers file per directory and prefer
+       ;; `data_readers.lpy` to `data_readers.cljc`
+       (map #(first (sort-by name > %)))))
+
+(defn- load-data-readers []
+  (alter-var-root
+   #'*data-readers*
+   (fn [mappings additional-mappings]
+     (reduce (fn [m [k v]]
+               (if (not= (get m k v) v)
+                 (throw (ex-info "Conflicting data-reader mapping"
+                                 (merge (meta k) {:conflict k, :mappings m})))
+                 (assoc m k v)))
+             mappings
+             additional-mappings))
+   ;; Can't use `read` when altering `*data-readers*` so do reads ahead of time
+   (->> (concat (data-readers-files)
+                (data-readers-entry-points))
+        (mapcat #(make-custom-data-readers % nil))
+        doall)))
+
+(load-data-readers)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Stateful Iteration ;;
