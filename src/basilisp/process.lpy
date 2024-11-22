@@ -1,7 +1,137 @@
 (ns basilisp.process
-  (:import os
+  (:require
+   [basilisp.io :as bio]
+   [basilisp.string :as str])
+  (:import contextlib
+           os
            pathlib
            subprocess))
+
+(defprotocol SubprocessRedirectable
+  (is-file-like? [f]
+    "Return true if ``f`` is a file-like object: either an integer (assumed to be a
+    file handle or a file-like object with a ``.fileno()`` method).
+
+    This function says nothing about whether or not it is a valid file object or handle.")
+  (is-path-like? [o]
+    "Return true if ``o`` is a path-like object: either a string,
+    :external:py:class:`pathlib.Path`, or byte string."))
+
+(extend-protocol SubprocessRedirectable
+  python/object
+  (is-file-like? [f]
+    (and (python/hasattr f "fileno")
+         (python/callable (.-fileno f))))
+  (is-path-like? [o]
+    false)
+
+  python/int
+  (is-file-like? [_]
+    true)
+  (is-path-like? [_]
+    false)
+
+  python/str
+  (is-file-like? [_]
+    false)
+  (is-path-like? [_]
+    true)
+
+  python/bytes
+  (is-file-like? [_]
+    false)
+  (is-path-like? [_]
+    true)
+
+  pathlib/Path
+  (is-file-like? [_]
+    false)
+  (is-path-like? [_]
+    true))
+
+(defrecord FileWrapper [path opts]
+  SubprocessRedirectable
+  (is-file-like? [self]
+    false)
+  (is-path-like? [self]
+    true))
+
+(defn from-file
+  "Return a file object suitable for use as the ``:in`` option for :lpy:fn:`start`.
+
+  Callers can specify additional ``opts``. Anything supported by
+  :lpy:fn:`basilisp.io/writer` and :lpy:fn:`basilisp.io/output-stream` is generally
+  supported here.
+
+  .. warning::
+
+     ``opts`` may only be specified for path-like values. Providing options for
+     existing file objects and file handles will raise an exception."
+  [f & {:as opts}]
+  (cond
+    (is-file-like? f) (if opts
+                        (throw
+                         (ex-info "Cannot specify options for an open file"
+                                  {:file f :opts opts}))
+                        f)
+    (is-path-like? f) (do
+                        (when (str/includes? (:mode opts "") "r")
+                          (throw
+                           (ex-info "Cannot specify :in file in read mode"
+                                    {:file f :opts opts})))
+                        (->FileWrapper f opts))
+    :else             (throw
+                       (ex-info "Expected a file-like or path-like object"
+                                {:file f :opts opts}))))
+
+(defn to-file
+  "Return a file object suitable for use as the ``:err`` and ``:out`` options for
+  :lpy:fn:`start`.
+
+  Callers can specify additional ``opts``. Anything supported by
+  :lpy:fn:`basilisp.io/reader` and :lpy:fn:`basilisp.io/input-stream` is generally
+  supported here.
+
+  .. warning::
+
+     ``opts`` may only be specified for path-like values. Providing options for
+     existing file objects and file handles will raise an exception."
+  [f & {:as opts}]
+  (cond
+    (is-file-like? f) (if opts
+                        (throw
+                         (ex-info "Cannot specify options for an open file"
+                                  {:file f :opts opts}))
+                        f)
+    (is-path-like? f) (do
+                        (when (str/includes? (:mode opts "") "w")
+                          (throw
+                           (ex-info "Cannot specify :out or :err file in write mode"
+                                    {:file f :opts opts})))
+                        (->FileWrapper f opts))
+    :else             (throw
+                       (ex-info "Expected a file-like or path-like object"
+                                {:file f :opts opts}))))
+
+(defn ^:private wrapped-file-context-manager
+  "Wrap a potential file in a context manager for ``start``.
+
+  Existing file-objects we just pass through using a null context manager, but
+  path-likes need to be opened with a context manager."
+  [f is-writer?]
+  (if (is-path-like? f)
+    (let [path       (:path f f)
+          opts       (:opts f)
+          is-binary? (str/includes? (:mode opts "") "b")
+          io-fn      (if is-binary?
+                       (if is-writer?
+                         bio/output-stream
+                         bio/input-stream)
+                       (if is-writer?
+                         bio/writer
+                         bio/reader))]
+      (apply io-fn path opts))
+    (contextlib/nullcontext f)))
 
 (defn start
   "Start an external command as ``args``.
@@ -29,8 +159,18 @@
    :keyword ``:env``: a mapping of string values to string values which are added to
        the subprocess environment; if ``:clear-env``, these are the only environment
        variables provided to the subprocess
+
+  The following options affect the pipe streams created by
+  :external:py:class:`subprocess.Popen` (if ``:pipe`` is selected), but do not apply
+  to any files wrapped by :lpy:fn:`from-file` or :lpy:fn:`to-file` (in which case the
+  options provided for those files take precedence) or if ``:inherit`` is specified
+  (in which case the options for the corresponding stream in the current process is
+  used). These options are specific to Basilisp.
+
    :keyword ``:encoding``: the string name of an encoding to use for input and output
-       streams; if not specified, streams are treated as bytes
+       streams when ``:pipe`` is specified for any of the standard streams; this option
+       does not apply to any files wrapped by :lpy:fn:`from-file` or :lpy:fn:`to-file`
+       or if ``:inherit`` is specified; if not specified, streams are treated as bytes
 
   Returns :external:py:class:`subprocess.Popen` instance."
   [& opts+args]
@@ -59,14 +199,20 @@
         env    (if (:clear-env opts)
                  (:env opts)
                  (into (py->lisp os/environ) (:env opts)))]
-    (subprocess/Popen (python/list command)
-                      **
-                      :encoding encoding
-                      :stdin    stdin
-                      :stdout   stdout
-                      :stderr   stderr
-                      :cwd      (-> (pathlib/Path dir) (.resolve))
-                      :env      (lisp->py env))))
+    ;; Conditionally open files here if we're given a path-like since Python does
+    ;; not offer a `File` or `ProcessBuilder.Redirect` like object to handle this
+    ;; logic.
+    (with [stdin  (wrapped-file-context-manager stdin true)
+           stdout (wrapped-file-context-manager stdout false)
+           stderr (wrapped-file-context-manager stderr false)]
+          (subprocess/Popen (python/list command)
+                            **
+                            :encoding encoding
+                            :stdin    stdin
+                            :stdout   stdout
+                            :stderr   stderr
+                            :cwd      (-> (pathlib/Path dir) (.resolve))
+                            :env      (lisp->py env)))))
 
 (defn exec
   "Execute a command as by :lpy:fn:`start` and, upon successful return, return the
