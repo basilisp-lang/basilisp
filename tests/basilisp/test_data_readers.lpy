@@ -77,12 +77,11 @@
     (is (= #'custom-data-reader (get *data-readers* 'test/test2)))
     (is (= '(x) (read-string "#test/test2 x"))))
 
-  (testing "from submodule"
+  (testing "from submodule are not considered"
     (make-path-file ["my_module" "submodule" "data_readers.lpy"]
                     (pr-str {'test/test3 `custom-data-reader}))
     (#'basilisp.core/load-data-readers)
-    (is (= #'custom-data-reader (get *data-readers* 'test/test3)))
-    (is (= '(x) (read-string "#test/test3 x"))))
+    (is (= nil (get *data-readers* 'test/test3))))
 
   (testing "from cljc file"
     (make-path-file ["from_cljc" "data_readers.cljc"]
@@ -97,7 +96,7 @@
     (make-path-file ["prefer_lpy_to_cljc" "data_readers.cljc"]
                     (pr-str {'test/test5 (constantly :fail)}))
     (#'basilisp.core/load-data-readers)
-    (is (= #'custom-data-reader (get *data-readers* 'test/test3)))
+    (is (= #'custom-data-reader (get *data-readers* 'test/test5)))
     (is (= '(x) (read-string "#test/test5 x"))))
 
   (testing "does not load clj file"
