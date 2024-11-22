@@ -113,6 +113,22 @@
                        (ex-info "Expected a file-like or path-like object"
                                 {:file f :opts opts}))))
 
+(defn exit-ref
+  "Given a :external:py:class:`subprocess.Popen` (such as the one returned by
+  :lpy:fn:`start`), return a reference which can be used to wait (optionally with
+  timeout) for the completion of the process."
+  [process]
+  (reify
+    basilisp.lang.interfaces/IBlockingDeref
+    (deref [_ & args]
+      (let [[timeout-ms timeout-val] args]
+        (if timeout-ms
+          (try
+            (.wait process ** :timeout (/ timeout-ms 1000))
+            (catch subprocess/TimeoutExpired _
+              timeout-val))
+          (.wait process))))))
+
 (defn ^:private wrapped-file-context-manager
   "Wrap a potential file in a context manager for ``start``.
 
