@@ -1,5 +1,7 @@
 (ns tests.basilisp.test-process
-  (:import pathlib)
+  (:import pathlib
+           subprocess
+           sys)
   (:require
    [basilisp.process :as process]
    [basilisp.test :as test :refer [deftest is are testing]]
@@ -66,9 +68,17 @@
   (is (thrown? basilisp.lang.exception/ExceptionInfo
                (process/to-file nil))))
 
-#?(:windows nil
-   :default
-   (deftest exit-ref-test
-     (= 0 @(process/exit-ref (process/start "sleep" "1")))
-     (= 0 (deref (process/exit-ref (process/start "sleep" "1")) 5000 :timed-out))
-     (= :timed-out (deref (process/exit-ref (process/start "sleep" "10")) 1000 :timed-out))))
+(deftest exit-ref-test
+  (= 0 @(process/exit-ref (process/start sys/executable "-c" "import time; time.sleep(1)")))
+  (= 0 (-> (process/start sys/executable "-c" "import time; time.sleep(1)")
+           (process/exit-ref )
+           (deref 5000 :timed-out)))
+  (= :timed-out (-> (process/start sys/executable "-c" "import time; time.sleep(10)")
+                    (process/exit-ref )
+                    (deref 1000 :timed-out))))
+
+(deftest exec-test
+  (is (= "" (process/exec sys/executable "-c" "pass")))
+  (is (= "hi\n" (process/exec sys/executable "-c" "print(\"hi\")")))
+  (is (thrown? subprocess/CalledProcessError
+               (process/exec sys/executable "-c" "import sys; sys.exit(2)"))))
