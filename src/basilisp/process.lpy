@@ -149,7 +149,8 @@
                        (if is-writer?
                          bio/writer
                          bio/reader))]
-      (apply io-fn path opts))
+      (->> (mapcat identity opts)
+           (apply io-fn path)))
     (contextlib/nullcontext f)))
 
 (defn start
@@ -216,8 +217,10 @@
                  :inherit nil
                  err)
         env    (if (:clear-env opts)
-                 (:env opts)
-                 (into (py->lisp os/environ) (:env opts)))]
+                 (:env opts {})
+                 (-> (python/dict os/environ)
+                     (py->lisp {:keywordize-keys false})
+                     (into (:env opts))))]
     ;; Conditionally open files here if we're given a path-like since Python does
     ;; not offer a `File` or `ProcessBuilder.Redirect` like object to handle this
     ;; logic.

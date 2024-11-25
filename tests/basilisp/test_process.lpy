@@ -81,4 +81,8 @@
   (is (= "" (process/exec sys/executable "-c" "pass")))
   (is (= "hi\n" (process/exec sys/executable "-c" "print(\"hi\")")))
   (is (thrown? subprocess/CalledProcessError
-               (process/exec sys/executable "-c" "import sys; sys.exit(2)"))))
+               (process/exec sys/executable "-c" "import sys; sys.exit(2)")))
+  (is (= "BASILISP\n" (process/exec {:env {"PYTHON_HOSTED_LANG" "BASILISP"}}
+                                    sys/executable
+                                    "-c"
+                                    "import os; print(os.environ[\"PYTHON_HOSTED_LANG\"])"))))
