@@ -35,3 +35,33 @@
     32
     32.1
     (python/object)))
+
+(deftest from-file-test
+  (is (= 3 (process/from-file 3)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/from-file 3 :encoding "utf-8")))
+
+  (is (= (process/->FileWrapper "/home/chris" {:encoding "utf-8"})
+         (process/from-file "/home/chris" :encoding "utf-8")))
+  (is (= (process/->FileWrapper "/home/chris" {:mode "w"})
+         (process/from-file "/home/chris" :mode "w")))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/from-file "/home/chris" :mode "r")))
+
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/from-file nil))))
+
+(deftest to-file-test
+  (is (= 3 (process/to-file 3)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/to-file 3 :encoding "utf-8")))
+
+  (is (= (process/->FileWrapper "/home/chris" {:encoding "utf-8"})
+         (process/to-file "/home/chris" :encoding "utf-8")))
+  (is (= (process/->FileWrapper "/home/chris" {:mode "r"})
+         (process/to-file "/home/chris" :mode "r")))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/to-file "/home/chris" :mode "w")))
+
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/to-file nil))))
