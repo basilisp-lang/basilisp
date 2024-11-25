@@ -65,3 +65,10 @@
 
   (is (thrown? basilisp.lang.exception/ExceptionInfo
                (process/to-file nil))))
+
+#?(:windows nil
+   :default
+   (deftest exit-ref-test
+     (= 0 @(process/exit-ref (process/start "sleep" "1")))
+     (= 0 (deref (process/exit-ref (process/start "sleep" "1")) 5000 :timed-out))
+     (= :timed-out (deref (process/exit-ref (process/start "sleep" "10")) 1000 :timed-out))))

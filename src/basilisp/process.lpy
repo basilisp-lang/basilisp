@@ -61,7 +61,8 @@
 
   Callers can specify additional ``opts``. Anything supported by
   :lpy:fn:`basilisp.io/writer` and :lpy:fn:`basilisp.io/output-stream` is generally
-  supported here.
+  supported here. The values of individual ``opts`` are not validated until a call to
+  :lpy:fn:`start` or :lpy:fn:`exec`.
 
   .. warning::
 
@@ -90,7 +91,8 @@
 
   Callers can specify additional ``opts``. Anything supported by
   :lpy:fn:`basilisp.io/reader` and :lpy:fn:`basilisp.io/input-stream` is generally
-  supported here.
+  supported here. The values of individual ``opts`` are not validated until a call
+  to :lpy:fn:`start` or :lpy:fn:`exec`.
 
   .. warning::
 
@@ -121,10 +123,11 @@
   (reify
     basilisp.lang.interfaces/IBlockingDeref
     (deref [_ & args]
-      (let [[timeout-ms timeout-val] args]
-        (if timeout-ms
+      ;; basilisp.lang.runtime.deref converts Clojure's ms into seconds for Python
+      (let [[timeout-s timeout-val] args]
+        (if timeout-s
           (try
-            (.wait process ** :timeout (/ timeout-ms 1000))
+            (.wait process ** :timeout timeout-s)
             (catch subprocess/TimeoutExpired _
               timeout-val))
           (.wait process))))))
