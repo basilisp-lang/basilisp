@@ -4078,11 +4078,11 @@
   "Time the execution of ``expr``\\. Return the result of ``expr`` and print the time
   execution took in milliseconds."
   [expr]
-  `(let [start (perf-counter)]
+  `(let [start# (perf-counter)]
      (try
        (do ~expr)
        (finally
-         (println (* 1000 (- (perf-counter) start)) "msecs")))))
+         (println (* 1000 (- (perf-counter) start#)) "msecs")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Threading Macros ;;
