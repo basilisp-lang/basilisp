@@ -232,8 +232,7 @@
 
 (defn exec
   "Execute a command as by :lpy:fn:`start` and, upon successful return, return the
-  captured value of the process ``stdout`` (which may be a string or bytes depending
-  on whether the process was opened in text or binary mode).
+  captured value of the process ``stdout`` as by :lpy:fn:`basilisp.core/slurp`.
 
   If ``opts`` are specified, they should be provided as a map in the first argument
   position. ``opts`` are exactly the same as those in :lpy:fn:`start`.
@@ -293,7 +292,7 @@
   The following keyword/value arguments are optional:
 
    :keyword ``:input``: a string or bytes object (depending on whether the process
-       was opened in text or bniary mode); if omitted, do not send anything
+       was opened in text or binary mode); if omitted, do not send anything
    :keyword ``timeout``: an optional timeout"
   [process & kwargs]
   (let [kwargs (apply hash-map kwargs)]

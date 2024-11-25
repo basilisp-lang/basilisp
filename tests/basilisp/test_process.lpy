@@ -1,0 +1,37 @@
+(ns tests.basilisp.test-process
+  (:import pathlib)
+  (:require
+   [basilisp.process :as process]
+   [basilisp.test :as test :refer [deftest is are testing]]
+   [basilisp.test.fixtures :as fixtures :refer [*tempdir*]]))
+
+(test/use-fixtures :each fixtures/tempdir)
+
+(deftest is-file-like?-test
+  (are [v] (true? (process/is-file-like? v))
+    -1
+    0
+    1)
+
+  (with-open [f (python/open (pathlib/Path *tempdir* "is-file-like.txt") ** :mode "w")]
+    (is (true? (process/is-file-like? f))))
+
+  (are [v] (false? (process/is-file-like? v))
+    "i'm a path-like"
+    #b "i'm a path-like"
+    (pathlib/Path "/home/chris")))
+
+(deftest is-path-like?-test
+  (are [v] (true? (process/is-path-like? v))
+    "i'm a path-like"
+    #b "i'm a path-like"
+    (pathlib/Path "/home/chris"))
+
+  (with-open [f (python/open (pathlib/Path *tempdir* "is-path-like.txt") ** :mode "w")]
+    (is (false? (process/is-path-like? f))))
+
+  (are [v] (false? (process/is-path-like? v))
+    nil
+    32
+    32.1
+    (python/object)))
