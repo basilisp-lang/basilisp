@@ -1,0 +1,149 @@
+(ns tests.basilisp.test-process
+  (:import pathlib
+           subprocess
+           sys)
+  (:require
+   [basilisp.process :as process]
+   [basilisp.string :as str]
+   [basilisp.test :as test :refer [deftest is are testing]]
+   [basilisp.test.fixtures :as fixtures :refer [*tempdir*]]))
+
+(test/use-fixtures :each fixtures/tempdir)
+
+(deftest is-file-like?-test
+  (are [v] (true? (process/is-file-like? v))
+    -1
+    0
+    1)
+
+  (with-open [f (python/open (pathlib/Path *tempdir* "is-file-like.txt") ** :mode "w")]
+    (is (true? (process/is-file-like? f))))
+
+  (are [v] (false? (process/is-file-like? v))
+    "i'm a path-like"
+    #b "i'm a path-like"
+    (pathlib/Path "/home/chris")))
+
+(deftest is-path-like?-test
+  (are [v] (true? (process/is-path-like? v))
+    "i'm a path-like"
+    #b "i'm a path-like"
+    (pathlib/Path "/home/chris"))
+
+  (with-open [f (python/open (pathlib/Path *tempdir* "is-path-like.txt") ** :mode "w")]
+    (is (false? (process/is-path-like? f))))
+
+  (are [v] (false? (process/is-path-like? v))
+    nil
+    32
+    32.1
+    (python/object)))
+
+(deftest from-file-test
+  (is (= 3 (process/from-file 3)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/from-file 3 :encoding "utf-8")))
+
+  (is (= (process/->FileWrapper "/home/chris" {:encoding "utf-8"})
+         (process/from-file "/home/chris" :encoding "utf-8")))
+  (is (= (process/->FileWrapper "/home/chris" {:mode "w"})
+         (process/from-file "/home/chris" :mode "w")))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/from-file "/home/chris" :mode "r")))
+
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/from-file nil))))
+
+(deftest to-file-test
+  (is (= 3 (process/to-file 3)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/to-file 3 :encoding "utf-8")))
+
+  (is (= (process/->FileWrapper "/home/chris" {:encoding "utf-8"})
+         (process/to-file "/home/chris" :encoding "utf-8")))
+  (is (= (process/->FileWrapper "/home/chris" {:mode "r"})
+         (process/to-file "/home/chris" :mode "r")))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/to-file "/home/chris" :mode "w")))
+
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (process/to-file nil))))
+
+(deftest exit-ref-test
+  (= 0 @(process/exit-ref (process/start sys/executable "-c" "import time; time.sleep(1)")))
+  (= 0 (-> (process/start sys/executable "-c" "import time; time.sleep(1)")
+           (process/exit-ref)
+           (deref 5000 :timed-out)))
+  (= :timed-out (-> (process/start sys/executable "-c" "import time; time.sleep(10)")
+                    (process/exit-ref)
+                    (deref 1000 :timed-out))))
+
+(deftest start-test
+  (testing "stdin"
+    (testing "with file path"
+      (let [p    (doto (pathlib/Path *tempdir* "path-script.py")
+                   (.write-text "print(\"hi from a path\")"))
+            proc (process/start {:in (process/from-file p :encoding "utf-8")} sys/executable "-")]
+        (is (= 0 @(process/exit-ref proc)))
+        (is (= "hi from a path" (str/trim (.decode (.read (process/stdout proc)) "utf-8"))))))
+
+    (testing "with file handle"
+      (let [p (doto (pathlib/Path *tempdir* "file-script.py")
+                (.write-text "print(\"hi from a file\")"))]
+        (with-open [f (python/open p ** :mode "r")]
+          (let [proc (process/start {:in (process/from-file f)} sys/executable "-")]
+            (is (= 0 @(process/exit-ref proc)))
+            (is (= "hi from a file" (str/trim (.decode (.read (process/stdout proc)) "utf-8")))))))))
+
+  (testing "stdout"
+    (testing "with file path"
+      (let [p    (doto (pathlib/Path *tempdir* "path-output.txt")
+                   (.touch))
+            proc (process/start {:out (process/from-file p :encoding "utf-8")}
+                                sys/executable
+                                "-c"
+                                "print(\"output to path\")")]
+        (is (= 0 @(process/exit-ref proc)))
+        (is (= "output to path" (str/trim (.read-text p))))))
+
+    (testing "with file handle"
+      (let [p (pathlib/Path *tempdir* "file-output.txt")]
+        (with-open [f (python/open p ** :mode "w")]
+          (let [proc (process/start {:out (process/from-file f)}
+                                    sys/executable
+                                    "-c"
+                                    "print(\"output to file\")")]
+            (is (= 0 @(process/exit-ref proc)))))
+        (is (= "output to file" (str/trim (.read-text p)))))))
+
+  (testing "stderr"
+    (testing "with file path"
+      (let [p    (doto (pathlib/Path *tempdir* "path-error.txt")
+                   (.touch))
+            proc (process/start {:err (process/from-file p :encoding "utf-8")}
+                                sys/executable
+                                "-c"
+                                "import sys; print(\"error to path\", file=sys.stderr)")]
+        (is (= 0 @(process/exit-ref proc)))
+        (is (= "error to path" (str/trim (.read-text p))))))
+
+    (testing "with file handle"
+      (let [p (pathlib/Path *tempdir* "file-error.txt")]
+        (with-open [f (python/open p ** :mode "w")]
+          (let [proc (process/start {:err (process/from-file f)}
+                                    sys/executable
+                                    "-c"
+                                    "import sys; print(\"error to file\", file=sys.stderr)")]
+            (is (= 0 @(process/exit-ref proc)))))
+        (is (= "error to file" (str/trim (.read-text p))))))))
+
+(deftest exec-test
+  (is (= "" (process/exec sys/executable "-c" "pass")))
+  (is (= "" (process/exec sys/executable "-c" "import sys; print(\"hi\", file=sys.stderr)")))
+  (is (= "hi\n" (process/exec sys/executable "-c" "print(\"hi\")")))
+  (is (thrown? subprocess/CalledProcessError
+               (process/exec sys/executable "-c" "import sys; sys.exit(2)")))
+  (is (= "BASILISP\n" (process/exec {:env {"PYTHON_HOSTED_LANG" "BASILISP"}}
+                                    sys/executable
+                                    "-c"
+                                    "import os; print(os.environ[\"PYTHON_HOSTED_LANG\"])"))))

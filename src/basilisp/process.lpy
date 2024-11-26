@@ -1,0 +1,333 @@
+(ns basilisp.process
+  "An API for starting subprocesses which wraps Python's :external:py:mod:`subprocess`
+  module.
+
+  The primary API function is :lpy:fn:`start` which starts a subprocess and returns
+  the :external:py:class:`subprocess.Popen` instance. You can wait for the process
+  to terminate using :lpy:fn:`exit-ref` or you can manipulate it directly. You can
+  fetch the streams attached to the process using :lpy:fn:`stdin`, :lpy:fn:`stdout`,
+  and :lpy:fn:`stderr`. This namespace also includes an extension function
+  :lpy:fn:`communicate` which wraps :external:py:meth:`subprocess.Popen.communicate`.
+
+  This namespace also includes :lpy:fn:`exec` for starting a subprocess, waiting for
+  its completion, and returning the stdout as a string.
+
+  .. note::
+
+     There are some minor differences between the Basilisp implementation and the source
+     Clojure implementation. Because Python does not have the concept of an unopened
+     ``File`` object as Java does, standard streams can only be passed existing open
+     file handles or paths. If a path is given, the Basilisp :lpy:fn:`from-file` and
+     :lpy:fn:`to-file` functions allow specifying the options that the file at that path
+     will be opened with (including encoding, binary mode, etc.).
+
+     In Clojure, as in the underlying ``java.lang.Process`` object, streams are always
+     opened in binary mode and it is the responsibility of callers to encode and decode
+     into strings as necessary. Python's ``subprocesss`` offers some flexibility to
+     callers to specify string encoding for pipes by default, saving them the effort of
+     manually encoding and decoding and this namespace extends the same convenience."
+  (:require
+   [basilisp.io :as bio]
+   [basilisp.string :as str])
+  (:import contextlib
+           os
+           pathlib
+           subprocess))
+
+(defprotocol SubprocessRedirectable
+  (is-file-like? [f]
+    "Return true if ``f`` is a file-like object: either an integer (assumed to be a
+    file handle or a file-like object with a ``.fileno()`` method).
+
+    This function says nothing about whether or not it is a valid file object or handle.")
+  (is-path-like? [o]
+    "Return true if ``o`` is a path-like object: either a string,
+    :external:py:class:`pathlib.Path`, or byte string."))
+
+(extend-protocol SubprocessRedirectable
+  python/object
+  (is-file-like? [f]
+    (and (python/hasattr f "fileno")
+         (python/callable (.-fileno f))))
+  (is-path-like? [o]
+    false)
+
+  python/int
+  (is-file-like? [_]
+    true)
+  (is-path-like? [_]
+    false)
+
+  python/str
+  (is-file-like? [_]
+    false)
+  (is-path-like? [_]
+    true)
+
+  python/bytes
+  (is-file-like? [_]
+    false)
+  (is-path-like? [_]
+    true)
+
+  pathlib/Path
+  (is-file-like? [_]
+    false)
+  (is-path-like? [_]
+    true))
+
+(defrecord FileWrapper [path opts]
+  SubprocessRedirectable
+  (is-file-like? [self]
+    false)
+  (is-path-like? [self]
+    true))
+
+(defn from-file
+  "Return a file object suitable for use as the ``:in`` option for :lpy:fn:`start`.
+
+  Callers can specify additional ``opts``. Anything supported by
+  :lpy:fn:`basilisp.io/writer` and :lpy:fn:`basilisp.io/output-stream` is generally
+  supported here. The values of individual ``opts`` are not validated until a call to
+  :lpy:fn:`start` or :lpy:fn:`exec`.
+
+  .. warning::
+
+     ``opts`` may only be specified for path-like values. Providing options for
+     existing file objects and file handles will raise an exception."
+  [f & {:as opts}]
+  (cond
+    (is-file-like? f) (if opts
+                        (throw
+                         (ex-info "Cannot specify options for an open file"
+                                  {:file f :opts opts}))
+                        f)
+    (is-path-like? f) (do
+                        (when (str/includes? (:mode opts "") "r")
+                          (throw
+                           (ex-info "Cannot specify :in file in read mode"
+                                    {:file f :opts opts})))
+                        (->FileWrapper f opts))
+    :else             (throw
+                       (ex-info "Expected a file-like or path-like object"
+                                {:file f :opts opts}))))
+
+(defn to-file
+  "Return a file object suitable for use as the ``:err`` and ``:out`` options for
+  :lpy:fn:`start`.
+
+  Callers can specify additional ``opts``. Anything supported by
+  :lpy:fn:`basilisp.io/reader` and :lpy:fn:`basilisp.io/input-stream` is generally
+  supported here. The values of individual ``opts`` are not validated until a call
+  to :lpy:fn:`start` or :lpy:fn:`exec`.
+
+  .. warning::
+
+     ``opts`` may only be specified for path-like values. Providing options for
+     existing file objects and file handles will raise an exception."
+  [f & {:as opts}]
+  (cond
+    (is-file-like? f) (if opts
+                        (throw
+                         (ex-info "Cannot specify options for an open file"
+                                  {:file f :opts opts}))
+                        f)
+    (is-path-like? f) (do
+                        (when (str/includes? (:mode opts "") "w")
+                          (throw
+                           (ex-info "Cannot specify :out or :err file in write mode"
+                                    {:file f :opts opts})))
+                        (->FileWrapper f opts))
+    :else             (throw
+                       (ex-info "Expected a file-like or path-like object"
+                                {:file f :opts opts}))))
+
+(defn exit-ref
+  "Given a :external:py:class:`subprocess.Popen` (such as the one returned by
+  :lpy:fn:`start`), return a reference which can be used to wait (optionally with
+  timeout) for the completion of the process."
+  [process]
+  (reify
+    basilisp.lang.interfaces/IBlockingDeref
+    (deref [_ & args]
+      ;; basilisp.lang.runtime.deref converts Clojure's ms into seconds for Python
+      (let [[timeout-s timeout-val] args]
+        (if timeout-s
+          (try
+            (.wait process ** :timeout timeout-s)
+            (catch subprocess/TimeoutExpired _
+              timeout-val))
+          (.wait process))))))
+
+(defn ^:private wrapped-file-context-manager
+  "Wrap a potential file in a context manager for ``start``.
+
+  Existing file-objects we just pass through using a null context manager, but
+  path-likes need to be opened with a context manager."
+  [f is-writer?]
+  (if (is-path-like? f)
+    (let [path       (:path f f)
+          opts       (:opts f)
+          is-binary? (str/includes? (:mode opts "") "b")
+          io-fn      (if is-binary?
+                       (if is-writer?
+                         bio/output-stream
+                         bio/input-stream)
+                       (if is-writer?
+                         bio/writer
+                         bio/reader))]
+      (->> (mapcat identity opts)
+           (apply io-fn path)))
+    (contextlib/nullcontext f)))
+
+(defn start
+  "Start an external command as ``args``.
+
+  If ``opts`` are specified, they should be provided as a map in the first argument
+  position.
+
+  The following options are available:
+
+   :keyword ``:in``: an existing file object or file handle, ``:pipe`` to generate a
+       new stream, or ``:inherit`` to use the current process stdin; if not specified
+       ``:pipe`` will be used
+   :keyword ``:out``: an existing file object or file handle, ``:pipe`` to generate a
+       new stream, ``:discard`` to ignore stdout, or ``:inherit`` to use the current
+       process stdout; if not specified, ``:pipe`` will be used
+   :keyword ``:err``: an existing file object or file handle, ``:pipe`` to generate a
+       new stream, ``:discard`` to ignore stderr, ``:stdout`` to merge stdout and
+       stderr, or ``:inherit`` to use the current process stderr; if not specified,
+       ``:pipe`` will be used
+   :keyword ``:dir``: current directory when the process runs; on POSIX systems, if
+       executable is a relative path, it will be resolved relative to this value;
+       if not specified, the current directory will be used
+   :keyword ``:clear-env``: boolean which if ``true`` will prevent inheriting the
+       environment variables from the current process
+   :keyword ``:env``: a mapping of string values to string values which are added to
+       the subprocess environment; if ``:clear-env``, these are the only environment
+       variables provided to the subprocess
+
+  The following options affect the pipe streams created by
+  :external:py:class:`subprocess.Popen` (if ``:pipe`` is selected), but do not apply
+  to any files wrapped by :lpy:fn:`from-file` or :lpy:fn:`to-file` (in which case the
+  options provided for those files take precedence) or if ``:inherit`` is specified
+  (in which case the options for the corresponding stream in the current process is
+  used). These options are specific to Basilisp.
+
+   :keyword ``:encoding``: the string name of an encoding to use for input and output
+       streams when ``:pipe`` is specified for any of the standard streams; this option
+       does not apply to any files wrapped by :lpy:fn:`from-file` or :lpy:fn:`to-file`
+       or if ``:inherit`` is specified; if not specified, streams are treated as bytes
+
+  Returns :external:py:class:`subprocess.Popen` instance."
+  [& opts+args]
+  (let [[opts command] (if (map? (first opts+args))
+                         [(first opts+args) (rest opts+args)]
+                         [nil opts+args])
+
+        {:keys [in out err dir encoding]
+         :or   {in :pipe out :pipe err :pipe dir "."}} opts
+
+        stdin  (condp = in
+                 :pipe    subprocess/PIPE
+                 :inherit nil
+                 in)
+        stdout (condp = out
+                 :pipe    subprocess/PIPE
+                 :inherit nil
+                 :discard subprocess/DEVNULL
+                 out)
+        stderr (condp = err
+                 :pipe    subprocess/PIPE
+                 :discard subprocess/DEVNULL
+                 :stdout  subprocess/STDOUT
+                 :inherit nil
+                 err)
+        env    (if (:clear-env opts)
+                 (:env opts {})
+                 (-> (python/dict os/environ)
+                     (py->lisp {:keywordize-keys false})
+                     (into (:env opts))))]
+    ;; Conditionally open files here if we're given a path-like since Python does
+    ;; not offer a `File` or `ProcessBuilder.Redirect` like object to handle this
+    ;; logic.
+    (with [stdin  (wrapped-file-context-manager stdin false)
+           stdout (wrapped-file-context-manager stdout true)
+           stderr (wrapped-file-context-manager stderr true)]
+          (subprocess/Popen (python/list command)
+                            **
+                            :encoding encoding
+                            :stdin    stdin
+                            :stdout   stdout
+                            :stderr   stderr
+                            :cwd      (-> (pathlib/Path dir) (.resolve))
+                            :env      (lisp->py env)))))
+
+(defn exec
+  "Execute a command as by :lpy:fn:`start` and, upon successful return, return the
+  captured value of the process ``stdout`` as by :lpy:fn:`basilisp.core/slurp`.
+
+  If ``opts`` are specified, they should be provided as a map in the first argument
+  position. ``opts`` are exactly the same as those in :lpy:fn:`start`.
+
+  If the return code is non-zero, throw
+  :external:py:exc:`subprocess.CalledProcessError`."
+  [& opts+args]
+  (let [process (apply start opts+args)
+        retcode (.wait process)]
+    (if (zero? retcode)
+      (slurp (.-stdout process))
+      (throw
+       (subprocess/CalledProcessError retcode
+                                      (.-args process)
+                                      (.-stdout process)
+                                      (.-stderr process))))))
+
+(defn stderr
+  "Return the ``stderr`` stream from the external process.
+
+  .. warning::
+
+     Communication directly with the process streams introduces the possibility of
+     deadlocks. Users may use :lpy:fn:`communicate` as a safe alternative."
+  [process]
+  (.-stderr process))
+
+(defn stdin
+  "Return the ``stdin`` stream from the external process.
+
+  .. warning::
+
+     Communication directly with the process streams introduces the possibility of
+     deadlocks. Users may use :lpy:fn:`communicate` as a safe alternative."
+  [process]
+  (.-stdin process))
+
+(defn stdout
+  "Return the ``stdout`` stream from the external process.
+
+  .. warning::
+
+     Communication directly with the process streams introduces the possibility of
+     deadlocks. Users may use :lpy:fn:`communicate` as a safe alternative."
+  [process]
+  (.-stdout process))
+
+(defn communicate
+  "Communicate with a subprocess, optionally sending data to the process stdin stream
+  and reading any data in the process stderr and stdout streams, returning them as
+  a string or bytes object (depending on whether the process was opened in text or
+  binary mode).
+
+  This function is preferred over the use of :lpy:fn:`stderr`, :lpy:fn:`stdin`, and
+  :lpy:fn:`stdout` to avoid potential deadlocks.
+
+  The following keyword/value arguments are optional:
+
+   :keyword ``:input``: a string or bytes object (depending on whether the process
+       was opened in text or binary mode); if omitted, do not send anything
+   :keyword ``timeout``: an optional timeout"
+  [process & kwargs]
+  (let [kwargs (apply hash-map kwargs)]
+    (vec
+     (.communicate process ** :input (:input kwargs) :timeout (:timeout kwargs)))))

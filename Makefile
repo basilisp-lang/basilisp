@@ -3,7 +3,7 @@ DOCBUILDDIR = "./docs/_build"
 
 .PHONY: clean-docs
 clean-docs:
-	@rm -rf ./docs/build
+	@rm -rf ./docs/_build
 
 .PHONY: docs
 docs:

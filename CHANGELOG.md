@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for a subset of qualified method syntax introduced in Clojure 1.12 (#1109)
+ * Added the `basilisp.process` namespace (#1108)
 
 ### Changed
  * The Custom Data Readers Loader will only now examine the top directory and up to its immediate subdirectories of each `sys.path` entry, instead of recursive descending into every subdirectory, improving start up performance (#1135)
