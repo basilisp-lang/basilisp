@@ -6834,14 +6834,17 @@
                  (python/tuple (concat bases [basilisp.lang.interfaces/IProxy]))
                  (python/dict (merge methods base-methods)))))
 
-;; TODO: support object as super
 (defn get-proxy-class
-  "Given one or more base classes, return a proxy class for the given classes.
+  "Given zero or more base classes, return a proxy class for the given classes.
+
+  If no classes, Python's ``object`` will be used as the superclass.
 
   Generated classes are cached, such that the same set of base classes will always
   return the same resulting proxy class."
   [& bases]
-  (let [base-set (set bases)]
+  (let [base-set (if (seq bases)
+                   (set bases)
+                   #{python/object})]
     (-> (swap! proxy-cache (fn [cache]
                              (if (get cache base-set)
                                cache
