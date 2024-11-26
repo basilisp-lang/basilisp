@@ -1,4 +1,31 @@
 (ns basilisp.process
+  "An API for starting subprocesses which wraps Python's :external:py:mod:`subprocess`
+  module.
+
+  The primary API function is :lpy:fn:`start` which starts a subprocess and returns
+  the :external:py:class:`subprocess.Popen` instance. You can wait for the process
+  to terminate using :lpy:fn:`exit-ref` or you can manipulate it directly. You can
+  fetch the streams attached to the process using :lpy:fn:`stdin`, :lpy:fn:`stdout`,
+  and :lpy:fn:`stderr`. This namespace also includes an extension function
+  :lpy:fn:`communicate` which wraps :external:py:meth:`subprocess.Popen.communicate`.
+
+  This namespace also includes :lpy:fn:`exec` for starting a subprocess, waiting for
+  its completion, and returning the stdout as a string.
+
+  .. note::
+
+     There are some minor differences between the Basilisp implementation and the source
+     Clojure implementation. Because Python does not have the concept of an unopened
+     ``File`` object as Java does, standard streams can only be passed existing open
+     file handles or paths. If a path is given, the Basilisp :lpy:fn:`from-file` and
+     :lpy:fn:`to-file` functions allow specifying the options that the file at that path
+     will be opened with (including encoding, binary mode, etc.).
+
+     In Clojure, as in the underlying ``java.lang.Process`` object, streams are always
+     opened in binary mode and it is the responsibility of callers to encode and decode
+     into strings as necessary. Python's ``subprocesss`` offers some flexibility to
+     callers to specify string encoding for pipes by default, saving them the effort of
+     manually encoding and decoding and this namespace extends the same convenience."
   (:require
    [basilisp.io :as bio]
    [basilisp.string :as str])
@@ -224,9 +251,9 @@
     ;; Conditionally open files here if we're given a path-like since Python does
     ;; not offer a `File` or `ProcessBuilder.Redirect` like object to handle this
     ;; logic.
-    (with [stdin  (wrapped-file-context-manager stdin true)
-           stdout (wrapped-file-context-manager stdout false)
-           stderr (wrapped-file-context-manager stderr false)]
+    (with [stdin  (wrapped-file-context-manager stdin false)
+           stdout (wrapped-file-context-manager stdout true)
+           stderr (wrapped-file-context-manager stderr true)]
           (subprocess/Popen (python/list command)
                             **
                             :encoding encoding

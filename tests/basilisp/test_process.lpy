@@ -77,8 +77,26 @@
                     (process/exit-ref )
                     (deref 1000 :timed-out))))
 
+(deftest start-test
+  (testing "stdin"
+    (testing "with file path"
+      (let [p    (doto (pathlib/Path *tempdir* "path-script.py")
+                   (.write-text "print(\"hi from a path\")"))
+            proc (process/start {:in (process/from-file p :encoding "utf-8")} sys/executable "-")]
+        (is (= 0 @(process/exit-ref proc)))
+        (is (= "hi from a path\n" (.decode (.read (process/stdout proc)) "utf-8")))))
+
+    (testing "with file handle"
+      (let [p    (doto (pathlib/Path *tempdir* "file-script.py")
+                   (.write-text "print(\"hi from a file\")"))]
+        (with-open [f (python/open p ** :mode "r")]
+          (let [proc (process/start {:in (process/from-file f)} sys/executable "-")]
+            (is (= 0 @(process/exit-ref proc)))
+            (is (= "hi from a file\n" (.decode (.read (process/stdout proc)) "utf-8")))))))))
+
 (deftest exec-test
   (is (= "" (process/exec sys/executable "-c" "pass")))
+  (is (= "" (process/exec sys/executable "-c" "import sys; print(\"hi\", file=sys.stderr)")))
   (is (= "hi\n" (process/exec sys/executable "-c" "print(\"hi\")")))
   (is (thrown? subprocess/CalledProcessError
                (process/exec sys/executable "-c" "import sys; sys.exit(2)")))
