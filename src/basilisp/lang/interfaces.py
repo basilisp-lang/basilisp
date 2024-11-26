@@ -379,7 +379,9 @@ class IProxy(ABC):
 
     .. seealso::
 
-       :ref:`proxies`"""
+       :ref:`proxies`, :lpy:fn:`proxy`, :lpy:fn:`proxy-mappings`, :lpy:fn:`proxy-super`,
+       :lpy:fn:`construct-proxy`, :lpy:fn:`init-proxy`, :lpy:fn:`update-proxy`,
+       :lpy:fn:`get-proxy-class`"""
 
     __slots__ = ()
 
