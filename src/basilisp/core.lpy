@@ -6924,14 +6924,14 @@
                                 fs)]
     `((get-proxy-class ~@class-and-interfaces) {} ~@args)))
 
-;; TODO: handle explicit class and self
 (defmacro proxy-super
   "Macro which expands to a call to the method named ``meth`` on the superclass
   with the provided ``args``.
 
-  Note that the default"
+  Note this macro explicitly captures the implicit ``this`` parameter added to proxy
+  methods."
   [meth & args]
-  `(. (~'python/super) (~meth ~@args)))
+  `(. (~'python/super (.- ~'this ~'__class__) ~'this) (~meth ~@args)))
 
 ;;;;;;;;;;;;;
 ;; Records ;;
