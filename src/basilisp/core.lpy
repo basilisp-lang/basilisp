@@ -6829,9 +6829,15 @@
                                                                              (persistent!))]
                                                    (set! (.- self -proxy-mappings) updated-mappings)
                                                    nil))
-                      "_proxy_mappings"        nil}]
+                      "_proxy_mappings"        nil}
+
+        ;; Remove Python ``object`` from the bases if it is present to avoid errors
+        ;; about creating a consistent MRO for the given bases
+        proxy-bases  (concat (remove #{python/object} bases) [basilisp.lang.interfaces/IProxy])]
+    #_(doseq [[method-name method] methods]
+      (println method-name method))
     (python/type (basilisp.lang.util/genname "Proxy")
-                 (python/tuple (concat bases [basilisp.lang.interfaces/IProxy]))
+                 (python/tuple proxy-bases)
                  (python/dict (merge methods base-methods)))))
 
 (defn get-proxy-class
@@ -6848,7 +6854,7 @@
     (-> (swap! proxy-cache (fn [cache]
                              (if (get cache base-set)
                                cache
-                               (assoc cache base-set (proxy-type bases)))))
+                               (assoc cache base-set (proxy-type base-set)))))
         (get base-set))))
 
 (defn proxy-mappings
@@ -6918,14 +6924,15 @@
 (defmacro proxy
   [class-and-interfaces args & fs]
   (let [formatted-arity (fn [method-name [arg-vec & body]]
-                          [method-name
-                           (apply list method-name (vec (concat ['this] arg-vec)) body)])
+                          [(name method-name)
+                           (apply list 'fn method-name (vec (concat ['this] arg-vec)) body)])
         methods         (mapcat (fn [[method-name & body]]
                                   (if (vector? (first body))
-                                    [(formatted-arity method-name body)]
+                                    (formatted-arity method-name body)
                                     (map (partial formatted-arity method-name) body)))
                                 fs)]
-    `((get-proxy-class ~@class-and-interfaces) {} ~@args)))
+    #_(println methods)
+    `((get-proxy-class ~@class-and-interfaces) ~(apply hash-map methods) ~@args)))
 
 (defmacro proxy-super
   "Macro which expands to a call to the method named ``meth`` on the superclass
