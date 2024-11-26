@@ -6995,9 +6995,9 @@
                                                  (let [updated-mappings (->> proxy-mappings
                                                                              (reduce* (fn [m [k v]]
                                                                                         (if v
-                                                                                          (assoc m k v)
-                                                                                          (dissoc m k)))
-                                                                                      (.- self -proxy-mappings))
+                                                                                          (assoc! m k v)
+                                                                                          (dissoc! m k)))
+                                                                                      (transient (.- self -proxy-mappings)))
                                                                              (persistent!))]
                                                    (set! (.- self -proxy-mappings) updated-mappings)
                                                    nil))
