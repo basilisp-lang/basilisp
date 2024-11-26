@@ -6887,7 +6887,7 @@
   [proxy mappings]
   (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
     (throw
-     (ex-info "Cannot get proxy mappings from object which does not implement IProxy"
+     (ex-info "Cannot set proxy mappings for an object which does not implement IProxy"
               {:obj proxy}))
     (do
       (. proxy (_set-proxy-mappings mappings))
