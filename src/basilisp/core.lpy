@@ -7,6 +7,7 @@
          decimal
          fractions
          importlib.util
+         inspect
          math
          multiprocessing
          os
@@ -6778,6 +6779,141 @@
       `(~reify-sym :implements [~@interfaces python/object]
                ~@methods)
       (meta &form))))
+
+;;;;;;;;;;;;;
+;; Proxies ;;
+;;;;;;;;;;;;;
+
+(def ^:private excluded-proxy-methods
+  #{"__getattribute__"
+    "__init__"
+    "__new__"})
+
+(def ^:private proxy-cache (atom {}))
+
+(defn ^:private proxy-base-methods
+  [base]
+  (->> (inspect/getmembers base inspect/isroutine)
+       (remove (comp excluded-proxy-methods first))
+       (mapcat (fn [[method-name method]]
+                 (let [meth-sym (symbol method-name)
+                       meth `(fn ~meth-sym [~'self & args#]
+                               (if-let [override (get (.- ~'self ~'-proxy-mappings) ~method-name)]
+                                 (apply override ~'self args#)
+                                 (-> (.- ~'self __class__)
+                                     (python/super ~'self)
+                                     (.- ~meth-sym)
+                                     (apply args#))))]
+                   [method-name (eval meth *ns*)])))))
+
+(defn ^:private proxy-type
+  "Generate a proxy class with the given bases."
+  [bases]
+  (let [methods      (apply hash-map (mapcat proxy-base-methods bases))
+        base-methods {"__init__"        (fn __init__ [self proxy-mappings & args]
+                                          (apply (.- (python/super (.- self __class__) self) __init__) args)
+                                          (set! (.- self -proxy-mappings) proxy-mappings)
+                                          nil)
+                      "_proxy_mappings" nil}]
+    (python/type (basilisp.lang.util/genname "Proxy")
+                 (python/tuple (concat bases [basilisp.lang.interfaces/IProxy]))
+                 (python/dict (merge methods base-methods)))))
+
+;; TODO: support object as super
+(defn get-proxy-class
+  "Given one or more base classes, return a proxy class for the given classes.
+
+  Generated classes are cached, such that the same set of base classes will always
+  return the same resulting proxy class."
+  [& bases]
+  (let [base-set (set bases)]
+    (-> (swap! proxy-cache (fn [cache]
+                             (if (get cache base-set)
+                               cache
+                               (assoc cache base-set (proxy-type bases)))))
+        (get base-set))))
+
+(defn proxy-mappings
+  "Return the current method map for the given proxy.
+
+  Throws an exception if ``proxy`` is not a proxy."
+  [proxy]
+  (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
+    (throw
+     (ex-info "Cannot get proxy mappings from object which does not implement IProxy"
+              {:obj proxy}))
+    (. proxy (_get-proxy-mappings))))
+
+(defn construct-proxy
+  "Construct an instance of the proxy class ``c`` with the given constructor arguments.
+
+  Throws an exception if ``c`` is not a subclass of
+  :py:class:`basilisp.lang.interfaces.IProxy`.
+
+  .. note::
+
+     In JVM Clojure, this function is useful for selecting a specific constructor based
+     on argument count, but Python does not support multi-arity methods (including
+     constructors), so this is likely of limited use."
+  [c & ctor-args]
+  (if-not (python/issubclass c basilisp.lang.interfaces/IProxy)
+    (throw
+     (ex-info "Cannot construct instance of class which is not a subclass of IProxy"
+              {:class c :args ctor-args}))
+    (apply c {} ctor-args)))
+
+(defn init-proxy
+  "Set the current proxy method map for the given proxy.
+
+  Method maps are maps of string method names to their implementations as Basilisp
+  functions.
+
+  Throws an exception if ``proxy`` is not a proxy."
+  [proxy mappings]
+  (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
+    (throw
+     (ex-info "Cannot get proxy mappings from object which does not implement IProxy"
+              {:obj proxy}))
+    (do
+      (. proxy (_set-proxy-mappings mappings))
+      proxy)))
+
+;; TODO: handle nil methods
+(defn update-proxy
+  "Update the current proxy method map for the given proxy.
+
+  Throws an exception if ``proxy`` is not a proxy."
+  [proxy mappings]
+  (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
+    (throw
+     (ex-info "Cannot update proxy mappings for object which does not implement IProxy"
+              {:obj proxy}))
+    (do
+      (. proxy (_update-proxy-mappings mappings))
+      proxy)))
+
+;; TODO: how to handle multi-arity fns
+;; TODO: kwargs on supertypes
+(defmacro proxy
+  [class-and-interfaces args & fs]
+  (let [formatted-arity (fn [method-name [arg-vec & body]]
+                          [method-name
+                           (apply list method-name (vec (concat ['this] arg-vec)) body)])
+        methods         (mapcat (fn [[method-name & body]]
+                                  (if (vector? (first body))
+                                    [(formatted-arity method-name body)]
+                                    (map (partial formatted-arity method-name) body)))
+                                fs)]
+    `((get-proxy-class ~@class-and-interfaces) {} ~@args)))
+
+;; TODO: handle explicit class and self
+(defmacro proxy-super
+  "Macro which expands to a call to the method named ``meth`` on the superclass
+  with the provided ``args``.
+
+  Note that the default"
+  [meth & args]
+  `(. (~'python/super) (~meth ~@args)))
 
 ;;;;;;;;;;;;;
 ;; Records ;;
