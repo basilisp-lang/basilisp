@@ -4,6 +4,7 @@
            sys)
   (:require
    [basilisp.process :as process]
+   [basilisp.string :as str]
    [basilisp.test :as test :refer [deftest is are testing]]
    [basilisp.test.fixtures :as fixtures :refer [*tempdir*]]))
 
@@ -71,10 +72,10 @@
 (deftest exit-ref-test
   (= 0 @(process/exit-ref (process/start sys/executable "-c" "import time; time.sleep(1)")))
   (= 0 (-> (process/start sys/executable "-c" "import time; time.sleep(1)")
-           (process/exit-ref )
+           (process/exit-ref)
            (deref 5000 :timed-out)))
   (= :timed-out (-> (process/start sys/executable "-c" "import time; time.sleep(10)")
-                    (process/exit-ref )
+                    (process/exit-ref)
                     (deref 1000 :timed-out))))
 
 (deftest start-test
@@ -84,15 +85,57 @@
                    (.write-text "print(\"hi from a path\")"))
             proc (process/start {:in (process/from-file p :encoding "utf-8")} sys/executable "-")]
         (is (= 0 @(process/exit-ref proc)))
-        (is (= "hi from a path\n" (.decode (.read (process/stdout proc)) "utf-8")))))
+        (is (= "hi from a path" (str/trim (.decode (.read (process/stdout proc)) "utf-8"))))))
 
     (testing "with file handle"
-      (let [p    (doto (pathlib/Path *tempdir* "file-script.py")
-                   (.write-text "print(\"hi from a file\")"))]
+      (let [p (doto (pathlib/Path *tempdir* "file-script.py")
+                (.write-text "print(\"hi from a file\")"))]
         (with-open [f (python/open p ** :mode "r")]
           (let [proc (process/start {:in (process/from-file f)} sys/executable "-")]
             (is (= 0 @(process/exit-ref proc)))
-            (is (= "hi from a file\n" (.decode (.read (process/stdout proc)) "utf-8")))))))))
+            (is (= "hi from a file" (str/trim (.decode (.read (process/stdout proc)) "utf-8")))))))))
+
+  (testing "stdout"
+    (testing "with file path"
+      (let [p    (doto (pathlib/Path *tempdir* "path-output.txt")
+                   (.touch))
+            proc (process/start {:out (process/from-file p :encoding "utf-8")}
+                                sys/executable
+                                "-c"
+                                "print(\"output to path\")")]
+        (is (= 0 @(process/exit-ref proc)))
+        (is (= "output to path" (str/trim (.read-text p))))))
+
+    (testing "with file handle"
+      (let [p (pathlib/Path *tempdir* "file-output.txt")]
+        (with-open [f (python/open p ** :mode "w")]
+          (let [proc (process/start {:out (process/from-file f)}
+                                    sys/executable
+                                    "-c"
+                                    "print(\"output to file\")")]
+            (is (= 0 @(process/exit-ref proc)))))
+        (is (= "output to file" (str/trim (.read-text p)))))))
+
+  (testing "stderr"
+    (testing "with file path"
+      (let [p    (doto (pathlib/Path *tempdir* "path-error.txt")
+                   (.touch))
+            proc (process/start {:err (process/from-file p :encoding "utf-8")}
+                                sys/executable
+                                "-c"
+                                "import sys; print(\"error to path\", file=sys.stderr)")]
+        (is (= 0 @(process/exit-ref proc)))
+        (is (= "error to path" (str/trim (.read-text p))))))
+
+    (testing "with file handle"
+      (let [p (pathlib/Path *tempdir* "file-error.txt")]
+        (with-open [f (python/open p ** :mode "w")]
+          (let [proc (process/start {:err (process/from-file f)}
+                                    sys/executable
+                                    "-c"
+                                    "import sys; print(\"error to file\", file=sys.stderr)")]
+            (is (= 0 @(process/exit-ref proc)))))
+        (is (= "error to file" (str/trim (.read-text p))))))))
 
 (deftest exec-test
   (is (= "" (process/exec sys/executable "-c" "pass")))
