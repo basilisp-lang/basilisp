@@ -386,17 +386,17 @@ class IProxy(ABC):
     _proxy_mappings: "IPersistentMap[str, Callable]"
 
     def _get_proxy_mappings(self) -> "IPersistentMap[str, Callable]":
-        return self._proxy_mappings
+        raise NotImplementedError()
 
     def _set_proxy_mappings(
         self, proxy_mappings: "IPersistentMap[str, Callable]"
     ) -> None:
-        self._proxy_mappings = proxy_mappings
+        raise NotImplementedError()
 
     def _update_proxy_mappings(
         self, proxy_mappings: "IPersistentMap[str, Callable]"
     ) -> None:
-        self._proxy_mappings = proxy_mappings
+        raise NotImplementedError()
 
 
 T_key = TypeVar("T_key")
