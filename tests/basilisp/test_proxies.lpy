@@ -41,5 +41,4 @@
                 ([arg1 & args] (str "i am rest " arg1 " " args))))]
       (is (= "hi i am 0" (.to-string p)))
       (is (= "i am 1 yes" (.to-string p "yes")))
-      (is (= "i am rest first " (.to-string p "first")))
       (is (= "i am rest first (:yes)" (.to-string p "first" :yes))))))
