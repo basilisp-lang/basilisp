@@ -1,0 +1,45 @@
+(ns tests.basilisp.test-proxies
+  (:require
+   [basilisp.test :as test :refer [deftest is are testing]]))
+
+(def no-op-proxy
+  (proxy [] []))
+
+(deftest get-proxy-class-test
+  (is (identical? (get-proxy-class) (get-proxy-class)))
+  (is (python/issubclass (get-proxy-class) basilisp.lang.interfaces/IProxy)))
+
+(deftest proxy-mappings-test
+  (is (= {} (proxy-mappings no-op-proxy)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (proxy-mappings (python/object)))))
+
+(deftest construct-proxy-test
+  (let [obj-proxy-cls (get-proxy-class)]
+    (is (instance? obj-proxy-cls (construct-proxy obj-proxy-cls)))
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (construct-proxy python/object)))))
+
+(definterface ToString
+  (to-string [])
+  (to-string [arg1])
+  (to-string [arg1 & rest]))
+
+;; TODO: (?) needs to be mutable or setting _proxy_mappings on the instance fails
+(deftype ConcreteToString [^:mutable arg]
+  ToString
+  (to-string [this] "0")
+  (to-string [this arg1] (str "1" arg1))
+  (to-string [this arg1 & rest] (str "rest" arg1 rest)))
+
+(deftest proxy-test
+  (testing "multi-arity interface methods"
+    (let [p (proxy [ConcreteToString] [1]
+              (to-string
+                ([] "hi i am 0")
+                ([arg1] (str "i am 1 " arg1))
+                ([arg1 & args] (str "i am rest " arg1 " " args))))]
+      (is (= "hi i am 0" (.to-string p)))
+      (is (= "i am 1 yes" (.to-string p "yes")))
+      (is (= "i am rest first " (.to-string p "first")))
+      (is (= "i am rest first (:yes)" (.to-string p "first" :yes))))))
