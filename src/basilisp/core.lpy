@@ -6821,13 +6821,21 @@
   "Generate a proxy class with the given bases."
   [bases]
   (let [methods      (apply hash-map (mapcat proxy-base-methods bases))
+        method-names (set (map munge (keys methods)))
         base-methods {"__init__"               (fn __init__ [self proxy-mappings & args]
                                                  (apply (.- (python/super (.- self __class__) self) __init__) args)
-                                                 (set! (.- self -proxy-mappings) proxy-mappings)
+                                                 (. self (_set_proxy_mappings proxy-mappings))
                                                  nil)
                       "_get_proxy_mappings"    (fn _get_proxy_mappings [self]
                                                  (.- self -proxy-mappings))
                       "_set_proxy_mappings"    (fn _set_proxy_mappings [self proxy-mappings]
+                                                 (let [provided-methods (set (keys proxy-mappings))]
+                                                   (when-not (.issubset provided-methods method-names)
+                                                     (throw
+                                                      (ex-info "Proxy override methods must correspond to methods on the declared supertypes"
+                                                               {:expected method-names
+                                                                :given    provided-methods
+                                                                :diff     (.difference provided-methods method-names)}))))
                                                  (set! (.- self -proxy-mappings) proxy-mappings)
                                                  nil)
                       "_update_proxy_mappings" (fn _update_proxy_mappings [self proxy-mappings]
@@ -6844,9 +6852,7 @@
 
         ;; Remove Python ``object`` from the bases if it is present to avoid errors
         ;; about creating a consistent MRO for the given bases
-        proxy-bases  (concat (remove #{python/object} bases) [basilisp.lang.interfaces/IProxy])]
-    #_(doseq [[method-name method] methods]
-      (println method-name method))
+        proxy-bases (concat (remove #{python/object} bases) [basilisp.lang.interfaces/IProxy])]
     (python/type (basilisp.lang.util/genname "Proxy")
                  (python/tuple proxy-bases)
                  (python/dict (merge methods base-methods)))))
@@ -6930,7 +6936,6 @@
       (. proxy (_update-proxy-mappings mappings))
       proxy)))
 
-;; TODO: check interface/superclass method membership
 (defmacro proxy
   "Create a new proxy class instance.
 
@@ -7001,7 +7006,6 @@
                                       (assoc m method-name method)))
                                   {}
                                   methods)]
-    #_(println methods)
     `((get-proxy-class ~@class-and-interfaces) ~method-map ~@args)))
 
 (defmacro proxy-super

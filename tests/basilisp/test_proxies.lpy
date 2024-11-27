@@ -42,6 +42,11 @@
                           (describe-me [] "I'm a proxy")
                           (describe-me [] "Proxy"))))))
 
+  (testing "disallows overriding non-superclass methods"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (proxy [Describable] []
+                   (other-method [] "Proxy")))))
+
   (testing "multi-arity interface methods"
     (let [p (proxy [ConcreteToString] [1]
               (to-string
