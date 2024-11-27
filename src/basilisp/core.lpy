@@ -6792,6 +6792,16 @@
 
 (def ^:private proxy-cache (atom {}))
 
+;; One consequence of adhering so closely to the Clojure proxy model is that this
+;; style of dispatch method doesn't align well with the Basilisp style of defining
+;; multi-arity methods (which involves creating the "main" entrypoint method which
+;; dispatches to private implementations for all of the defined arities).
+;;
+;; Fortunately, since the public interface of even multi-arity methods is a single
+;; public method, when callers provide a multi-arity override for such methods,
+;; only the public entrypoint method is overridden in the proxy mappings. This
+;; should be a sufficient compromise, but it does mean that the superclass arity
+;; implementations are never overridden.
 (defn ^:private proxy-base-methods
   [base]
   (->> (inspect/getmembers base inspect/isroutine)
@@ -6948,7 +6958,12 @@
      (multi-arity
        ([] ...)
        ([arg1] ...)
-       ([arg1 & others] ...))"
+       ([arg1 & others] ...))
+
+  .. warning::
+
+     The ``proxy`` macro does not verify that the provided override implementations
+     arities match those of the method being overridden."
   [class-and-interfaces args & fs]
   (let [formatted-single (fn [method-name [arg-vec & body]]
                            [(munge method-name)
