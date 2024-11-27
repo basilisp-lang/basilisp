@@ -20,6 +20,9 @@
     (is (thrown? basilisp.lang.exception/ExceptionInfo
                  (construct-proxy python/object)))))
 
+(definterface Describable
+  (describe-me []))
+
 (definterface ToString
   (to-string [])
   (to-string [arg1])
@@ -33,6 +36,11 @@
   (to-string [this arg1 & rest] (str "rest" arg1 rest)))
 
 (deftest proxy-test
+  (testing "disallows duplicate method overrides"
+    (proxy [Describable] []
+      (describe-me [] "I'm a proxy")
+      (describe-me [] "Proxy")))
+
   (testing "multi-arity interface methods"
     (let [p (proxy [ConcreteToString] [1]
               (to-string
