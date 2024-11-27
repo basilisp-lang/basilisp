@@ -6286,7 +6286,7 @@
   (let [name-str    (name interface-name)
         method-sigs (->> methods
                          (map (fn [[method-name args docstring]]
-                                [method-name (conj args 'self) docstring]))
+                                [method-name (vec (concat ['self] args)) docstring]))
                          (map #(list 'quote %)))]
     `(def ~interface-name
        (gen-interface :name ~name-str
