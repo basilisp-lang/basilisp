@@ -7091,17 +7091,43 @@
       (. proxy (_update-proxy-mappings mappings))
       proxy)))
 
-;; TODO: how to handle multi-arity fns
 ;; TODO: kwargs on supertypes
+;; TODO: check interface/superclass method membership
+;; TODO: check if duplicate methods
 (defmacro proxy
+  "Create a new proxy class instance.
+
+  The proxy class may implement 0 or more interface (or subclass 0 or more classes),
+  which are given as the vector ``class-and-interfaces``. If 0 such supertypes are
+  provided, Python's ``object`` type will be used.
+
+  If the supertype constructors take arguments, those arguments are given in the
+  potentially empty vector ``args``.
+
+  The remaining forms (if any) should be method overrides for any methods of the
+  declared classes and interfaces. Not every method needs to be overridden. Override
+  declarations may be multi-arity to simulate multi-arity methods. Overrides need
+  not include ``this``, as it will be automatically added and is available within
+  all proxy methods. Proxy methods may access the proxy superclass using the
+  :lpy:fn:`proxy-super` macro.
+
+  Overrides take the following form::
+
+     (single-arity []
+       ...)
+
+     (multi-arity
+       ([] ...)
+       ([arg1] ...)
+       ([arg1 & others] ...))"
   [class-and-interfaces args & fs]
   (let [formatted-arity (fn [method-name [arg-vec & body]]
-                          [(name method-name)
+                          [(munge method-name)
                            (apply list 'fn method-name (vec (concat ['this] arg-vec)) body)])
         methods         (mapcat (fn [[method-name & body]]
                                   (if (vector? (first body))
                                     (formatted-arity method-name body)
-                                    (map (partial formatted-arity method-name) body)))
+                                    (mapcat (partial formatted-arity method-name) body)))
                                 fs)]
     #_(println methods)
     `((get-proxy-class ~@class-and-interfaces) ~(apply hash-map methods) ~@args)))
