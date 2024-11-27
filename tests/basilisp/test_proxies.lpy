@@ -37,9 +37,10 @@
 
 (deftest proxy-test
   (testing "disallows duplicate method overrides"
-    (proxy [Describable] []
-      (describe-me [] "I'm a proxy")
-      (describe-me [] "Proxy")))
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(proxy [Describable] []
+                          (describe-me [] "I'm a proxy")
+                          (describe-me [] "Proxy"))))))
 
   (testing "multi-arity interface methods"
     (let [p (proxy [ConcreteToString] [1]

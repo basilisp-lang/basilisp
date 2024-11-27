@@ -7010,7 +7010,7 @@
                                                                                           (dissoc! m k)))
                                                                                       (transient (.- self -proxy-mappings)))
                                                                              (persistent!))]
-                                                   (set! (.- self -proxy-mappings) updated-mappings)
+                                                   (. self (_set_proxy_mappings updated-mappings))
                                                    nil))
                       "_proxy_mappings"        nil}
 
@@ -7102,7 +7102,6 @@
       (. proxy (_update-proxy-mappings mappings))
       proxy)))
 
-;; TODO: kwargs on supertypes
 ;; TODO: check interface/superclass method membership
 (defmacro proxy
   "Create a new proxy class instance.
@@ -7131,26 +7130,39 @@
        ([arg1] ...)
        ([arg1 & others] ...))
 
+  .. note::
+
+     Proxy override methods can be defined with Python keyword argument support since
+     they are just standard Basilisp functions. See :ref:`basilisp_functions_with_kwargs`
+     for more information.
+
   .. warning::
 
      The ``proxy`` macro does not verify that the provided override implementations
      arities match those of the method being overridden."
   [class-and-interfaces args & fs]
   (let [formatted-single (fn [method-name [arg-vec & body]]
-                           [(munge method-name)
-                            (apply list 'fn method-name (vec (concat ['this] arg-vec)) body)])
+                           (apply list
+                                  'fn
+                                  method-name
+                                  (with-meta (vec (concat ['this] arg-vec)) (meta arg-vec))
+                                  body))
         formatted-multi  (fn [method-name & arities]
-                           [(munge method-name)
-                            (apply list
-                                   'fn
-                                   method-name
-                                   (map (fn [[arg-vec & body]]
-                                          (apply list (vec (concat ['this] arg-vec)) body))
-                                        arities))])
-        methods          (map (fn [[method-name & body]]
-                                (if (vector? (first body))
-                                  (formatted-single method-name body)
-                                  (apply formatted-multi method-name body)))
+                           (apply list
+                                  'fn
+                                  method-name
+                                  (map (fn [[arg-vec & body]]
+                                         (apply list
+                                                (with-meta (vec (concat ['this] arg-vec)) (meta arg-vec))
+                                                body))
+                                       arities)))
+        methods          (map (fn [[method-name & body :as form]]
+                                [(munge method-name)
+                                 (with-meta
+                                   (if (vector? (first body))
+                                     (formatted-single method-name body)
+                                     (apply formatted-multi method-name body))
+                                   (meta form))])
                               fs)
         method-map       (reduce* (fn [m [method-name method]]
                                     (if-let [existing-method (get m method-name)]
