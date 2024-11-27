@@ -6959,7 +6959,8 @@
 (def ^:private excluded-proxy-methods
   #{"__getattribute__"
     "__init__"
-    "__new__"})
+    "__new__"
+    "__subclasshook__"})
 
 (def ^:private proxy-cache (atom {}))
 
