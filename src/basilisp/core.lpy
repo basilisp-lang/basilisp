@@ -7104,7 +7104,6 @@
 
 ;; TODO: kwargs on supertypes
 ;; TODO: check interface/superclass method membership
-;; TODO: check if duplicate methods
 (defmacro proxy
   "Create a new proxy class instance.
 
@@ -7140,21 +7139,30 @@
   (let [formatted-single (fn [method-name [arg-vec & body]]
                            [(munge method-name)
                             (apply list 'fn method-name (vec (concat ['this] arg-vec)) body)])
-        formatted-multi (fn [method-name & arities]
-                          [(munge method-name)
-                           (apply list
-                                  'fn
-                                  method-name
-                                  (map (fn [[arg-vec & body]]
-                                         (apply list (vec (concat ['this] arg-vec)) body))
-                                       arities))])
-        methods      (mapcat (fn [[method-name & body]]
-                               (if (vector? (first body))
-                                 (formatted-single method-name body)
-                                 (apply formatted-multi method-name body)))
-                             fs)]
+        formatted-multi  (fn [method-name & arities]
+                           [(munge method-name)
+                            (apply list
+                                   'fn
+                                   method-name
+                                   (map (fn [[arg-vec & body]]
+                                          (apply list (vec (concat ['this] arg-vec)) body))
+                                        arities))])
+        methods          (map (fn [[method-name & body]]
+                                (if (vector? (first body))
+                                  (formatted-single method-name body)
+                                  (apply formatted-multi method-name body)))
+                              fs)
+        method-map       (reduce* (fn [m [method-name method]]
+                                    (if-let [existing-method (get m method-name)]
+                                      (throw
+                                       (ex-info "Cannot define proxy class with duplicate method"
+                                                {:method-name method-name
+                                                 :impls       [existing-method method]}))
+                                      (assoc m method-name method)))
+                                  {}
+                                  methods)]
     #_(println methods)
-    `((get-proxy-class ~@class-and-interfaces) ~(apply hash-map methods) ~@args)))
+    `((get-proxy-class ~@class-and-interfaces) ~method-map ~@args)))
 
 (defmacro proxy-super
   "Macro which expands to a call to the method named ``meth`` on the superclass
