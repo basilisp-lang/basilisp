@@ -385,16 +385,17 @@ class IProxy(ABC):
 
     __slots__ = ()
 
-    _proxy_mappings: "IPersistentMap[str, Callable]"
-
+    @abstractmethod
     def _get_proxy_mappings(self) -> "IPersistentMap[str, Callable]":
         raise NotImplementedError()
 
+    @abstractmethod
     def _set_proxy_mappings(
         self, proxy_mappings: "IPersistentMap[str, Callable]"
     ) -> None:
         raise NotImplementedError()
 
+    @abstractmethod
     def _update_proxy_mappings(
         self, proxy_mappings: "IPersistentMap[str, Callable]"
     ) -> None:
