@@ -598,6 +598,8 @@ class TestKeyword:
             ("yay!", ":yay!"),
             ("*'", ":*'"),
             ("a:b", ":a:b"),
+            ("#", ":#"),
+            ("div#id", ":div#id"),
         ],
     )
     def test_legal_bare_keyword(self, v: str, raw: str):
@@ -611,6 +613,7 @@ class TestKeyword:
             ("kw", "really.qualified.ns", ":really.qualified.ns/kw"),
             ("a:b", "ab", ":ab/a:b"),
             ("a:b", "a:b", ":a:b/a:b"),
+            ("#", "html", ":html/#"),
         ],
     )
     def test_legal_ns_keyword(self, k: str, ns: str, raw: str):
@@ -668,6 +671,7 @@ class TestSymbol:
             "ns.name",
             "*'",
             "a:b",
+            "div#id",
         ],
     )
     def test_legal_bare_symbol(self, s: str):
@@ -697,6 +701,7 @@ class TestSymbol:
             "/sym",
             ".second.ns/name",
             "ns..third/name",
+            "#",
             # This will raise because the default pushback depth of the
             # reader.StreamReader instance used by the reader is 5, so
             # we are unable to pushback more - characters consumed by

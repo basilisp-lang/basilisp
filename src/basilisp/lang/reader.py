@@ -621,7 +621,7 @@ def _read_namespaced(
                 has_ns = True
                 ns = name
                 name = []
-        elif ns_name_chars.match(char) or (name and char == "'"):
+        elif ns_name_chars.match(char) or (name and char == "'") or char == "#":
             reader.next_char()
             name.append(char)
         elif allowed_suffix is not None and char == allowed_suffix:
