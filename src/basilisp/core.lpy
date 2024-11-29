@@ -3537,7 +3537,7 @@
                         (mapcat (fn [pair]
                                   (let [binding (first pair)
                                         expr    `(fn [] ~(second pair))]
-                                    (if (list? binding)
+                                    (if (seq? binding)
                                       (map #(vector (list 'quote %) expr) binding)
                                       [[(list 'quote binding) expr]])))
                                 (partition 2

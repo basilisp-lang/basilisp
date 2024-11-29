@@ -316,6 +316,11 @@
   (let [l #py [1 2 3]]
     (is (= 6 (areduce l idx ret 0 (+ ret (aget l idx)))))))
 
+(defmacro case-with-seq
+  []
+  `(case :val
+     ~(seq [:val]) :found))
+
 (deftest case-test
   (is (= "yes" (case :a :b "nope" :c "mega nope" :a "yes" "nerp")))
   (is (= "nope" (case :b :b "nope" :c "mega nope" :a "yes" "nerp")))
@@ -328,6 +333,7 @@
   (is (= "also no" (case 'd :a "no" (b c d) "also no" "duh")))
   (is (= "duh" (case 'e :a "no" (b c d) "also no" "duh")))
   (is (= 0 (case 1 0)))
+  (is (= :found (case-with-seq)))
   (let [out* (atom [])]
     (is (= 2 (case :2
                :1 (do (swap! out* conj 1) 1)

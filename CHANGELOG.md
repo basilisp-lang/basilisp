@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
  * Fix a bug where `#` characters were not legal in keywords and symbols (#1149)
+ * Fix a bug where seqs were not considered valid input for matching clauses of the `case` macro (#1148)
 
 ## [v0.3.3]
 ### Added
