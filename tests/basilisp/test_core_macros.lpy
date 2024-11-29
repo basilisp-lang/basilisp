@@ -318,8 +318,8 @@
 
 (defmacro case-with-seq
   []
-  (case :val
-    ~(seq [:val]) :found))
+  `(case :val
+     ~(seq [:val]) :found))
 
 (deftest case-test
   (is (= "yes" (case :a :b "nope" :c "mega nope" :a "yes" "nerp")))
