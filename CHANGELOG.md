@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added support for proxies (#425)
+
 ### Fixed
  * Fix a bug where `#` characters were not legal in keywords and symbols (#1149)
  * Fix a bug where seqs were not considered valid input for matching clauses of the `case` macro (#1148)
