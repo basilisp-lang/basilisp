@@ -1837,8 +1837,8 @@ def _keywordize_keys(k, keywordize_keys: bool = True):
 
 
 @_keywordize_keys.register(str)
-def _keywordize_keys_str(k, keywordize_keys: bool = True):
-    return kw.keyword(k)
+def _keywordize_keys_str(k: str, keywordize_keys: bool = True):
+    return keyword_from_name(k)
 
 
 @to_lisp.register(dict)

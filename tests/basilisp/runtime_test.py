@@ -687,6 +687,8 @@ class TestToLisp:
                         kw.keyword("f"): vec.v("tuple", "not", "list"),
                     }
                 ),
+                kw.keyword("h", ns="g"): "i/j",
+                kw.keyword("m", ns="k.l"): None,
             }
         ) == runtime.to_lisp(
             {
@@ -697,6 +699,8 @@ class TestToLisp:
                     "e": {"a", "set"},
                     kw.keyword("f"): ("tuple", "not", "list"),
                 },
+                "g/h": "i/j",
+                "k.l/m": None,
             }
         )
 
