@@ -5241,10 +5241,14 @@
   You may include an optional docstring for the namespace to describe its purpose. The
   docstring will be applied as the ``:doc`` key on the namespace metadata map.
 
+  An optional map of metadata can be given after the docstring. If provided, this
+  metadata will be merged into the metadata for the resulting namespace.
+
   Example::
 
     (ns my.namespace
        \"My namespace with code\"
+       {:meta-key 1}
        (:refer-basilisp :exclude [get])
        (:require
          [basilisp.string :as str])
@@ -5273,18 +5277,26 @@
   (when-not (and (symbol? name) (nil? (namespace name)))
     (throw (ex-info "Namespace name must be a non-namespaced symbol"
                     {:name name})))
-  (let [doc  (when (string? (first opts))
-               (first opts))
-        opts (if doc (rest opts) opts)
-        opts (reduce* (fn [m opt]
-                        (let [opt-name (first opt)
-                              options  (rest opt)]
-                          (when-not (keyword? opt-name)
-                            (throw (ex-info "Namespace option must be a keyword"
-                                            {:option opt-name})))
-                          (assoc m opt-name (vec options))))
-                      {}
-                      opts)
+  (let [doc      (when (string? (first opts))
+                   (first opts))
+        opts     (if doc (rest opts) opts)
+        attr-map (when (map? (first opts))
+                   (first opts))
+        metadata (merge (->> (meta name)
+                             (remove #(= (namespace (key %)) "basilisp.lang.reader"))
+                             (apply hash-map))
+                        {:doc doc}
+                        attr-map)
+        opts     (if attr-map (rest opts) opts)
+        opts     (reduce* (fn [m opt]
+                            (let [opt-name (first opt)
+                                  options  (rest opt)]
+                              (when-not (keyword? opt-name)
+                                (throw (ex-info "Namespace option must be a keyword"
+                                                {:option opt-name})))
+                              (assoc m opt-name (vec options))))
+                          {}
+                          opts)
 
         refer-filters (when-let [filters (or (:refer-basilisp opts)
                                              (:refer-clojure opts))]
@@ -5300,8 +5312,8 @@
     `(^:use-var-indirection do
        (in-ns (quote ~name))
        (swap! *loaded-libs* conj (quote ~name))
-       ~(when doc
-          `(alter-meta! (the-ns (quote ~name)) assoc :doc ~doc))
+       ~(when metadata
+          `(reset-meta! (the-ns (quote ~name)) ~metadata))
        (refer-basilisp ~@refer-filters)
        ~requires
        ~uses
