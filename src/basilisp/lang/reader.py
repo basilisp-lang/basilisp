@@ -1205,6 +1205,10 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
 
     def identify_and_replace(f):
         if isinstance(f, sym.Symbol):
+            # Checking against the current namespace is generally only used for
+            # when anonymous function definitions are syntax quoted. Arguments
+            # are resolved in terms of the current namespace, so we simply check
+            # if the symbol namespace matches the current runtime namespace.
             if f.ns is None or f.ns == current_ns.name:
                 match = fn_macro_args.match(f.name)
                 if match is not None:
