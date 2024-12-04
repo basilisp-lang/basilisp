@@ -7,6 +7,7 @@ import contextlib
 import functools
 import hashlib
 import logging
+import pickle
 import re
 import uuid
 from collections.abc import Collection, Iterable, Mapping, MutableMapping
@@ -764,6 +765,7 @@ _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
 _ATTR_CLASS_DECORATOR_NAME = _load_attr(f"{_ATTR_ALIAS}.define")
 _ATTR_FROZEN_DECORATOR_NAME = _load_attr(f"{_ATTR_ALIAS}.frozen")
 _ATTRIB_FIELD_FN_NAME = _load_attr(f"{_ATTR_ALIAS}.field")
+_BASILISP_LOAD_CONSTANT_NAME = _load_attr(f"{_RUNTIME_ALIAS}._load_constant")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
@@ -3559,9 +3561,24 @@ def _const_val_to_py_ast(
     structures need to call into this function to generate Python AST nodes for
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
-    raise ctx.GeneratorException(
-        f"No constant handler is defined for type {type(form)}"
-    )
+    try:
+        serialized = pickle.dumps(form)
+    except (pickle.PicklingError, RecursionError) as e:
+        # For types without custom "constant" handling code, we defer to pickle
+        # to generate a representation taht can be reloaded from the generated
+        # byte code. There are a few cases where that may not be possible for one
+        # reason or another, in which case we'll fail here.
+        raise ctx.GeneratorException(
+            f"Unable to emit bytecode for generating a constant {type(form)}"
+        ) from e
+    else:
+        return GeneratedPyAST(
+            node=ast.Call(
+                func=_BASILISP_LOAD_CONSTANT_NAME,
+                args=[ast.Constant(value=serialized)],
+                keywords=[],
+            ),
+        )
 
 
 def _collection_literal_to_py_ast(
@@ -3777,54 +3794,6 @@ def _const_set_to_py_ast(
     )
 
 
-@_const_val_to_py_ast.register(IRecord)
-def _const_record_to_py_ast(
-    form: IRecord, ctx: GeneratorContext
-) -> GeneratedPyAST[ast.expr]:
-    assert isinstance(form, IRecord) and isinstance(
-        form, ISeqable
-    ), "IRecord types should also be ISeq"
-
-    tp = type(form)
-    assert hasattr(tp, "create") and callable(
-        tp.create
-    ), "IRecord and IType must declare a .create class method"
-
-    form_seq = runtime.to_seq(form)
-    assert form_seq is not None, "IRecord types must be iterable"
-
-    # pylint: disable=no-member
-    keys: list[Optional[ast.expr]] = []
-    vals: list[ast.expr] = []
-    vals_deps: list[PyASTNode] = []
-    for k, v in form_seq:
-        assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
-        key_nodes = _kw_to_py_ast(k, ctx)
-        keys.append(key_nodes.node)
-        assert (
-            not key_nodes.dependencies
-        ), "Simple AST generators must emit no dependencies"
-
-        val_nodes = _const_val_to_py_ast(v, ctx)
-        vals.append(val_nodes.node)
-        vals_deps.extend(val_nodes.dependencies)
-
-    return GeneratedPyAST(
-        node=ast.Call(
-            func=_load_attr(f"{tp.__qualname__}.create"),
-            args=[
-                ast.Call(
-                    func=_NEW_MAP_FN_NAME,
-                    args=[ast.Dict(keys=keys, values=vals)],
-                    keywords=[],
-                )
-            ],
-            keywords=[],
-        ),
-        dependencies=vals_deps,
-    )
-
-
 @_const_val_to_py_ast.register(llist.PersistentList)
 @_const_val_to_py_ast.register(ISeq)
 def _const_seq_to_py_ast(
@@ -3846,25 +3815,6 @@ def _const_seq_to_py_ast(
         dependencies=list(
             chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
-    )
-
-
-@_const_val_to_py_ast.register(IType)
-def _const_type_to_py_ast(
-    form: IType, ctx: GeneratorContext
-) -> GeneratedPyAST[ast.expr]:
-    tp = type(form)
-
-    ctor_args = []
-    ctor_arg_deps: list[PyASTNode] = []
-    for field in attr.fields(tp):  # type: ignore[arg-type, misc, unused-ignore]
-        field_nodes = _const_val_to_py_ast(getattr(form, field.name, None), ctx)
-        ctor_args.append(field_nodes.node)
-        ctor_args.extend(field_nodes.dependencies)  # type: ignore[arg-type]
-
-    return GeneratedPyAST(
-        node=ast.Call(func=_load_attr(tp.__qualname__), args=ctor_args, keywords=[]),
-        dependencies=ctor_arg_deps,
     )
 
 
