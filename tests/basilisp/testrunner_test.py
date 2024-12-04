@@ -10,6 +10,7 @@ from basilisp.lang import symbol as sym
 class TestTestrunner:
     @pytest.fixture
     def run_result(self, pytester: pytest.Pytester) -> pytest.RunResult:
+        runtime.Namespace.remove(sym.symbol("test-testrunner"))
         code = """
         (ns test-testrunner
           (:require
@@ -222,7 +223,7 @@ def test_fixtures(pytester: pytest.Pytester):
     [
         ("error-during-setup", ":once", 2, 0, 0),
         ("error-during-setup", ":each", 2, 0, 0),
-        ("error-during-teardown", ":once", 3, 0, 0),
+        ("error-during-teardown", ":once", 1, 1, 1),
         ("error-during-teardown", ":each", 2, 1, 1),
     ],
 )
@@ -234,6 +235,7 @@ def test_fixtures_with_errors(
     passes: int,
     failures: int,
 ):
+    runtime.Namespace.remove(sym.symbol("test-fixtures-with-errors"))
     code = f"""
     (ns test-fixtures-with-errors
       (:require
