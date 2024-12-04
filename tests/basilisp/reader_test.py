@@ -1793,54 +1793,109 @@ class TestReaderConditional:
         )
 
 
-def test_function_reader_macro():
-    assert read_str_first("#()") == llist.l(sym.symbol("fn*"), vec.v(), None)
-    assert read_str_first("#(identity %)") == llist.l(
-        sym.symbol("fn*"),
-        vec.v(sym.symbol("arg-1")),
-        llist.l(sym.symbol("identity"), sym.symbol("arg-1")),
+class TestFunctionReaderMacro:
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("#()", llist.l(sym.symbol("fn*"), vec.v(), None)),
+            (
+                "#(identity %)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(sym.symbol("arg-1")),
+                    llist.l(sym.symbol("identity"), sym.symbol("arg-1")),
+                ),
+            ),
+            (
+                "#(identity %1)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(sym.symbol("arg-1")),
+                    llist.l(sym.symbol("identity"), sym.symbol("arg-1")),
+                ),
+            ),
+            (
+                "#(identity %& %1)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(sym.symbol("arg-1"), sym.symbol("&"), sym.symbol("arg-rest")),
+                    llist.l(
+                        sym.symbol("identity"),
+                        sym.symbol("arg-rest"),
+                        sym.symbol("arg-1"),
+                    ),
+                ),
+            ),
+            (
+                "#(identity %3)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(
+                        sym.symbol("arg-1"), sym.symbol("arg-2"), sym.symbol("arg-3")
+                    ),
+                    llist.l(sym.symbol("identity"), sym.symbol("arg-3")),
+                ),
+            ),
+            (
+                "#(identity %3 %&)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(
+                        sym.symbol("arg-1"),
+                        sym.symbol("arg-2"),
+                        sym.symbol("arg-3"),
+                        sym.symbol("&"),
+                        sym.symbol("arg-rest"),
+                    ),
+                    llist.l(
+                        sym.symbol("identity"),
+                        sym.symbol("arg-3"),
+                        sym.symbol("arg-rest"),
+                    ),
+                ),
+            ),
+            (
+                "#(identity {:arg %})",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(
+                        sym.symbol("arg-1"),
+                    ),
+                    llist.l(
+                        sym.symbol("identity"),
+                        lmap.map({kw.keyword("arg"): sym.symbol("arg-1")}),
+                    ),
+                ),
+            ),
+            (
+                "#(vec %&)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(sym.symbol("&"), sym.symbol("arg-rest")),
+                    llist.l(sym.symbol("vec"), sym.symbol("arg-rest")),
+                ),
+            ),
+            (
+                "#(vector %1 %&)",
+                llist.l(
+                    sym.symbol("fn*"),
+                    vec.v(sym.symbol("arg-1"), sym.symbol("&"), sym.symbol("arg-rest")),
+                    llist.l(
+                        sym.symbol("vector"),
+                        sym.symbol("arg-1"),
+                        sym.symbol("arg-rest"),
+                    ),
+                ),
+            ),
+        ],
     )
-    assert read_str_first("#(identity %1)") == llist.l(
-        sym.symbol("fn*"),
-        vec.v(sym.symbol("arg-1")),
-        llist.l(sym.symbol("identity"), sym.symbol("arg-1")),
-    )
-    assert read_str_first("#(identity %& %1)") == llist.l(
-        sym.symbol("fn*"),
-        vec.v(sym.symbol("arg-1"), sym.symbol("&"), sym.symbol("arg-rest")),
-        llist.l(sym.symbol("identity"), sym.symbol("arg-rest"), sym.symbol("arg-1")),
-    )
-    assert read_str_first("#(identity %3)") == llist.l(
-        sym.symbol("fn*"),
-        vec.v(sym.symbol("arg-1"), sym.symbol("arg-2"), sym.symbol("arg-3")),
-        llist.l(sym.symbol("identity"), sym.symbol("arg-3")),
-    )
-    assert read_str_first("#(identity %3 %&)") == llist.l(
-        sym.symbol("fn*"),
-        vec.v(
-            sym.symbol("arg-1"),
-            sym.symbol("arg-2"),
-            sym.symbol("arg-3"),
-            sym.symbol("&"),
-            sym.symbol("arg-rest"),
-        ),
-        llist.l(sym.symbol("identity"), sym.symbol("arg-3"), sym.symbol("arg-rest")),
-    )
-    assert read_str_first("#(identity {:arg %})") == llist.l(
-        sym.symbol("fn*"),
-        vec.v(
-            sym.symbol("arg-1"),
-        ),
-        llist.l(
-            sym.symbol("identity"), lmap.map({kw.keyword("arg"): sym.symbol("arg-1")})
-        ),
-    )
+    def test_function_reader_macro(self, code: str, v):
+        assert v == read_str_first(code)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("#(identity #(%1 %2))")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("#app/ermagrd [1 2 3]")
+    @pytest.mark.parametrize("code", ["#(identity #(%1 %2))", "#app/ermagrd [1 2 3]"])
+    def test_invalid_function_reader_macro(self, code: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(code)
 
 
 def test_deref():
