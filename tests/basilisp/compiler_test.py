@@ -5870,6 +5870,51 @@ def test_syntax_quoting(test_ns: str, lcompile: CompileFn, resolver: reader.Reso
     )
 
 
+def test_syntax_quoting_anonymous_fns_with_single_arg(
+    test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+):
+    single_arg_fn = lcompile("`#(println %)", resolver=resolver)
+    assert single_arg_fn.first == sym.symbol("fn*")
+    single_arg_vec = runtime.nth(single_arg_fn, 1)
+    assert isinstance(single_arg_vec, vec.PersistentVector)
+    single_arg = single_arg_vec[0]
+    assert isinstance(single_arg, sym.Symbol)
+    assert re.match(r"arg-1_\d+", single_arg.name) is not None
+    println_call = runtime.nth(single_arg_fn, 2)
+    assert runtime.nth(println_call, 1) == single_arg
+
+
+def test_syntax_quoting_anonymous_fns_with_multiple_args(
+    test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+):
+    multi_arg_fn = lcompile("`#(vector %1 %2 %3)", resolver=resolver)
+    assert multi_arg_fn.first == sym.symbol("fn*")
+    multi_arg_vec = runtime.nth(multi_arg_fn, 1)
+    assert isinstance(multi_arg_vec, vec.PersistentVector)
+
+    for arg in multi_arg_vec:
+        assert isinstance(arg, sym.Symbol)
+        assert re.match(r"arg-\d_\d+", arg.name) is not None
+
+    vector_call = runtime.nth(multi_arg_fn, 2)
+    assert vec.vector(runtime.nthrest(vector_call, 1)) == multi_arg_vec
+
+
+def test_syntax_quoting_anonymous_fns_with_rest_arg(
+    test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+):
+    rest_arg_fn = lcompile("`#(vec %&)", resolver=resolver)
+    assert rest_arg_fn.first == sym.symbol("fn*")
+    rest_arg_vec = runtime.nth(rest_arg_fn, 1)
+    assert isinstance(rest_arg_vec, vec.PersistentVector)
+    assert rest_arg_vec[0] == sym.symbol("&")
+    rest_arg = rest_arg_vec[1]
+    assert isinstance(rest_arg, sym.Symbol)
+    assert re.match(r"arg-rest_\d+", rest_arg.name) is not None
+    vec_call = runtime.nth(rest_arg_fn, 2)
+    assert runtime.nth(vec_call, 1) == rest_arg
+
+
 class TestThrow:
     def test_throw_not_enough_args(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):

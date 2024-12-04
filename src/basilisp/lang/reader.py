@@ -1183,11 +1183,13 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
     if ctx.is_in_anon_fn:
         raise ctx.syntax_error("Nested #() definitions not allowed")
 
+    current_ns = get_current_ns()
+
     with ctx.in_anon_fn():
         form = _read_list(ctx)
     arg_set = set()
 
-    def arg_suffix(arg_num):
+    def arg_suffix(arg_num: Optional[str]) -> str:
         if arg_num is None:
             return "1"
         elif arg_num == "&":
@@ -1195,13 +1197,15 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
         else:
             return arg_num
 
-    def sym_replacement(arg_num):
+    def sym_replacement(arg_num: Optional[str]) -> sym.Symbol:
         suffix = arg_suffix(arg_num)
+        if ctx.is_syntax_quoted:
+            suffix = f"{suffix}#"
         return sym.symbol(f"arg-{suffix}")
 
     def identify_and_replace(f):
         if isinstance(f, sym.Symbol):
-            if f.ns is None:
+            if f.ns is None or f.ns == current_ns.name:
                 match = fn_macro_args.match(f.name)
                 if match is not None:
                     arg_num = match.group(2)
@@ -1217,9 +1221,10 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
     if len(numbered_args) > 0:
         max_arg = max(numbered_args)
         arg_list = [sym_replacement(str(i)) for i in range(1, max_arg + 1)]
-        if "rest" in arg_set:
-            arg_list.append(_AMPERSAND)
-            arg_list.append(sym_replacement("rest"))
+
+    if "rest" in arg_set:
+        arg_list.append(_AMPERSAND)
+        arg_list.append(sym_replacement("rest"))
 
     return llist.l(_FN, vec.vector(arg_list), body)
 
