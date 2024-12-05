@@ -3565,7 +3565,7 @@ def _const_val_to_py_ast(
         serialized = pickle.dumps(form)
     except (pickle.PicklingError, RecursionError) as e:
         # For types without custom "constant" handling code, we defer to pickle
-        # to generate a representation taht can be reloaded from the generated
+        # to generate a representation that can be reloaded from the generated
         # byte code. There are a few cases where that may not be possible for one
         # reason or another, in which case we'll fail here.
         raise ctx.GeneratorException(

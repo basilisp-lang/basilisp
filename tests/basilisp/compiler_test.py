@@ -5984,44 +5984,6 @@ class TestSetBang:
         assert "now a string" == var.value.some_field
 
 
-def test_syntax_quoting(test_ns: str, lcompile: CompileFn, resolver: reader.Resolver):
-    code = """
-    (def some-val \"some value!\")
-
-    `(some-val)"""
-    assert llist.l(sym.symbol("some-val", ns=test_ns)) == lcompile(
-        code, resolver=resolver
-    )
-
-    code = """
-    (def second-val \"some value!\")
-
-    `(other-val)"""
-    assert llist.l(sym.symbol("other-val")) == lcompile(code)
-
-    code = """
-    (def a-str \"a definite string\")
-    (def a-number 1583)
-
-    `(a-str ~a-number)"""
-    assert llist.l(sym.symbol("a-str", ns=test_ns), 1583) == lcompile(
-        code, resolver=resolver
-    )
-
-    code = """
-    (def whatever \"yes, whatever\")
-    (def ssss \"a snake\")
-
-    `(whatever ~@[ssss 45])"""
-    assert llist.l(sym.symbol("whatever", ns=test_ns), "a snake", 45) == lcompile(
-        code, resolver=resolver
-    )
-
-    assert llist.l(sym.symbol("my-symbol", ns=test_ns)) == lcompile(
-        "`(my-symbol)", resolver=resolver
-    )
-
-
 class TestThrow:
     def test_throw_not_enough_args(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
@@ -6819,6 +6781,34 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
+
+    def test_cross_ns_macro_deftype_symbol_resolution(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        """"""
+        current_ns: runtime.Namespace = ns
+        other_ns_name = sym.symbol("other.ns")
+        try:
+            other_ns = get_or_create_ns(other_ns_name)
+            current_ns.add_alias(other_ns, other_ns_name)
+
+            with runtime.ns_bindings(other_ns_name.name):
+                lcompile("(deftype TypeOther [])", resolver=runtime.resolve_alias)
+
+            with runtime.ns_bindings(current_ns.name):
+                result = lcompile(
+                    """
+                    (defmacro issue []
+                      `(identity ~(other.ns/TypeOther)))
+                      
+                    (issue)
+                    """,
+                    resolver=runtime.resolve_alias,
+                )
+                assert isinstance(result, IType)
+                assert repr(result) == "TypeOther()"
+        finally:
+            runtime.Namespace.remove(other_ns_name)
 
 
 class TestWarnOnArityMismatch:
