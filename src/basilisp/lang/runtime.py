@@ -11,6 +11,7 @@ import itertools
 import logging
 import math
 import numbers
+import pickle  # nosec B403
 import platform
 import re
 import sys
@@ -2168,6 +2169,18 @@ def _basilisp_type(
         return cls
 
     return wrap_class
+
+
+def _load_constant(s: bytes) -> Any:
+    """Load a compiler "constant" stored as a byte string as by Python's `pickle`
+    module.
+
+    Constant types without special handling are emitted to bytecode as a byte string
+    produced by `pickle.dumps`."""
+    try:
+        return pickle.loads(s)  # nosec B301
+    except pickle.UnpicklingError as e:
+        raise RuntimeException("Unable to load constant value") from e
 
 
 ###############################

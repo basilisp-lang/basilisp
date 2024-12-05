@@ -30,7 +30,7 @@ from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SYM_INLINE_META_KW, SYM_PRIVATE_META_KEY
 from basilisp.lang.exception import format_exception
-from basilisp.lang.interfaces import IType, IWithMeta
+from basilisp.lang.interfaces import IRecord, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
 from tests.basilisp.helpers import CompileFn, get_or_create_ns
@@ -3226,10 +3226,6 @@ class TestFunctionInlining:
         assert val == 7
 
 
-def test_macro_expansion(lcompile: CompileFn):
-    assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
-
-
 class TestMacroexpandFunctions:
     @pytest.fixture
     def example_macro(self, lcompile: CompileFn):
@@ -4218,6 +4214,162 @@ class TestLoop:
             (recur (rest s) (conj accum (first s)))
             (apply str accum)))"""
         assert "tester" == lcompile(code)
+
+
+class TestMacros:
+    def test_macro_expansion(self, lcompile: CompileFn):
+        assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
+
+    def test_syntax_quoting(
+        self, test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+    ):
+        code = """
+        (def some-val \"some value!\")
+
+        `(some-val)"""
+        assert llist.l(sym.symbol("some-val", ns=test_ns)) == lcompile(
+            code, resolver=resolver
+        )
+
+        code = """
+        (def second-val \"some value!\")
+
+        `(other-val)"""
+        assert llist.l(sym.symbol("other-val")) == lcompile(code)
+
+        code = """
+        (def a-str \"a definite string\")
+        (def a-number 1583)
+
+        `(a-str ~a-number)"""
+        assert llist.l(sym.symbol("a-str", ns=test_ns), 1583) == lcompile(
+            code, resolver=resolver
+        )
+
+        code = """
+        (def whatever \"yes, whatever\")
+        (def ssss \"a snake\")
+
+        `(whatever ~@[ssss 45])"""
+        assert llist.l(sym.symbol("whatever", ns=test_ns), "a snake", 45) == lcompile(
+            code, resolver=resolver
+        )
+
+        assert llist.l(sym.symbol("my-symbol", ns=test_ns)) == lcompile(
+            "`(my-symbol)", resolver=resolver
+        )
+
+    def test_syntax_quoting_anonymous_fns_with_single_arg(
+        self, test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+    ):
+        single_arg_fn = lcompile("`#(println %)", resolver=resolver)
+        assert single_arg_fn.first == sym.symbol("fn*")
+        single_arg_vec = runtime.nth(single_arg_fn, 1)
+        assert isinstance(single_arg_vec, vec.PersistentVector)
+        single_arg = single_arg_vec[0]
+        assert isinstance(single_arg, sym.Symbol)
+        assert re.match(r"arg-1_\d+", single_arg.name) is not None
+        println_call = runtime.nth(single_arg_fn, 2)
+        assert runtime.nth(println_call, 1) == single_arg
+
+    def test_syntax_quoting_anonymous_fns_with_multiple_args(
+        self, test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+    ):
+        multi_arg_fn = lcompile("`#(vector %1 %2 %3)", resolver=resolver)
+        assert multi_arg_fn.first == sym.symbol("fn*")
+        multi_arg_vec = runtime.nth(multi_arg_fn, 1)
+        assert isinstance(multi_arg_vec, vec.PersistentVector)
+
+        for arg in multi_arg_vec:
+            assert isinstance(arg, sym.Symbol)
+            assert re.match(r"arg-\d_\d+", arg.name) is not None
+
+        vector_call = runtime.nth(multi_arg_fn, 2)
+        assert vec.vector(runtime.nthrest(vector_call, 1)) == multi_arg_vec
+
+    def test_syntax_quoting_anonymous_fns_with_rest_arg(
+        self, test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
+    ):
+        rest_arg_fn = lcompile("`#(vec %&)", resolver=resolver)
+        assert rest_arg_fn.first == sym.symbol("fn*")
+        rest_arg_vec = runtime.nth(rest_arg_fn, 1)
+        assert isinstance(rest_arg_vec, vec.PersistentVector)
+        assert rest_arg_vec[0] == sym.symbol("&")
+        rest_arg = rest_arg_vec[1]
+        assert isinstance(rest_arg, sym.Symbol)
+        assert re.match(r"arg-rest_\d+", rest_arg.name) is not None
+        vec_call = runtime.nth(rest_arg_fn, 2)
+        assert runtime.nth(vec_call, 1) == rest_arg
+
+    @pytest.mark.parametrize("code,v", [("`(s)", llist.l(sym.symbol("s")))])
+    def test_unquote(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
+    def test_unquote_arbitrary_deftypes(self, lcompile: CompileFn):
+        v = lcompile(
+            """
+        (deftype Point [a b c])
+
+        (defmacro make-point
+          [a b c]
+          `(identity ~(Point. a b c)))
+
+        (make-point 1 2 3)
+        """
+        )
+
+        assert isinstance(v, IType)
+        assert (1, 2, 3) == (v.a, v.b, v.c)
+
+    def test_unquote_arbitrary_defrecords(self, lcompile: CompileFn):
+        v = lcompile(
+            """
+        (defrecord Point [a b c])
+
+        (defmacro make-point
+          [a b c]
+          `(identity ~(Point. a b c)))
+
+        (make-point 1 2 3)
+        """
+        )
+
+        assert isinstance(v, IRecord)
+        assert (1, 2, 3) == (v.a, v.b, v.c)
+
+    @pytest.mark.parametrize("code", ["~s", "`(~s)"])
+    def test_invalid_unquote(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("`(~@[1 2 3])", llist.l(1, 2, 3)),
+            ("'(~@53233)", llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233))),
+        ],
+    )
+    def test_unquote_splicing(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            (
+                "`(print ~@[1 2 3])",
+                llist.l(sym.symbol("print", ns="basilisp.core"), 1, 2, 3),
+            )
+        ],
+    )
+    def test_unquote_splicing_with_resolver(
+        self, lcompile: CompileFn, resolver: reader.Resolver, code: str, v
+    ):
+        assert v == lcompile(code, resolver=resolver)
+
+    @pytest.mark.parametrize("code", ["~@[1 2 3]"])
+    def test_invalid_unquote_splicing(self, lcompile: CompileFn, code: str):
+        with pytest.raises(TypeError):
+            lcompile(code)
 
 
 class TestQuote:
@@ -5832,89 +5984,6 @@ class TestSetBang:
         assert "now a string" == var.value.some_field
 
 
-def test_syntax_quoting(test_ns: str, lcompile: CompileFn, resolver: reader.Resolver):
-    code = """
-    (def some-val \"some value!\")
-
-    `(some-val)"""
-    assert llist.l(sym.symbol("some-val", ns=test_ns)) == lcompile(
-        code, resolver=resolver
-    )
-
-    code = """
-    (def second-val \"some value!\")
-
-    `(other-val)"""
-    assert llist.l(sym.symbol("other-val")) == lcompile(code)
-
-    code = """
-    (def a-str \"a definite string\")
-    (def a-number 1583)
-
-    `(a-str ~a-number)"""
-    assert llist.l(sym.symbol("a-str", ns=test_ns), 1583) == lcompile(
-        code, resolver=resolver
-    )
-
-    code = """
-    (def whatever \"yes, whatever\")
-    (def ssss \"a snake\")
-
-    `(whatever ~@[ssss 45])"""
-    assert llist.l(sym.symbol("whatever", ns=test_ns), "a snake", 45) == lcompile(
-        code, resolver=resolver
-    )
-
-    assert llist.l(sym.symbol("my-symbol", ns=test_ns)) == lcompile(
-        "`(my-symbol)", resolver=resolver
-    )
-
-
-def test_syntax_quoting_anonymous_fns_with_single_arg(
-    test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
-):
-    single_arg_fn = lcompile("`#(println %)", resolver=resolver)
-    assert single_arg_fn.first == sym.symbol("fn*")
-    single_arg_vec = runtime.nth(single_arg_fn, 1)
-    assert isinstance(single_arg_vec, vec.PersistentVector)
-    single_arg = single_arg_vec[0]
-    assert isinstance(single_arg, sym.Symbol)
-    assert re.match(r"arg-1_\d+", single_arg.name) is not None
-    println_call = runtime.nth(single_arg_fn, 2)
-    assert runtime.nth(println_call, 1) == single_arg
-
-
-def test_syntax_quoting_anonymous_fns_with_multiple_args(
-    test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
-):
-    multi_arg_fn = lcompile("`#(vector %1 %2 %3)", resolver=resolver)
-    assert multi_arg_fn.first == sym.symbol("fn*")
-    multi_arg_vec = runtime.nth(multi_arg_fn, 1)
-    assert isinstance(multi_arg_vec, vec.PersistentVector)
-
-    for arg in multi_arg_vec:
-        assert isinstance(arg, sym.Symbol)
-        assert re.match(r"arg-\d_\d+", arg.name) is not None
-
-    vector_call = runtime.nth(multi_arg_fn, 2)
-    assert vec.vector(runtime.nthrest(vector_call, 1)) == multi_arg_vec
-
-
-def test_syntax_quoting_anonymous_fns_with_rest_arg(
-    test_ns: str, lcompile: CompileFn, resolver: reader.Resolver
-):
-    rest_arg_fn = lcompile("`#(vec %&)", resolver=resolver)
-    assert rest_arg_fn.first == sym.symbol("fn*")
-    rest_arg_vec = runtime.nth(rest_arg_fn, 1)
-    assert isinstance(rest_arg_vec, vec.PersistentVector)
-    assert rest_arg_vec[0] == sym.symbol("&")
-    rest_arg = rest_arg_vec[1]
-    assert isinstance(rest_arg, sym.Symbol)
-    assert re.match(r"arg-rest_\d+", rest_arg.name) is not None
-    vec_call = runtime.nth(rest_arg_fn, 2)
-    assert runtime.nth(vec_call, 1) == rest_arg
-
-
 class TestThrow:
     def test_throw_not_enough_args(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
@@ -6136,29 +6205,6 @@ class TestTryCatch:
                 (finally (python/print "but this is worse")))
             """
             )
-
-
-def test_unquote(lcompile: CompileFn):
-    with pytest.raises(compiler.CompilerException):
-        lcompile("~s")
-
-    assert llist.l(sym.symbol("s")) == lcompile("`(s)")
-
-    with pytest.raises(compiler.CompilerException):
-        lcompile("`(~s)")
-
-
-def test_unquote_splicing(lcompile: CompileFn, resolver: reader.Resolver):
-    with pytest.raises(TypeError):
-        lcompile("~@[1 2 3]")
-
-    assert llist.l(1, 2, 3) == lcompile("`(~@[1 2 3])")
-
-    assert llist.l(sym.symbol("print", ns="basilisp.core"), 1, 2, 3) == lcompile(
-        "`(print ~@[1 2 3])", resolver=resolver
-    )
-
-    assert llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233)) == lcompile("'(~@53233)")
 
 
 class TestSymbolResolution:
@@ -6735,6 +6781,52 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
+
+    def test_cross_ns_macro_deftype_symbol_resolution(
+        self,
+        lcompile: CompileFn,
+        tmp_path: pathlib.Path,
+        monkeypatch,
+    ):
+        """"""
+        cross_ns_deftype_test_dir = tmp_path / "cross_ns_deftype_test"
+        cross_ns_deftype_test_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.syspath_prepend(tmp_path)
+
+        other_ns_file = cross_ns_deftype_test_dir / "other.lpy"
+        other_ns_file.write_text(
+            """
+            (ns cross-ns-deftype-test.other)
+
+            (deftype TypeOther [])
+            """
+        )
+
+        main_ns_file = cross_ns_deftype_test_dir / "issue.lpy"
+        main_ns_file.write_text(
+            """
+            (ns cross-ns-deftype-test.issue
+              (:require cross-ns-deftype-test.other))
+
+            (defmacro issue []
+              `(identity ~(cross-ns-deftype-test.other/TypeOther)))
+
+            (def result [(issue) (cross-ns-deftype-test.other/TypeOther)])
+            """
+        )
+
+        result = lcompile(
+            """
+            (require 'cross-ns-deftype-test.issue)
+
+            cross-ns-deftype-test.issue/result
+            """
+        )
+
+        assert isinstance(result[0], type(result[1]))
+
+        sys.modules.pop("cross_ns_deftype_test.issue")
+        sys.modules.pop("cross_ns_deftype_test.other")
 
 
 class TestWarnOnArityMismatch:
