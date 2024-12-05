@@ -2172,7 +2172,8 @@ def _basilisp_type(
 
 
 def _load_constant(s: bytes) -> Any:
-    """Load a constant stored as a byte string as by Python's `pickle` module.
+    """Load a compiler "constant" stored as a byte string as by Python's `pickle`
+    module.
 
     Constant types without special handling are emitted to bytecode as a byte string
     produced by `pickle.dumps`."""
