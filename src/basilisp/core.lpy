@@ -391,7 +391,7 @@
           body   (if fmeta
                    (rest body)
                    body)
-          multi? (list? (first body))
+          multi? (seq? (first body))
           fsigs  (if multi?
                    (loop [arities body
                           sigs    []]
@@ -617,7 +617,7 @@
           fname  (if doc
                    (vary-meta name assoc :doc doc :macro true)
                    (vary-meta name assoc :macro true))
-          multi? (list? (first body))
+          multi? (seq? (first body))
           fsigs  (if multi?
                    (loop [arities body
                           sigs    []]
@@ -6528,7 +6528,7 @@
       (not (seq specs))
       (assoc groups iface methods)
 
-      (list? (first specs))
+      (seq? (first specs))
       (recur iface
              (rest specs)
              (conj methods (first specs))

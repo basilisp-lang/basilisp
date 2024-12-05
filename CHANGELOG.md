@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `condp` would throw an exception if a result expression was `nil` (#1137)
  * Fix a bug where integer division which resulted in an integer would return a `fractions.Fraction` (#1140)
  * Fix a bug where `basilisp.core/time` would fail to expand with `macroexpand-all` in a nested macro call (#1143)
+ * Fix a bug where `defn` and `defmacro` forms containing multiple arities could not be emitted by macros (#1163) 
 
 ## [v0.3.2]
 ### Added
