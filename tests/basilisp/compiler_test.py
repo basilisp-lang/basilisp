@@ -6783,32 +6783,50 @@ class TestSymbolResolution:
             runtime.Namespace.remove(third_ns_name)
 
     def test_cross_ns_macro_deftype_symbol_resolution(
-        self, lcompile: CompileFn, ns: runtime.Namespace
+        self,
+        lcompile: CompileFn,
+        tmp_path: pathlib.Path,
+        monkeypatch,
     ):
         """"""
-        current_ns: runtime.Namespace = ns
-        other_ns_name = sym.symbol("other.ns")
-        try:
-            other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns, other_ns_name)
+        cross_ns_deftype_test_dir = tmp_path / "cross_ns_deftype_test"
+        cross_ns_deftype_test_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.syspath_prepend(tmp_path)
 
-            with runtime.ns_bindings(other_ns_name.name):
-                lcompile("(deftype TypeOther [])", resolver=runtime.resolve_alias)
+        other_ns_file = cross_ns_deftype_test_dir / "other.lpy"
+        other_ns_file.write_text(
+            """
+            (ns cross-ns-deftype-test.other)
 
-            with runtime.ns_bindings(current_ns.name):
-                result = lcompile(
-                    """
-                    (defmacro issue []
-                      `(identity ~(other.ns/TypeOther)))
-                      
-                    (issue)
-                    """,
-                    resolver=runtime.resolve_alias,
-                )
-                assert isinstance(result, IType)
-                assert repr(result) == "TypeOther()"
-        finally:
-            runtime.Namespace.remove(other_ns_name)
+            (deftype TypeOther [])
+            """
+        )
+
+        main_ns_file = cross_ns_deftype_test_dir / "issue.lpy"
+        main_ns_file.write_text(
+            """
+            (ns cross-ns-deftype-test.issue
+              (:require cross-ns-deftype-test.other))
+
+            (defmacro issue []
+              `(identity ~(cross-ns-deftype-test.other/TypeOther)))
+
+            (def result [(issue) (cross-ns-deftype-test.other/TypeOther)])
+            """
+        )
+
+        result = lcompile(
+            """
+            (require 'cross-ns-deftype-test.issue)
+
+            cross-ns-deftype-test.issue/result
+            """
+        )
+
+        assert isinstance(result[0], type(result[1]))
+
+        sys.modules.pop("cross_ns_deftype_test.issue")
+        sys.modules.pop("cross_ns_deftype_test.other")
 
 
 class TestWarnOnArityMismatch:
