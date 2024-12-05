@@ -30,7 +30,7 @@ from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SYM_INLINE_META_KW, SYM_PRIVATE_META_KEY
 from basilisp.lang.exception import format_exception
-from basilisp.lang.interfaces import IType, IWithMeta
+from basilisp.lang.interfaces import IRecord, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
 from tests.basilisp.helpers import CompileFn, get_or_create_ns
@@ -4319,6 +4319,22 @@ class TestMacros:
         )
 
         assert isinstance(v, IType)
+        assert (1, 2, 3) == (v.a, v.b, v.c)
+
+    def test_unquote_arbitrary_defrecords(self, lcompile: CompileFn):
+        v = lcompile(
+            """
+        (defrecord Point [a b c])
+
+        (defmacro make-point
+          [a b c]
+          `(identity ~(Point. a b c)))
+
+        (make-point 1 2 3)
+        """
+        )
+
+        assert isinstance(v, IRecord)
         assert (1, 2, 3) == (v.a, v.b, v.c)
 
     @pytest.mark.parametrize("code", ["~s", "`(~s)"])

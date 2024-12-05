@@ -36,9 +36,11 @@ def test_ns_sym(test_ns: str) -> sym.Symbol:
 def ns(test_ns: str, test_ns_sym: sym.Symbol) -> runtime.Namespace:
     get_or_create_ns(test_ns_sym)
     with runtime.ns_bindings(test_ns) as ns:
+        sys.modules[ns.module.__name__] = ns.module
         try:
             yield ns
         finally:
+            del sys.modules[ns.module.__name__]
             runtime.Namespace.remove(test_ns_sym)
 
 

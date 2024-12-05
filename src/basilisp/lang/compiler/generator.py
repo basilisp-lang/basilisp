@@ -7,7 +7,7 @@ import contextlib
 import functools
 import hashlib
 import logging
-import pickle
+import pickle  # nosec B403
 import re
 import uuid
 from collections.abc import Collection, Iterable, Mapping, MutableMapping
@@ -96,7 +96,7 @@ from basilisp.lang.compiler.utils import (
     ast_ClassDef,
     ast_FunctionDef,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
 from basilisp.lang.runtime import BasilispModule, Var
