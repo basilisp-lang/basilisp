@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for the optional `attr-map?` on the `ns` macro (#1159)
+ * Added support for the optional pre- and post-conditions in `fn` forms (#1167)
 
 ### Fixed
  * Fix a bug where `#` characters were not legal in keywords and symbols (#1149)

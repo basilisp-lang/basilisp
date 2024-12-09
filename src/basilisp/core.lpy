@@ -5940,6 +5940,25 @@
   (let [args         (first body)
         arg-vec-meta (meta args)
         body         (rest body)
+        conditions   (when (and (next body) (map? (first body)))
+                       (first body))
+        body         (if conditions
+                       (rest body)
+                       body)
+
+        conditions (or conditions arg-vec-meta)
+        pre-conds  (:pre conditions)
+        post-conds (:post conditions)
+        body       (if post-conds
+                     [`(let [~'% (do ~@body)]
+                         ~@(map (fn* [c] `(assert ~c)) post-conds)
+                         ~'%)]
+                     body)
+        body       (if pre-conds
+                     (concat
+                      (map (fn* [c] `(assert ~c)) pre-conds)
+                      body)
+                     body)
 
         arg-groups (split-with (partial not= '&) args)
         args       (first arg-groups)
@@ -5964,6 +5983,7 @@
                       (filter #(not= :symbol (:type %)))
                       (mapcat destructure-binding)
                       (concat rest-binding))
+
         new-body (if (seq bindings)
                    [`(let* [~@bindings]
                        ~@body)]
