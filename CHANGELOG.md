@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for the `:decorators` meta key in anonymous `fn`s (#1178)
+ * Added support for proxies (#425)
 
 ### Changed
  * `import` now returns nil instead of the last module's string representation (#1174)
