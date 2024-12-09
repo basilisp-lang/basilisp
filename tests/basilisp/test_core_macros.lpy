@@ -1795,6 +1795,104 @@
                         (conj accum [a b c d e f v]))
                  [coll accum])))))))
 
+(deftest fn-pre-and-post-condition-test
+  (testing "fn with map as body member does not count as condition map"
+    (let [f (fn [v]
+              {:pre  [v]
+               :post [:nothin]})]
+      (is (= {:pre [1] :post [:nothin]} (f 1)))))
+
+  (testing "pre-condition only"
+    (testing "empty pre-condition vec"
+      (let [f (fn [x]
+                {:pre []}
+                (* x x))]
+        (is (= 1 (f 1)))
+        (is (= 100 (f 10)))
+        (is (= 0 (f 0)))
+        (is (= 25 (f -5)))))
+
+    (testing "single pre-condition"
+      (let [f (fn [x]
+                {:pre [(pos? x)]}
+                (* x x))]
+        (is (= 1 (f 1)))
+        (is (= 100 (f 10)))
+        (is (thrown? python/AssertionError
+                     (f 0)))
+        (is (thrown? python/AssertionError
+                     (f -5)))))
+
+    (testing "multiple pre-condition"
+      (let [f (fn [x]
+                {:pre [(pos? x) (even? x)]}
+                (* x x))]
+        (is (= 4 (f 2)))
+        (is (= 100 (f 10)))
+        (is (thrown? python/AssertionError
+                     (f 1)))
+        (is (thrown? python/AssertionError
+                     (f 0)))
+        (is (thrown? python/AssertionError
+                     (f -5)))
+        (is (thrown? python/AssertionError
+                     (f -6))))))
+
+  (testing "post-condition only"
+    (testing "empty post-condition vec"
+      (let [f (fn [x]
+                {:post []}
+                (* x x))]
+        (is (= 1 (f 1)))
+        (is (= 100 (f 10)))
+        (is (= 0 (f 0)))
+        (is (= 25 (f -5)))))
+
+    (testing "single post-condition"
+      (let [f (fn [x]
+                {:post [(> % 16)]}
+                (* x x))]
+        (is (= 25 (f 5)))
+        (is (= 100 (f 10)))
+        (is (thrown? python/AssertionError
+                     (f 1)))
+        (is (thrown? python/AssertionError
+                     (f -3)))))
+
+    (testing "multiple post-condition"
+      (let [f (fn [x]
+                {:post [(> % 16) (< % 225)]}
+                (* x x))]
+        (is (= 25 (f 5)))
+        (is (= 25 (f -5)))
+        (is (= 196 (f 14)))
+        (is (thrown? python/AssertionError
+                     (f 1)))
+        (is (thrown? python/AssertionError
+                     (f 0)))
+        (is (thrown? python/AssertionError
+                     (f 15)))
+        (is (thrown? python/AssertionError
+                     (f 100))))))
+
+  (testing "pre- and post-conditions"
+    (let [f (fn [x]
+              {:pre  [(pos? x)]
+               :post [(> % 16) (< % 225)]}
+              (* x x))]
+      (is (= 25 (f 5)))
+      (is (= 196 (f 14)))
+      (is (thrown? python/AssertionError
+                   (f 1)))
+      (is (thrown? python/AssertionError
+                   (f 0)))
+      (is (thrown? python/AssertionError
+                   (f 15)))
+      (is (thrown? python/AssertionError
+                   (f 100)))
+      (is (thrown? python/AssertionError
+                   (f -5))))))
+
 (defmacro ^:private variadic-fn []
   `(fn [& r#] r#))
 
