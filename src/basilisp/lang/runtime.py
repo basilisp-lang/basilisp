@@ -309,6 +309,7 @@ class Var(RefBase):
         self._is_bound = True
         self._root = newval
         self._notify_watches(oldval, newval)
+        return newval
 
     @property
     def root(self):
@@ -322,9 +323,10 @@ class Var(RefBase):
 
     def alter_root(self, f, *args) -> None:
         """Atomically alter the root binding of this Var to the result of calling
-        f with the existing root value and any additional arguments."""
+        f with the existing root value and any additional arguments. Returns the
+        new value."""
         with self._lock:
-            self._set_root(f(self._root, *args))
+            return self._set_root(f(self._root, *args))
 
     def push_bindings(self, val):
         if not self._dynamic or self._tl is None:

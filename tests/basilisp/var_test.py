@@ -392,8 +392,9 @@ def test_alter_var_root(
         assert alter_args == args
         return new_root
 
-    v.alter_root(alter_root, *alter_args)
+    return_value = v.alter_root(alter_root, *alter_args)
 
+    assert new_root == return_value
     assert new_root == v.root
     assert new_root == v.value
     assert new_root == v.deref()
