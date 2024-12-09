@@ -131,7 +131,7 @@ You can suppress those warnings locally by attaching the ``^:no-warn-on-var-indi
 
 .. note::
 
-   Changes to Vars which were direct linked will not be propagated to any code that used the direct link, rather than Var indirection.
+   Changes to Vars (such as with :lpy:fn:`alter-var-root`) which were direct linked will not be propagated to any code that used the direct link, rather than Var indirection.
 
 .. note::
 

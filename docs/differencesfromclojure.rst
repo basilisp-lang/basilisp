@@ -159,6 +159,8 @@ basilisp.core
 
 - :lpy:fn:`basilisp.core/float` coerces its argument to a floating-point number. When given a string input, Basilisp will try to parse it as a floating-point number, whereas Clojure will raise an error if the input is a character or a string.
 
+- :lpy:fn:`basilisp.core/alter-var-root`: updates to a Var’s root via this function may not reflect in code that directly references the Var unless the Var is marked with ``^:redef`` metadata or declared as a dynamic variable. This is due to the :ref:`Direct Linking Optimization <direct_linking>` and differs with Clojure where such changes are always visible.
+
 .. _refs_and_transactions_differences:
 
 Refs and Transactions
