@@ -1866,7 +1866,7 @@
     ;; ... unless the var is referenced explicitly.
     (is (= 8 @#'test-var-unadorned)))
 
-  (testing "on :^redef var"
+  (testing "on ^:redef var"
     (is (= 20 (alter-var-root #'test-var-redef inc)))
     ;; altering the root is reflected in the code because the variable
     ;; was defined with ^:redef.
