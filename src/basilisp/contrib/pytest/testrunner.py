@@ -11,12 +11,14 @@ from typing import Callable, Optional
 import pytest
 
 from basilisp import main as basilisp
+from basilisp.importer import read_namespace_name
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
+from basilisp.lang.util import munge
 from basilisp.util import Maybe
 
 _EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
@@ -177,29 +179,6 @@ def _is_package(path: Path) -> bool:
     return False
 
 
-def _get_fully_qualified_module_name(file: Path) -> str:
-    """Return the fully qualified module name (from the import root) for a module given
-    its location.
-
-    This works by traversing up the filesystem looking for the top-most package. From
-    there, we derive a Python module name referring to the given module path."""
-    top = None
-    for p in file.parents:
-        if _is_package(p):
-            top = p
-        else:
-            break
-
-    if top is None or top == file.parent:
-        return file.stem
-
-    root = top.parent
-    elems = list(file.with_suffix("").relative_to(root).parts)
-    if elems[-1] == "__init__":
-        elems.pop()
-    return ".".join(elems)
-
-
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
 
@@ -251,7 +230,18 @@ class BasilispFile(pytest.File):
         self._fixture_manager.teardown()
 
     def _import_module(self) -> runtime.BasilispModule:
-        modname = _get_fully_qualified_module_name(self.path)
+        """Import the Basilisp module at `self.path` and return it.
+
+        Raises ImportError if the Basilisp module does not declare a
+        namespace name.
+
+        """
+        ns_name = read_namespace_name(self.path)
+        if ns_name is not None:
+            modname = munge(ns_name)
+        else:
+            raise ImportError(f"Can't find Basilisp namespace name in {self.path}")
+
         module = importlib.import_module(modname)
         assert isinstance(module, runtime.BasilispModule)
         return module
