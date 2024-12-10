@@ -1565,14 +1565,16 @@
       (is (= true (realized? fut)))))
 
   (testing "timed deref of future"
-    (let [fut (future (time/sleep 3))
+    (let [pre (time/perf-counter)
+          fut (future (time/sleep 3))
           start (time/perf-counter)
           ;; block for 100ms
           ret (deref fut 100 :timed-out)
           end (time/perf-counter)
           diff (- end start)]
       (is (= :timed-out ret))
-      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"))
+      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"
+                              " -- :pre " pre " :start " start " :end " end))
       (is (= false (future-cancelled? fut)))
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future
