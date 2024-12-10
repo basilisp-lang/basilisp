@@ -261,3 +261,107 @@ def test_fixtures_with_errors(
     pytester.syspathinsert()
     result: pytest.RunResult = pytester.runpytest()
     result.assert_outcomes(passed=passes, failed=failures, errors=errors)
+
+
+def test_ns_in_syspath(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch):
+    code = """
+    (ns a.test-path
+      (:require
+       [basilisp.test :refer [deftest is]]))
+
+    (deftest passing-test
+      (is true))
+
+    (deftest failing-test
+      (is false))
+    """
+    pytester.makefile(".lpy", **{"./test/a/test_path": code})
+    pytester.syspathinsert()
+    # ensure `a` namespace is in sys.path
+    monkeypatch.syspath_prepend(pytester.path / "test")
+    result: pytest.RunResult = pytester.runpytest("test")
+    result.assert_outcomes(passed=1, failed=1)
+
+
+def test_ns_in_syspath_w_src(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+):
+    code_src = """
+    (ns a.src)
+    (def abc 5)
+    """
+
+    code = """
+    (ns a.test-path
+      (:require
+       a.src
+       [basilisp.test :refer [deftest is]]))
+
+    (deftest a-test (is (= a.src/abc 5)))
+
+    (deftest passing-test
+      (is true))
+
+    (deftest failing-test
+      (is false))
+    """
+    # a slightly more complicated setup where packages under namespace
+    # `a` are both in src and test.
+    pytester.makefile(".lpy", **{"./test/a/test_path": code, "./src/a/src": code_src})
+    pytester.syspathinsert()
+    # ensure src and test is in sys.path
+    monkeypatch.syspath_prepend(pytester.path / "test")
+    monkeypatch.syspath_prepend(pytester.path / "src")
+    result: pytest.RunResult = pytester.runpytest("test")
+    result.assert_outcomes(passed=2, failed=1)
+
+
+def test_ns_not_in_syspath(pytester: pytest.Pytester):
+    code = """
+    (ns a.test-path
+      (:require
+       [basilisp.test :refer [deftest is]]))
+    """
+    pytester.makefile(".lpy", **{"./test/a/test_path": code})
+    pytester.syspathinsert()
+    result: pytest.RunResult = pytester.runpytest("test")
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(["*ModuleNotFoundError: No module named 'a'"])
+
+
+def test_ns_with_underscore(pytester: pytest.Pytester):
+    code = """
+    (ns test_underscore
+      (:require
+       [basilisp.test :refer [deftest is]]))
+
+    (deftest passing-test
+      (is true))
+
+    (deftest failing-test
+      (is false))
+    """
+    pytester.makefile(".lpy", test_underscore=code)
+    pytester.syspathinsert()
+    result: pytest.RunResult = pytester.runpytest()
+    result.assert_outcomes(passed=1, failed=1)
+
+
+def test_no_ns(pytester: pytest.Pytester):
+    code = """
+    (in-ns 'abc)
+    (require '[basilisp.test :refer [deftest is]]))
+
+    (deftest passing-test
+      (is true))
+
+    (deftest failing-test
+      (is false))
+    """
+    pytester.makefile(".lpy", test_under=code)
+    pytester.syspathinsert()
+    result: pytest.RunResult = pytester.runpytest()
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(
+        ["*ImportError: Can't find Basilisp namespace name in*"]
+    )

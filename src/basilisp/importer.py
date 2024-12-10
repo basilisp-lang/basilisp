@@ -9,11 +9,13 @@ from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import ModuleSpec
+from pathlib import Path
 from typing import Any, Optional, cast
 
 from typing_extensions import TypedDict
 
 from basilisp.lang import compiler as compiler
+from basilisp.lang import list as lst
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
@@ -127,6 +129,23 @@ def _is_namespace_package(path: str) -> bool:
     return no_inits and has_basilisp_files
 
 
+def read_namespace_name(file: Path) -> str:
+    """Read the top-level `ns` form from Basilisp `file` and return
+    its name. Return None if the the top sexp is not a valid `ns`
+    form.
+
+    """
+    ns_form = next(reader.read_file(file))
+    if (
+        (isinstance(ns_form, lst.PersistentList) and len(ns_form) > 1)
+        and str(ns_form[0]) == "ns"
+        and isinstance(ns_form[1], sym.Symbol)
+    ):
+        return ns_form[1].name
+    else:
+        return None
+
+
 class ImporterCacheEntry(TypedDict, total=False):
     spec: ModuleSpec
     module: BasilispModule
@@ -155,7 +174,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             module_name = package_components
         else:
             module_name = [package_components[-1]]
-
         for entry in path:
             root_path = os.path.join(entry, *module_name)
             filenames = [
@@ -394,7 +412,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         # a blank module. If we do not replace the module here with the module we are
         # generating, then we will not be able to use advanced compilation features such
         # as direct Python variable access to functions and other def'ed values.
-        ns_name = demunge(fullname)
+        ns_name = name if (name := read_namespace_name(filename)) else demunge(fullname)
         ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
         ns.module = module
         module.__basilisp_namespace__ = ns
