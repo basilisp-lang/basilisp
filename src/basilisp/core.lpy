@@ -4735,7 +4735,14 @@
 
 (defn alter-var-root
   "Atomically alter the Var root by calling ``(apply f root args)`` and setting the root
-  as the result."
+  as the result. Returns the new value.
+
+  .. note::
+  
+     Due to Basilisp's :ref:`Direct Linking Optimization <direct_linking>`, changes to
+     a Var's root value may not be reflected in the code unless the Var is dynamic.
+     To ensure updates propagate, set the Var's `^:redef` metadata, which disables
+     direct linking."
   [v f & args]
   (apply-method v alter-root f args))
 

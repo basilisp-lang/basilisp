@@ -1565,14 +1565,16 @@
       (is (= true (realized? fut)))))
 
   (testing "timed deref of future"
-    (let [fut (future (time/sleep 3))
+    (let [pre (time/perf-counter)
+          fut (future (time/sleep 3))
           start (time/perf-counter)
           ;; block for 100ms
           ret (deref fut 100 :timed-out)
           end (time/perf-counter)
           diff (- end start)]
       (is (= :timed-out ret))
-      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"))
+      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"
+                              " -- :pre " pre " :start " start " :end " end))
       (is (= false (future-cancelled? fut)))
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future
@@ -1848,6 +1850,37 @@
 (deftest var-test
   (testing "calling vars"
     (is (= '(1 2) (#'basilisp.core/list 1 2)))))
+
+;;;;;;;;;;;;;;;;;;;
+;; Var Utilities ;;
+;;;;;;;;;;;;;;;;;;;
+
+(def test-var-unadorned 7)
+(def ^:redef test-var-redef 19)
+(def ^:dynamic test-var-dynamic 23)
+
+(deftest test-alter-var-root
+  (testing "on unadorned var"
+    (is (= 8 (alter-var-root #'test-var-unadorned inc)))
+    ;; Basilisp Direct Linking Optimization side effect: altering the
+    ;; root var on variables is not reflected back to the code ...
+    (is (= 7 test-var-unadorned))
+    ;; ... unless the var is referenced explicitly.
+    (is (= 8 @#'test-var-unadorned)))
+
+  (testing "on ^:redef var"
+    (is (= 20 (alter-var-root #'test-var-redef inc)))
+    ;; altering the root is reflected in the code because the variable
+    ;; was defined with ^:redef.
+    (is (= 20 test-var-redef))
+    (is (= 20 @#'test-var-redef)))
+
+  (testing "on dynamic var"
+    (is (= 24 (alter-var-root #'test-var-dynamic inc)))
+    ;; altering the root is reflected in the code because the variable
+    ;; is dynamic.
+    (is (= 24 test-var-dynamic))
+    (is (= 24 @#'test-var-dynamic))))
 
 ;;;;;;;;;;;;;;;;;
 ;; Hierarchies ;;
