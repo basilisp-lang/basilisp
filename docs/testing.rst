@@ -88,6 +88,10 @@ However, the ``test`` directory must be explicity added to the `PYTHONPATH` usin
 
    $ basilisp test --include-path test
 
+.. note::
+
+   Test directory names can be arbitrary. By default, the test runner searches all subdirectories for tests. In the first example above (``tests``, a Python convention), the top-level directory is already in the `PYTHONPATH`, allowing ``tests.myproject.core-test`` to be resolvable. In the second example (``test``, a Clojure convention), the test directory is explicitly added to the `PYTHONPATH`, enabling ``myproject.core-test`` to be resolvable.
+
 .. _test_fixtures:
 
 Fixtures

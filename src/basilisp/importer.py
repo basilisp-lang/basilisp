@@ -129,13 +129,13 @@ def _is_namespace_package(path: str) -> bool:
     return no_inits and has_basilisp_files
 
 
-def read_namespace_name(file: Path) -> str:
+def read_namespace_name(file: Path) -> Optional[str]:
     """Read the top-level `ns` form from Basilisp `file` and return
     its name. Return None if the the top sexp is not a valid `ns`
     form.
 
     """
-    ns_form = next(reader.read_file(file))
+    ns_form = next(iter(reader.read_file(str(file))))
     if (
         (isinstance(ns_form, lst.PersistentList) and len(ns_form) > 1)
         and str(ns_form[0]) == "ns"
