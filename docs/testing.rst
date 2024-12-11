@@ -67,7 +67,7 @@ Tests can be run with:
 
 ----
 
-Alternatively, you can follow the more tradiation Clojure project structure by creating a `test` (or similar) directory for your test namespaces:
+Alternatively, you can follow the more traditional Clojure project structure by creating a `test` directory for your test namespaces:
 
 .. code-block:: text
 
@@ -82,7 +82,7 @@ In this case, the test namespace can start at ``myproject``:
    (ns myproject.core-test)
 
 
-However, the ``test`` directory must be explicity added to the `PYTHONPATH` using the ``--include-path`` (or ``-p``) option when running the tests:
+However, the ``test`` directory must be explicitly added to the `PYTHONPATH` using the ``--include-path`` (or ``-p``) option when running the tests:
 
 .. code-block:: shell
 

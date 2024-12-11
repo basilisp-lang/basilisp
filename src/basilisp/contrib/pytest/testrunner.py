@@ -59,8 +59,8 @@ def pytest_unconfigure(config):
         runtime.pop_thread_bindings()
 
 
-def pytest_collect_file(  # pylint: disable=unused-argument
-    file_path: Path, path, parent
+def pytest_collect_file(
+    file_path: Path, parent
 ):
     """Primary PyTest hook to identify Basilisp test files."""
     if file_path.suffix == ".lpy":
