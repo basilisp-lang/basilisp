@@ -5291,6 +5291,7 @@
                    (first opts))
         metadata (merge (->> (meta name)
                              (remove #(= (namespace (key %)) "basilisp.lang.reader"))
+                             (mapcat identity)
                              (apply hash-map))
                         {:doc doc}
                         attr-map)
