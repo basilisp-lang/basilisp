@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * `alter-var-root` now returns the new value to align with Clojure behavior. Updated the docstring to highlight side effects of direct linking optimization (#1166)
 
+### Fixed
+ * Fix a regression introduced in #1161 which prevented passing namespace metadata on the name in the `ns` macro (#1173)
+
 ## [v0.3.4]
 ### Added
  * Added support for the optional `attr-map?` on the `ns` macro (#1159)
