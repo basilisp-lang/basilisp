@@ -3916,13 +3916,13 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST[ast.expr
 #############################
 
 
-def _module_imports(ns: runtime.Namespace) -> Iterable[ast.Import]:
+def _module_imports() -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
     # Yield `import basilisp` so code attempting to call fully qualified
     # `basilisp.lang...` modules don't result in compiler errors
     yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
-    for s in sorted(ns.imports.keys(), key=lambda s: s.name):
+    for s in sorted(runtime.Namespace.DEFAULT_IMPORTS, key=lambda s: s.name):
         name = s.name
         alias = _MODULE_ALIASES.get(name, None)
         yield ast.Import(names=[ast.alias(name=name, asname=alias)])
@@ -3970,10 +3970,10 @@ def _ns_var(
     )
 
 
-def py_module_preamble(ns: runtime.Namespace) -> GeneratedPyAST:
+def py_module_preamble() -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: list[PyASTNode] = []
-    preamble.extend(_module_imports(ns))
+    preamble.extend(_module_imports())
     preamble.extend(_from_module_imports())
     preamble.append(_ns_var())
     return GeneratedPyAST(node=ast.Constant(None), dependencies=preamble)
