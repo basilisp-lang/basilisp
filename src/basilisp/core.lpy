@@ -4937,7 +4937,8 @@
   ;; old python global ns where the import would have been evaluated
   ;; otherwise.
   (let [form `(import* ~@modules)]
-    `(eval '~form  *ns*)))
+    `(do (eval '~form  *ns*)
+         nil)))
 
 (defn ^:private rewrite-clojure-libspec
   "Rewrite libspecs which point to namespaces starting with 'clojure.' to use a
