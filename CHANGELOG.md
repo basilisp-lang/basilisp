@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.5]
 ### Changed
  * `alter-var-root` now returns the new value to align with Clojure behavior. Updated the docstring to highlight side effects of direct linking optimization (#1166)
 
@@ -678,6 +679,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.3.5]: https://github.com/basilisp-lang/basilisp/compare/v0.3.4..v0.3.5
 [v0.3.4]: https://github.com/basilisp-lang/basilisp/compare/v0.3.3..v0.3.4
 [v0.3.3]: https://github.com/basilisp-lang/basilisp/compare/v0.3.2..v0.3.3
 [v0.3.2]: https://github.com/basilisp-lang/basilisp/compare/v0.3.1..v0.3.2
