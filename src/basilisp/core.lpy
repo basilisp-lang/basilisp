@@ -4936,9 +4936,9 @@
   ;; to the new ns, the global python namespace can still refer to the
   ;; old python global ns where the import would have been evaluated
   ;; otherwise.
-  (let [form `(import* ~@modules)]
-    `(do (eval '~form  *ns*)
-         nil)))
+  (let [form `(do (import* ~@modules)
+                  nil)]
+    `(eval '~form  *ns*)))
 
 (defn ^:private rewrite-clojure-libspec
   "Rewrite libspecs which point to namespaces starting with 'clojure.' to use a
