@@ -1,8 +1,31 @@
 (ns tests.basilisp.test-core-macros
-  (:import contextlib inspect os socket tempfile)
+  (:import asyncio contextlib inspect os socket tempfile)
   (:require
    [basilisp.string :as str]
    [basilisp.test :refer [deftest is are testing]]))
+
+(deftest fn-decorators-test
+  (testing "decorators"
+    (testing "in form meta"
+      (let [add-5% #(fn [] (+ (%) 5))
+            f1  ^{:decorators [add-5%]} (fn [] 7)]
+        (is (= 12 (f1)))))
+
+    (testing "in fn name meta"
+      (let [add-5% #(fn [] (+ (%) 5))
+            f2  (fn ^{:decorators [add-5%]} a-fn [] 13)]
+        (is (= 18 (f2)))))
+
+    (testing "with single arg"
+      (let [add-x% (fn [x] #(fn [] (+ (%) x)))
+            f3  (fn ^{:decorators [(add-x% 10)]} _f3 [] 7)]
+        (is (= 17 (f3)))))
+
+    (testing "order"
+      (let [add-5% #(fn [] (+ (%) 5))
+            mult-x% (fn [x] #(fn [] (* (%) x)))
+            fvar  (defn f4 {:decorators [add-5% (mult-x% -1)]} [] 9)]
+        (is (= -4 (f4)))))))
 
 (deftest defn-test
   (testing "single arity defn"
@@ -96,7 +119,13 @@
       (is (= {:abc 10 :lmn 15 :xyz 11} (select-keys vmeta [:abc :lmn :xyz])))))
 
   (testing "macroexpand with attr-map?"
-    (is (macroexpand '(defn fx {:abc 10} [] :kw)))))
+    (is (macroexpand '(defn fx {:abc 10} [] :kw))))
+
+  (testing "decorators"
+    (let [add-5% #(fn [] (+ (%) 5))
+          mult-x% (fn [x] #(fn [] (* (%) x)))
+          fvar  (defn f12 {:decorators [add-5% (mult-x% -1)]} [] 9)]
+      (is (= -4 (f12))))))
 
 (deftest defasync-test
   (testing "single arity defasync"
@@ -189,7 +218,24 @@
         (is (:async vmeta))
         (is (inspect/iscoroutinefunction af8))
         (is (= "0.1" (:added vmeta)))
-        (is (= "another multi-arity docstring" (:doc vmeta)))))))
+        (is (= "another multi-arity docstring" (:doc vmeta)))))
+
+    (testing "async decorators"
+      (testing "single"
+        (let [add-5% #(fn ^:async _ [] (+ (await (%)) 5))
+              fvar   (defasync ^{:decorators [add-5%]} af9 [] 7)]
+          (is (= 12 (asyncio/run (af9))))))
+
+      (testing "single with arg"
+        (let [add-x% (fn [x] #(fn ^:async _ [] (+ (await (%)) x)))
+              fvar   (defasync ^{:decorators [(add-x% 10)]} af10 [] 7)]
+          (is (= 17 (asyncio/run (af10))))))
+
+      (testing "order"
+        (let [add-5% #(fn ^:async _ [] (+ (await (%)) 5))
+              mult-x% (fn [x] #(fn ^:async _ [] (* (await (%)) x)))
+              fvar   (defasync af11 {:decorators [add-5% (mult-x% -1)]} [] 9)]
+          (is (= -4 (asyncio/run (af11)))))))))
 
 (deftest defn-private-test
   (testing "single arity defn-"
