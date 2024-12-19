@@ -383,7 +383,13 @@
                    (first body)
                    nil)
           fname  (if fmeta
-                   (vary-meta name conj fmeta)
+                   (vary-meta name #(loop [meta-new %
+                                           meta-other fmeta]
+                                      (if (seq meta-other)
+                                        (let [entry (first meta-other)]
+                                          (recur (assoc meta-new (first entry) (second entry))
+                                                 (rest meta-other)))
+                                        meta-new)))
                    name)
           fname  (if doc
                    (vary-meta fname assoc :doc doc)
