@@ -79,7 +79,24 @@
         (is (= 'f8 (:name vmeta)))
         (is (= '([] [a]) (:arglists vmeta)))
         (is (= "0.1" (:added vmeta)))
-        (is (= "another multi-arity docstring" (:doc vmeta)))))))
+        (is (= "another multi-arity docstring" (:doc vmeta))))))
+
+  (testing "meta"
+    (let [fvar  (defn ^{:abc 9} f9 [] :kw)
+          vmeta (meta fvar)]
+      (is (= 'f9 (:name vmeta)))
+      (is (= '([]) (:arglists vmeta)))
+      (is (= 9 (:abc vmeta)))))
+
+  (testing "attr-map? and meta"
+    (let [fvar  (defn ^{:abc 9 :lmn 15} f10 {:abc 10 :xyz 11} [] :kw)
+          vmeta (meta fvar)]
+      (is (= 'f10 (:name vmeta)))
+      (is (= '([]) (:arglists vmeta)))
+      (is (= {:abc 10 :lmn 15 :xyz 11} (select-keys vmeta [:abc :lmn :xyz])))))
+
+  (testing "macroexpand with attr-map?"
+    (is (macroexpand '(defn fx {:abc 10} [] :kw)))))
 
 (deftest defasync-test
   (testing "single arity defasync"

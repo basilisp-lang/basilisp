@@ -383,7 +383,7 @@
                    (first body)
                    nil)
           fname  (if fmeta
-                   (vary-meta name conj fmeta)
+                   (vary-meta name #(conj {} %1 %2) fmeta)
                    name)
           fname  (if doc
                    (vary-meta fname assoc :doc doc)
