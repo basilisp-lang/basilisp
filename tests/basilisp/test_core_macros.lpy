@@ -1,5 +1,5 @@
 (ns tests.basilisp.test-core-macros
-  (:import contextlib inspect os socket tempfile)
+  (:import asyncio contextlib inspect os socket tempfile)
   (:require
    [basilisp.string :as str]
    [basilisp.test :refer [deftest is are testing]]))
@@ -96,7 +96,24 @@
       (is (= {:abc 10 :lmn 15 :xyz 11} (select-keys vmeta [:abc :lmn :xyz])))))
 
   (testing "macroexpand with attr-map?"
-    (is (macroexpand '(defn fx {:abc 10} [] :kw)))))
+    (is (macroexpand '(defn fx {:abc 10} [] :kw))))
+
+  (testing "decorators"
+    (testing "single"
+      (let [add-5% #(fn [] (+ (%) 5))
+            fvar  (defn f10 {:decorators [add-5%]} [] 7)]
+        (is (= 12 (f10)))))
+
+    (testing "single with arg"
+      (let [add-x% (fn [x] #(fn [] (+ (%) x)))
+            fvar  (defn f11 {:decorators [(add-x% 10)]} [] 7)]
+        (is (= 17 (f11)))))
+
+    (testing "mix"
+      (let [add-5% #(fn [] (+ (%) 5))
+            add-x% (fn [x] #(fn [] (+ (%) x)))
+            fvar  (defn f12 {:decorators [(add-x% 10) add-5%]} [] 9)]
+        (is (= 24 (f12)))))))
 
 (deftest defasync-test
   (testing "single arity defasync"
@@ -189,7 +206,24 @@
         (is (:async vmeta))
         (is (inspect/iscoroutinefunction af8))
         (is (= "0.1" (:added vmeta)))
-        (is (= "another multi-arity docstring" (:doc vmeta)))))))
+        (is (= "another multi-arity docstring" (:doc vmeta)))))
+
+    (testing "async decorators"
+      (testing "single"
+        (let [add-5% #(fn ^:async _ [] (+ (await (%)) 5))
+              fvar   (defasync ^{:decorators [add-5%]} af9 [] 7)]
+          (is (= 12 (asyncio/run (af9))))))
+
+      (testing "single with arg"
+        (let [add-x% (fn [x] #(fn ^:async _ [] (+ (await (%)) x)))
+              fvar   (defasync ^{:decorators [(add-x% 10)]} af10 [] 7)]
+          (is (= 17 (asyncio/run (af10))))))
+
+      (testing "mix"
+        (let [add-5% #(fn ^:async _ [] (+ (await (%)) 5))
+              add-x% (fn [x] #(fn ^:async _ [] (+ (await (%)) x)))
+              fvar   (defasync af11 {:decorators [(add-x% 10) add-5%]} [] 9)]
+          (is (= 24 (asyncio/run (af11)))))))))
 
 (deftest defn-private-test
   (testing "single arity defn-"

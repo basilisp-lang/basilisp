@@ -338,8 +338,10 @@
 
                After the name, an optional mapping of meta attributes may be provided.
                Any metadata values given will be attached to the metadata of the
-               interned Var. A few special meta keys change how ``defn`` emits the
-               final Var and function:
+               interned Var, taking precedence over existing metadata.
+
+               A few special meta keys change how ``defn`` emits the final Var and
+               function:
 
                 - ``:decorators`` is an optional vector of functions which will wrap
                   the final function emitted by ``defn``. Like standard Python
@@ -391,6 +393,7 @@
           body   (if fmeta
                    (rest body)
                    body)
+          fmeta  (meta fname)
           multi? (seq? (first body))
           fsigs  (if multi?
                    (loop [arities body
