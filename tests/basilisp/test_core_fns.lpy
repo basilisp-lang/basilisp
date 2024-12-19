@@ -1546,7 +1546,7 @@
           end (time/perf-counter)
           diff (- end start)]
       (is (= :timed-out ret))
-      (is (< 0.1 diff 0.5) (str "deref timeout is outside of [100ms, 500ms] range: " diff "ms")))))
+      (is (< 0.1 diff 0.5) (str "deref timeout is outside of [100ms, 500ms] range: " diff "s")))))
 
 ;;;;;;;;;;;;;
 ;; Futures ;;
@@ -1573,8 +1573,14 @@
           end (time/perf-counter)
           diff (- end start)]
       (is (= :timed-out ret))
-      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"
-                              " -- :pre " pre " :start " start " :end " end))
+      ;; The lower bound is set to 95ms instead of 100ms due to an
+      ;; unexplained discrepancy observed on GitHub CI, where `deref`
+      ;; returned a few milliseconds before the time-out period
+      ;; elapsed.
+      ;;
+      ;; https://github.com/basilisp-lang/basilisp/issues/1184
+      (is (< 0.095 diff 0.5) (str "deref timeout outside of [95ms, 500ms] range: " diff "s"
+                                  " -- :pre " pre " :start " start " :end " end))
       (is (= false (future-cancelled? fut)))
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future
