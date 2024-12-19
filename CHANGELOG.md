@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
  * `import` now returns nil instead of the last module's string representation (#1174)
+ * `defn` now processes name metadata alongside `attr-map?`, enabling `defasync` to effectively pass meta keys like `:decorators` (part of #1178)
 
 ### Fixed
  * Fix a bug in `defn` where the `attr-map?` and function metdata were merged into a seq instead of a map, causing `macroexpand` to fail in some cases (#1186)
