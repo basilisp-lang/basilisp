@@ -53,7 +53,6 @@ from basilisp.lang.reduced import Reduced
 from basilisp.lang.reference import RefBase, ReferenceBase
 from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
-from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
 logger = logging.getLogger(__name__)
