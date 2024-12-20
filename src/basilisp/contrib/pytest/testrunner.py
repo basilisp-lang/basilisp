@@ -57,9 +57,7 @@ def pytest_unconfigure(config):
         runtime.pop_thread_bindings()
 
 
-def pytest_collect_file(  # pylint: disable=unused-argument
-    file_path: Path, path, parent
-):
+def pytest_collect_file(file_path: Path, parent):
     """Primary PyTest hook to identify Basilisp test files."""
     if file_path.suffix == ".lpy":
         if file_path.name.startswith("test_") or file_path.stem.endswith("_test"):
@@ -177,27 +175,39 @@ def _is_package(path: Path) -> bool:
     return False
 
 
-def _get_fully_qualified_module_name(file: Path) -> str:
+def _get_fully_qualified_module_names(file: Path) -> list[str]:
     """Return the fully qualified module name (from the import root) for a module given
     its location.
 
     This works by traversing up the filesystem looking for the top-most package. From
     there, we derive a Python module name referring to the given module path."""
-    top = None
-    for p in file.parents:
-        if _is_package(p):
-            top = p
-        else:
-            break
+    paths = []
+    for path in sys.path:
+        root = Path(path)
+        if file.is_relative_to(root):
+            paths.append(root)
 
-    if top is None or top == file.parent:
-        return file.stem
+    if not paths:
+        top = None
+        for p in file.parents:
+            if _is_package(p):
+                top = p
+            else:
+                break
 
-    root = top.parent
-    elems = list(file.with_suffix("").relative_to(root).parts)
-    if elems[-1] == "__init__":
-        elems.pop()
-    return ".".join(elems)
+        if top is None or top == file.parent:
+            return [file.stem]
+
+        paths.append(top.parent)
+
+    computed_paths = []
+    for path in paths:
+        elems = list(file.with_suffix("").relative_to(path).parts)
+        if elems[-1] == "__init__":
+            elems.pop()
+        computed_paths.append(".".join(elems))
+
+    return computed_paths
 
 
 class BasilispFile(pytest.File):
@@ -251,10 +261,21 @@ class BasilispFile(pytest.File):
         self._fixture_manager.teardown()
 
     def _import_module(self) -> runtime.BasilispModule:
-        modname = _get_fully_qualified_module_name(self.path)
-        module = importlib.import_module(modname)
-        assert isinstance(module, runtime.BasilispModule)
-        return module
+        modnames = _get_fully_qualified_module_names(self.path)
+        assert modnames, "Must have at least one module name"
+
+        exc: Optional[ModuleNotFoundError] = None
+        for modname in modnames:
+            try:
+                module = importlib.import_module(modname)
+            except ModuleNotFoundError as e:
+                exc = e
+            else:
+                assert isinstance(module, runtime.BasilispModule)
+                return module
+
+        assert exc is not None, "Must have an exception or module"
+        raise exc
 
     def collect(self):
         """Collect all tests from the namespace (module) given.

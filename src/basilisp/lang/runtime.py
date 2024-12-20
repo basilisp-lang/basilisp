@@ -53,6 +53,7 @@ from basilisp.lang.reduced import Reduced
 from basilisp.lang.reference import RefBase, ReferenceBase
 from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
+from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
 logger = logging.getLogger(__name__)
@@ -832,6 +833,7 @@ class Namespace(ReferenceBase):
         # If this is a new namespace and we're given a module (typically from the
         # importer), attach the namespace to the module.
         if module is not None:
+            logger.debug(f"Setting module '{module}' namespace to '{new_ns}'")
             module.__basilisp_namespace__ = new_ns
 
         # The `ns` macro is important for setting up a new namespace, but it becomes
