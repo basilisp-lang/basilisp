@@ -185,29 +185,11 @@ def _get_fully_qualified_module_names(file: Path) -> list[str]:
     for pth in sys.path:
         root = Path(pth)
         if file.is_relative_to(root):
-            paths.append(root)
-
-    if not paths:
-        top = None
-        for p in file.parents:
-            if _is_package(p):
-                top = p
-            else:
-                break
-
-        if top is None or top == file.parent:
-            return [file.stem]
-
-        paths.append(top.parent)
-
-    computed_paths = []
-    for path in paths:
-        elems = list(file.with_suffix("").relative_to(path).parts)
-        if elems[-1] == "__init__":
-            elems.pop()
-        computed_paths.append(".".join(elems))
-
-    return computed_paths
+            elems = list(file.with_suffix("").relative_to(pth).parts)
+            if elems[-1] == "__init__":
+                elems.pop()
+            paths.append(".".join(elems))
+    return paths
 
 
 class BasilispFile(pytest.File):
