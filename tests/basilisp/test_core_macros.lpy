@@ -13,12 +13,12 @@
 
     (testing "in fn name meta"
       (let [add-5% #(fn [] (+ (%) 5))
-            f2  (fn ^{:decorators [add-5%]} a-fn [] 13)]
+            f2  (fn ^{:decorators [add-5%]} f2 [] 13)]
         (is (= 18 (f2)))))
 
     (testing "with single arg"
       (let [add-x% (fn [x] #(fn [] (+ (%) x)))
-            f3  (fn ^{:decorators [(add-x% 10)]} _f3 [] 7)]
+            f3  (fn ^{:decorators [(add-x% 10)]} f3 [] 7)]
         (is (= 17 (f3)))))
 
     (testing "order"
