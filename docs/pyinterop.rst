@@ -325,6 +325,11 @@ These decorators are applied from right to left, similar to how Python decorator
     (asyncio/run (six))
     ;; => 13
 
+.. note::
+
+   Users wishing to apply decorators to functions are not limited to using ``:decorators`` metadata.
+   The ``:decorators`` feature is provided primarily to simplify porting Python code to Basilisp.
+   In Python, decorators are syntactic sugar for functions which return functions, but given the rich library of tools provided for composing functions and the ease of defining anonymous functions in Basilisp, the use of ``:decorators`` is not typically necessary in standard Basilisp code.
 .. _arithmetic_division:
 
 Arithmetic Division
