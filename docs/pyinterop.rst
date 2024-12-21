@@ -267,9 +267,11 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 Python Decorators
 -----------------
 
-Python decorators are functions that modify the behavior of other functions or methods. They are applied to a function by prefixing it with the `@decorator_name` syntax. A decorator takes a function as input, performs some action, and returns a new function that typically extends or alters the original function's behavior.
+Python decorators are functions that modify the behavior of other functions or methods.
+They are applied to a function by prefixing it with the ``@decorator_name`` syntax. A decorator takes a function as input, performs some action, and returns a new function that typically extends or alters the original function's behavior.
 
-Basilisp offers a convenience `:decorators` metadata key to support Python-style decorators, which allows you to pass a vector of functions that wrap the final function emitted by the :lpy:fn:`fn` anonymous function, as well as by :lpy:fn:`defn` and its derivatives, such as :lpy:fn:`defasync`. These decorators are applied from right to left, similar to how Python decorators work, modifying the function's behavior before it is used.
+Basilisp offers a convenience ``:decorators`` metadata key to support Python-style decorators, which allows you to pass a vector of functions that wrap the final function emitted by the :lpy:fn:`fn` anonymous function, as well as by :lpy:fn:`defn` and its derivatives, such as :lpy:fn:`defasync`.
+These decorators are applied from right to left, similar to how Python decorators work, modifying the function's behavior before it is used.
 
 .. code-block:: clojure
 
