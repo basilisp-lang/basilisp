@@ -139,6 +139,7 @@
 
 (deftest exec-test
   (is (= "" (process/exec sys/executable "-c" "pass")))
+  (is (= "" (process/exec {:out :inherit} sys/executable "-c" "print(\"hi\")")))
   (is (= "" (process/exec sys/executable "-c" "import sys; print(\"hi\", file=sys.stderr)")))
   (is (= "hi\n" (process/exec sys/executable "-c" "print(\"hi\")")))
   (is (thrown? subprocess/CalledProcessError
