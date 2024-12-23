@@ -62,6 +62,8 @@ CORE_NS = "basilisp.core"
 CORE_NS_SYM = sym.symbol(CORE_NS)
 NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
+IMPORT_MODULE_VAR_NAME = "*import-module*"
+IMPORT_MODULE_VAR_SYM = sym.symbol(IMPORT_MODULE_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
 SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 9), (3, 10), (3, 11), (3, 12), (3, 13)})
@@ -826,9 +828,14 @@ class Namespace(ReferenceBase):
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
-        # The `ns` macro is important for setting up an new namespace,
-        # but it becomes available only after basilisp.core has been
-        # loaded.
+
+        # If this is a new namespace and we're given a module (typically from the
+        # importer), attach the namespace to the module.
+        if module is not None:
+            module.__basilisp_namespace__ = new_ns
+
+        # The `ns` macro is important for setting up a new namespace, but it becomes
+        # available only after basilisp.core has been loaded.
         ns_var = Var.find_in_ns(CORE_NS_SYM, sym.symbol("ns"))
         if ns_var:
             new_ns.add_refer(sym.symbol("ns"), ns_var)
@@ -842,6 +849,12 @@ class Namespace(ReferenceBase):
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
         Return the namespace."""
+        if (
+            module is None
+            and (module_var := Var.find(IMPORT_MODULE_VAR_SYM)) is not None
+        ):
+            module = module_var.value
+            assert module is None or isinstance(module, BasilispModule)
         return cls._NAMESPACES.swap(Namespace.__get_or_create, name, module=module)[
             name
         ]
@@ -2398,6 +2411,17 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     )
     Var.intern(
         CORE_NS_SYM, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
+    )
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(IMPORT_MODULE_VAR_NAME),
+        None,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: "If not ``nil``, corresponds to the module which is currently being imported."
+            }
+        ),
     )
 
     # Dynamic Var examined by the compiler when importing new Namespaces
