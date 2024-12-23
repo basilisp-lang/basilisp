@@ -276,7 +276,9 @@
   (let [process (apply start opts+args)
         retcode (.wait process)]
     (if (zero? retcode)
-      (slurp (.-stdout process))
+      (if-let [out (.-stdout process)]
+        (slurp out)
+        "")
       (throw
        (subprocess/CalledProcessError retcode
                                       (.-args process)
