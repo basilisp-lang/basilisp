@@ -41,28 +41,59 @@ For asserting repeatedly against different inputs, you can use the :lpy:fn:`are`
 Testing and ``PYTHONPATH``
 --------------------------
 
-Typical Clojure projects will have parallel ``src/`` and ``tests/`` folders in the project root.
+Typical Clojure projects will have parallel ``src/`` and ``test/`` folders in the project root.
 Project management tooling typically constructs the Java classpath to include both parallel trees for development and only ``src/`` for deployed software.
-Basilisp does not currently have such tooling (though it is planned!) and the recommended Python tooling is not configurable to allow for this distinction.
+Basilisp does not currently have such tooling, though it is planned.
 
-Due to this limitation, the easiest solution to facilitate test discovery with Pytest (Basilisp's default test runner) is to include a single, empty ``__init__.py`` file in the top-level ``tests`` directory:
+The easiest solution to facilitate test discovery with Pytest (Basilisp's default test runner) is to create a ``tests`` directory:
 
 .. code-block:: text
 
    tests
-   ├── __init__.py
    └── myproject
        └── core_test.lpy
 
 Test namespaces can then be created as if they are part of a giant ``tests`` package:
 
-.. code-block::
+.. code-block:: clojure
 
    (ns tests.myproject.core-test)
 
+Tests can be run with:
+
+.. code-block:: shell
+
+   $ basilisp test
+
+----
+
+Alternatively, you can follow the more traditional Clojure project structure by creating a ``test`` directory for your test namespaces:
+
+.. code-block:: text
+
+   test
+   └── myproject
+       └── core_test.lpy
+
+In this case, the test namespace can start at ``myproject``:
+
+.. code-block:: clojure
+
+   (ns myproject.core-test)
+
+
+However, the ``test`` directory must be explicitly added to the ``PYTHONPATH`` using the ``--include-path`` (or ``-p``) option when running the tests:
+
+.. code-block:: shell
+
+   $ basilisp test --include-path test
+
 .. note::
 
-   The project maintainers acknowledge that this is not an ideal solution and would like to provide a more Clojure-like solution in the future.
+   Test directory names can be arbitrary.
+   By default, the test runner searches all subdirectories for tests.
+   In the first example above (``tests``, a Python convention), the top-level directory is already in the ``PYTHONPATH``, allowing ``tests.myproject.core-test`` to be resolvable.
+   In the second example (``test``, a Clojure convention), the test directory is explicitly added to the ``PYTHONPATH``, enabling ``myproject.core-test`` to be resolvable.
 
 .. _test_fixtures:
 

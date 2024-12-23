@@ -297,7 +297,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         fullname: str,
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
-        ns: runtime.Namespace,
+        module: BasilispModule,
     ) -> None:
         """Load and execute a cached Basilisp module."""
         filename = loader_state["filename"]
@@ -319,7 +319,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                     filename=filename, opts=runtime.get_compiler_opts()
                 ),
                 compiler.PythonASTOptimizer(),
-                ns,
+                module,
             )
 
     def _exec_module(
@@ -327,7 +327,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         fullname: str,
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
-        ns: runtime.Namespace,
+        module: BasilispModule,
     ) -> None:
         """Load and execute a non-cached Basilisp module."""
         filename = loader_state["filename"]
@@ -356,7 +356,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                 compiler.CompilerContext(
                     filename=filename, opts=runtime.get_compiler_opts()
                 ),
-                ns,
+                module,
                 collect_bytecode=all_bytecode.append,
             )
 
@@ -394,21 +394,29 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         # a blank module. If we do not replace the module here with the module we are
         # generating, then we will not be able to use advanced compilation features such
         # as direct Python variable access to functions and other def'ed values.
-        ns_name = demunge(fullname)
-        ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
-        ns.module = module
-        module.__basilisp_namespace__ = ns
+        if fullname == runtime.CORE_NS:
+            ns: runtime.Namespace = runtime.Namespace.get_or_create(runtime.CORE_NS_SYM)
+            ns.module = module
+            module.__basilisp_namespace__ = ns
 
-        # Check if a valid, cached version of this Basilisp namespace exists and, if so,
-        # load it and bypass the expensive compilation process below.
-        if os.getenv(_NO_CACHE_ENVVAR, "").lower() == "true":
-            self._exec_module(fullname, spec.loader_state, path_stats, ns)
-        else:
-            try:
-                self._exec_cached_module(fullname, spec.loader_state, path_stats, ns)
-            except (EOFError, ImportError, OSError) as e:
-                logger.debug(f"Failed to load cached Basilisp module: {e}")
-                self._exec_module(fullname, spec.loader_state, path_stats, ns)
+        # Set the currently importing module so it can be attached to the namespace when
+        # it is created.
+        with runtime.bindings(
+            {runtime.Var.find_safe(runtime.IMPORT_MODULE_VAR_SYM): module}
+        ):
+
+            # Check if a valid, cached version of this Basilisp namespace exists and, if so,
+            # load it and bypass the expensive compilation process below.
+            if os.getenv(_NO_CACHE_ENVVAR, "").lower() == "true":
+                self._exec_module(fullname, spec.loader_state, path_stats, module)
+            else:
+                try:
+                    self._exec_cached_module(
+                        fullname, spec.loader_state, path_stats, module
+                    )
+                except (EOFError, ImportError, OSError) as e:
+                    logger.debug(f"Failed to load cached Basilisp module: {e}")
+                    self._exec_module(fullname, spec.loader_state, path_stats, module)
 
 
 def hook_imports() -> None:
