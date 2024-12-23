@@ -6004,6 +6004,10 @@
       decorators and the ``comp`` function, decorators are applied to the
       generated function from right to left.
 
+   Note: The `name` metadata (i.e., `(fn ^{...} <name>  ...)`) takes precedence
+   over  the `form` metadata (i.e., `^{...} (fn <name?> ...)`) when both specify
+   the same key.
+
   Function argument vectors support sequential and associative :ref:`destructuring` .
 
   See :lpy:form:`fn` for more details."
