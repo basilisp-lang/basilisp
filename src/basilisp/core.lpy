@@ -338,8 +338,11 @@
 
                After the name, an optional mapping of meta attributes may be provided.
                Any metadata values given will be attached to the metadata of the
-               interned Var. A few special meta keys change how ``defn`` emits the
-               final Var and function:
+               interned Var, overriding any existing metadata associated with the
+               ``name``.
+
+               A few special meta keys change how ``defn`` emits the final Var and
+               function. The processing is handled by :lpy:fn:`fn`:
 
                 - ``:decorators`` is an optional vector of functions which will wrap
                   the final function emitted by ``defn``. Like standard Python
@@ -411,15 +414,7 @@
                                 {:found (first body)})))
                     (rest body)))
 
-          decorators (:decorators fmeta)
-          fn-body    (if decorators
-                       (loop [wrappers (seq (python/reversed decorators))
-                              final    `(fn ~fname ~@body)]
-                         (if (seq wrappers)
-                           (recur (rest wrappers)
-                                  `(~(first wrappers) ~final))
-                           final))
-                       `(fn ~fname ~@body))]
+          fn-body `(fn ~fname ~@body)]
       `(def ~fname ~fn-body))))
 
 (defn nth
@@ -6002,6 +5997,13 @@
 (defmacro ^:no-warn-on-redef fn
   "Return an anonymous (but possibly named) function.
 
+   A few special metadata keys change how ``fn`` emits the final function:
+
+    - ``:decorators`` is an optional vector of functions which will wrap
+      the final function emitted by ``fn``. Like standard Python
+      decorators and the ``comp`` function, decorators are applied to the
+      generated function from right to left.
+
   Function argument vectors support sequential and associative :ref:`destructuring` .
 
   See :lpy:form:`fn` for more details."
@@ -6017,12 +6019,23 @@
                   (apply list (map fn-arity-with-destructuring body))
 
                   :else
-                  body)]
-    (as-> arities $
-      (cond->> $ name (cons name))
-      (cons 'fn* $)
-      (cond-> $
-        (meta &form) (with-meta (meta &form))))))
+                  body)
+        fn-decl (as-> arities $
+                  (cond->> $ name (cons name))
+                  (cons 'fn* $)
+                  (cond-> $
+                    (meta &form) (with-meta (meta &form))))
+
+        fmeta (merge (meta fn-decl) (meta name))
+        decorators (:decorators fmeta)]
+    (if decorators
+      (loop [wrappers (seq (python/reversed decorators))
+             final fn-decl]
+        (if (seq wrappers)
+          (recur (rest wrappers)
+                 `(~(first wrappers) ~final))
+          final))
+      fn-decl)))
 
 (defn destructure
   "Take a ``[binding expr]`` pair (as from a ``let`` block) and produce all of the

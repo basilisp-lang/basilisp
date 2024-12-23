@@ -262,6 +262,74 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
    Return annotations are combined as by :external:py:obj:`typing.Union`, so ``typing.Union[str, str] == str``.
    The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
 
+.. _python_decorators:
+
+Python Decorators
+-----------------
+
+Python decorators are functions that modify the behavior of other functions or methods.
+They are applied to a function by prefixing it with the ``@decorator_name`` syntax. A decorator takes a function as input, performs some action, and returns a new function that typically extends or alters the original function's behavior.
+
+Basilisp offers a convenience ``:decorators`` metadata key to support Python-style decorators, which allows you to pass a vector of functions that wrap the final function emitted by the :lpy:fn:`fn` anonymous function, as well as by :lpy:fn:`defn` and its derivatives, such as :lpy:fn:`defasync`.
+These decorators are applied from right to left, similar to how Python decorators work, modifying the function's behavior before it is used.
+
+.. code-block:: clojure
+
+    (import asyncio atexit)
+
+    ;;; defn support
+    ;;
+    ;; The following will print ":goodbye!" on program exit
+    (defn say-goodbye {:decorators [atexit/register]}
+      []
+      (println :goodbye!))
+
+    ;;; fn support
+    ;;
+    ;; example decorator
+    (defn add-5-decorator
+      [f]
+      (fn [] (+ (f) 5)))
+
+    ;; Decorators passed to fn via form metadata
+    (^{:decorators [add-5-decorator]} (fn [] 6))
+    ;; => 11
+
+    ;; Decorators passed to fn via function name metadata
+    ((fn ^{:decorators [add-5-decorator]} seven [] 7))
+    ;; => 12
+
+    ;;; Decorators with arguments, and order of application
+    ;;
+    ;; example decorator
+    (defn mult-x-decorator 
+      [x]
+      (fn [f]
+        (fn [] (* (f) x))))
+
+    ((fn ^{:decorators [add-5-decorator (mult-x-decorator -1)]} seven [] 7))
+    ;; => -2
+
+    ;;; defasync support
+    ;;
+    ;; example async decorator
+    (defn add-7-async-decorator 
+      [f]
+      ^:async (fn [] (+ (await (f)) 7)))
+
+    (defasync ^{:decorators [add-7-async-decorator]} six
+      []
+      (await (asyncio/sleep 0.1))
+      6)
+
+    (asyncio/run (six))
+    ;; => 13
+
+.. note::
+
+   Users wishing to apply decorators to functions are not limited to using ``:decorators`` metadata.
+   The ``:decorators`` feature is provided primarily to simplify porting Python code to Basilisp.
+   In Python, decorators are syntactic sugar for functions which return functions, but given the rich library of tools provided for composing functions and the ease of defining anonymous functions in Basilisp, the use of ``:decorators`` is not typically necessary in standard Basilisp code.
 .. _arithmetic_division:
 
 Arithmetic Division
