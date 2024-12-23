@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * `import` now returns nil instead of the last module's string representation (#1174)
  *  The `:decorators` key now works in `defn` when passed as a metadata name key, expanding its support to `defn`-derived macros like `defasync` (#1178).
- * Change Python import machinery to be centered around Python code, rather than Basilisp namespaces (#????)
+ * Change Python import machinery to be centered around Python code, rather than Basilisp namespaces (#1155, #1165)
 
 ### Fixed
  * Fix a bug in `defn` where the `attr-map?` and function metdata were merged into a seq instead of a map, causing `macroexpand` to fail in some cases (#1186)
