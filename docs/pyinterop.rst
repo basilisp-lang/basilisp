@@ -267,6 +267,12 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 Python Decorators
 -----------------
 
+.. note::
+
+   Users wishing to apply decorators to functions are not limited to using ``:decorators`` metadata.
+   This feature is provided primarily to simplify porting Python code to Basilisp.
+   In Python, decorators are syntactic sugar for functions which return functions, but given the rich library of tools provided for composing functions and the ease of defining anonymous functions in Basilisp, the use of ``:decorators`` is not typically necessary in standard Basilisp code.
+
 Python decorators are functions that modify the behavior of other functions or methods.
 They are applied to a function by prefixing it with the ``@decorator_name`` syntax. A decorator takes a function as input, performs some action, and returns a new function that typically extends or alters the original function's behavior.
 
@@ -299,7 +305,7 @@ These decorators are applied from right to left, similar to how Python decorator
     ((fn ^{:decorators [add-5-decorator]} seven [] 7))
     ;; => 12
 
-    ;;; Decorators with arguments, and order of application
+    ;;; Decorators with arguments, and order of application (right to left)
     ;;
     ;; example decorator
     (defn mult-x-decorator 
@@ -325,11 +331,6 @@ These decorators are applied from right to left, similar to how Python decorator
     (asyncio/run (six))
     ;; => 13
 
-.. note::
-
-   Users wishing to apply decorators to functions are not limited to using ``:decorators`` metadata.
-   The ``:decorators`` feature is provided primarily to simplify porting Python code to Basilisp.
-   In Python, decorators are syntactic sugar for functions which return functions, but given the rich library of tools provided for composing functions and the ease of defining anonymous functions in Basilisp, the use of ``:decorators`` is not typically necessary in standard Basilisp code.
 .. _arithmetic_division:
 
 Arithmetic Division
