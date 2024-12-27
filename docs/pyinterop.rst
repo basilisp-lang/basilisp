@@ -405,3 +405,10 @@ Users still have the option to use the native :external:py:func:`operator.floord
 .. seealso::
 
    :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`mod`
+
+.. _proxies:
+
+Proxies
+-------
+
+TBD
