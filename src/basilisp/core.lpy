@@ -3573,16 +3573,22 @@
         (let [result    (first remaining)
               remaining (rest remaining)]
           (cond
-            (not (seq remaining)) `(throw
-                                    (python/ValueError
-                                     (str "Expected result expression for condp " {:test ~test-expr})))
-            (= result :>>)        `(let [res# ~(list pred test-expr expr)]
-                                     (if res#
-                                       (~(first remaining) res#)
-                                       (condp ~pred ~expr ~@(rest remaining))))
-            :else                 `(if ~(list pred test-expr expr)
-                                     ~result
-                                     (condp ~pred ~expr ~@remaining))))
+            (= result :>>)              `(let [res# ~(list pred test-expr expr)]
+                                           (if res#
+                                             (~(first remaining) res#)
+                                             (condp ~pred ~expr ~@(rest remaining))))
+            (seq remaining)             `(if ~(list pred test-expr expr)
+                                           ~result
+                                           (condp ~pred ~expr ~@remaining))
+            (and result
+                 (not (seq remaining))) `(if ~(list pred test-expr expr)
+                                           ~result
+                                           (throw
+                                            (python/ValueError
+                                             (str "Expected result expression for condp " {:test ~test-expr}))))
+            :else                       `(throw
+                                          (python/ValueError
+                                           (str "Expected result expression for condp " {:test ~test-expr})))))
         test-expr))))
 
 (defmacro declare

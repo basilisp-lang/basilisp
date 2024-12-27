@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug in `defn` where the `attr-map?` and function metdata were merged into a seq instead of a map, causing `macroexpand` to fail in some cases (#1186)
  * Fix a bug where `basilisp.process/exec` threw an exception when inheriting the stdout stream from the current process (#1190)
+ * Fix a bug where `condp` threw an exception in certain cases (#1194)
 
 ## [v0.3.5]
 ### Changed
