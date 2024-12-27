@@ -417,6 +417,11 @@
   (testing "condp result value"
     (is (= :a (condp = "a" :a)))
     (is (= :a (condp = "a"
+                "a" :a)))
+    (is (= :a (condp = "a"
+                "a" :a
+                :b)))
+    (is (= :a (condp = "a"
                 "b" :b
                 :a)))
     (is (= :a (condp = "a"
