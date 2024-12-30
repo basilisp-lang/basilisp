@@ -2497,6 +2497,92 @@
             cat
             (iteration range-chunk :somef (partial some #(< % 7)) :kf (comp inc last) :initk 0))))))
 
+(def test-generator-vals [0 1 2 "three" nil 5])
+
+(defn test-generator []
+  (dotimes [i (count test-generator-vals)]
+    (yield (nth test-generator-vals i))))
+
+(deftest python-iterators-seq-fns-test
+  ;; The plan here is to consume with each function the test generator
+  ;; in its entirety, and check for missing values.
+
+  (testing "every?"
+    (let [nums* (atom [])]
+      (is (every? #(do (swap! nums* conj %)
+                       (or (number? %) (string? %) (nil? %)))
+                  (test-generator)))
+      (is (= test-generator-vals @nums*))))
+
+  (testing "some"
+    (let [nums* (atom [])]
+      (is (some #(do (swap! nums* conj %)
+                     (= % 5))
+                (test-generator)))
+      (is (= test-generator-vals @nums*))))
+
+  (testing "map"
+    (is (= test-generator-vals (map identity (test-generator))))
+    (is (= ["00" "11" "22" "threethree" "" "55"] (map str (test-generator) (test-generator)))))
+
+  (testing "filter"
+    (is (= [0 1 2 5] (filter #(and (number? %) (> % -1)) (test-generator)))))
+
+  (testing "keep"
+    (is (= [0 1 2 "three" 5] (keep identity (test-generator)))))
+
+  (testing "keep-indexed"
+    (is (= [[0 0] [1 1] [2 2] [3 "three"] [4 nil] [5 5]] (keep-indexed vector (test-generator)))))
+
+  (testing "take"
+    (is (= test-generator-vals (take 6 (test-generator)))))
+
+  (testing "take-while"
+    (is (= test-generator-vals (take-while #(not= % 7) (test-generator)))))
+
+  (testing "take-while"
+    (is (= test-generator-vals (drop 0 (test-generator)))))
+
+  (testing "take-while"
+    (is (= [1 2 "three" nil 5] (drop-while #(not= % 1) (test-generator)))))
+
+  (testing "interpose"
+    (is (= [0 "-" 1 "-" 2 "-" "three" "-" nil "-" 5] (interpose "-" (test-generator)))))
+
+  (testing "interleave"
+    (is (= [0 0 1 1 2 2 "three" "three" nil nil 5 5] (interleave (test-generator) (test-generator)))))  
+
+  (testing "cycle"
+    (is (= [0 1 2 "three" nil 5 0 1 2 "three"] (take 10 (cycle (test-generator))))))
+
+  (testing "take-nth"
+    (is (= [0 2 nil] (take-nth 2 (test-generator)))))
+
+  (testing "partition"
+    (is (= [[0 1] [2 "three"] [nil 5]] (partition 2 (test-generator))))
+    (is (= [[0 1] [1 2] [2 "three"] ["three" nil] [nil 5]] (partition 2 1 (test-generator))))
+    (is (= [[0 1 2 "three"] [nil 5 :pad :pad]] (partition 4 4 (repeat :pad) (test-generator)))))
+
+  (testing "partition-all"
+    (is (= [[0 1 2 "three"] [nil 5]] (partition-all 4 (test-generator))))
+    (is (= [[0 1 2 "three"] [nil 5]] (partition-all 4 4 (test-generator)))))  
+
+  (testing "distinct"
+    (is (= test-generator-vals (dedupe (test-generator)))))  
+
+  ;; TODO
+  ;; (testing "flatten"
+  ;;   (is (= nil (flatten [[:a :b :c] (test-generator)]))))
+
+
+  (testing "take-last"
+    (is (= [2 "three" nil 5] (take-last 4 (test-generator)))))  
+
+  (testing "sort-by"
+    (is (= [5 nil "three" 2 1 0] (reverse (test-generator)))))
+  
+  )
+
 ;;;;;;;;;;
 ;; Taps ;;
 ;;;;;;;;;;
@@ -2514,7 +2600,7 @@
         a2-fn    #(swap! a2-atom conj [:a2 %])
         b-fn     #(swap! b-atom conj %)]
     (add-tap def-fn)
-    (remove-tap b-fn)  ;; not an error
+    (remove-tap b-fn) ;; not an error
     (tap> "this is a test")
 
     ;; Wait for the tap thread to drain

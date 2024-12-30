@@ -2198,7 +2198,7 @@
   [coll]
   (let [do-reverse (fn do-reverse
                      [in out]
-                     (if (seq in)
+                     (if-let [in (seq in)]
                        (recur (rest in) (cons (first in) out))
                        out))]
     (do-reverse coll '())))
@@ -2680,10 +2680,11 @@
 (defn every?
   "Return ``true`` if every element in ``coll`` satisfies ``pred``\\."
   [pred coll]
-  (cond
-    (nil? (seq coll))   true
-    (pred (first coll)) (recur pred (rest coll))
-    :else               false))
+  (let [coll (seq coll)]
+    (cond
+      (nil? coll)   true
+      (pred (first coll)) (recur pred (rest coll))
+      :else               false)))
 
 (defn every-pred
   "Return a predicate composed of all of the input predicates, which returns ``true``
@@ -2712,7 +2713,7 @@
 (defn some
   "Return ``true`` if at least one element in ``coll`` satisfies ``pred``\\."
   [pred coll]
-  (when (seq coll)
+  (when-let [coll (seq coll)]
     (or (pred (first coll))
         (recur pred (rest coll)))))
 
@@ -2757,13 +2758,15 @@
         (rf result (apply f input inputs))))))
   ([f coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (cons (f (first coll)) (map f (rest coll))))))
   ([f coll & colls]
    (lazy-seq
-    (when (and (seq coll) (every? seq colls))
-      (cons (apply f (first coll) (map first colls))
-            (apply map f (rest coll) (map rest colls)))))))
+    (when-let [coll (seq coll)]
+      (let [colls (map seq colls)]
+        (when (every? some? colls)
+          (cons (apply f (first coll) (map first colls))
+                (apply map f (rest coll) (map rest colls)))))))))
 
 (def ^{:doc "Return a vector of ``(f elem)`` for elements in ``coll``\\. More than one
              collection may be supplied. If more than one collection is supplied, the
@@ -2818,7 +2821,7 @@
           result)))))
   ([pred coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (if (pred (first coll))
         (cons (first coll) (filter pred (rest coll)))
         (filter pred (rest coll)))))))
@@ -2853,7 +2856,7 @@
             (rf result v)))))))
   ([f coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (let [elem (f (first coll))]
         (if (nil? elem)
           (keep f (rest coll))
@@ -2879,7 +2882,7 @@
    (let [keep-idx (fn keep-idx
                     [rng coll]
                     (lazy-seq
-                     (when (seq coll)
+                     (when-let [coll (seq coll)]
                        (let [elem (f (first rng) (first coll))]
                          (if (nil? elem)
                            (keep-idx (rest rng) (rest coll))
@@ -2901,7 +2904,7 @@
   ([n coll]
    (lazy-seq
     (when (> n 0)
-      (when (seq coll)
+      (when-let [coll (seq coll)]
         (cons (first coll) (take (dec n) (rest coll))))))))
 
 (defn take-while
@@ -2919,7 +2922,7 @@
           (ensure-reduced result))))))
   ([pred coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (when (pred (first coll))
         (cons (first coll) (take-while pred (rest coll))))))))
 
@@ -2939,7 +2942,7 @@
             (rf result input)))))))
   ([n coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (if (> n 0)
         (drop (dec n) (rest coll))
         (seq coll))))))
@@ -2961,7 +2964,7 @@
             :else              result))))))
   ([pred coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (if (pred (first coll))
         (drop-while pred (rest coll))
         (seq coll))))))
@@ -3031,7 +3034,7 @@
             (rf (rf result sep) input)))))))
   ([sep coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (if (seq (rest coll))
         (cons (first coll)
               (cons sep (interpose sep (rest coll))))
@@ -3050,14 +3053,17 @@
                         (when (seq colls)
                           (cons (ffirst colls) (apply coll-firsts (rest colls))))))]
      (lazy-seq
-      (when (and (seq coll) (every? seq colls))
-        (concat (apply coll-firsts coll colls)
-                (apply interleave (rest coll) (map rest colls))))))))
+      (when-let [coll (seq coll)]
+        (let [colls (map seq colls)]
+          (when (every? some? colls)
+            (concat (apply coll-firsts coll colls)
+                    (apply interleave (rest coll) (map rest colls))))))))))
 
 (defn cycle
   "Cycle the items in ``coll`` infinitely."
   [coll]
-  (let [coll-cycle (fn coll-cycle
+  (let [coll (seq coll)
+        coll-cycle (fn coll-cycle
                      [curr]
                      (lazy-seq
                       (if (seq curr)
@@ -3103,7 +3109,7 @@
               result)))))))
   ([n coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (if (<= n 0)
         (repeat (first coll))
         (cons (first coll)
@@ -3120,13 +3126,13 @@
    (partition n n coll))
   ([n step coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (let [s (take n coll)]
         (when (= n (count s))
           (cons s (partition n step (drop step coll))))))))
   ([n step pad coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (let [s  (take n coll)
             ns (count s)
             s  (if (< ns n)
@@ -3163,7 +3169,7 @@
    (partition-all n n coll))
   ([n step coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (cons (take n coll) (partition-all n step (drop step coll)))))))
 
 (defn partition-by
@@ -3203,7 +3209,7 @@
                 (rf result elem)))))))))
   ([f coll]
    (lazy-seq
-    (when (seq coll)
+    (when-let [coll (seq coll)]
       (let [elem  (first coll)
             felem (f elem)
             run   (cons elem (take-while #(= felem (f %)) (next coll)))]
@@ -3228,7 +3234,7 @@
    (let [coll-distinct (fn coll-distinct
                          [coll found]
                          (lazy-seq
-                          (when (seq coll)
+                          (when-let [coll (seq coll)]
                             (let [e (first coll)]
                               (if-not (contains? found e)
                                 (cons e (coll-distinct (rest coll) (conj found e)))
@@ -3262,8 +3268,9 @@
                               (cons e (coll-dedupe (rest coll) e))
                               (coll-dedupe (rest coll) prev))))))]
      (lazy-seq
-      (when-let [e (first coll)]
-        (cons e (coll-dedupe (rest coll) e)))))))
+      (let [coll (seq coll)]
+        (when-let [e (first coll)]
+          (cons e (coll-dedupe (rest coll) e))))))))
 
 (defn flatten
   "Flatten any combination of nested sequences (such as lists or vectors) into a single
@@ -3281,11 +3288,12 @@
 (defn take-last
   "Return the last ``n`` items in ``coll`` in linear time."
   [n coll]
-  (loop [c   (seq coll)
-         rem (seq (drop n coll))]
-    (if rem
-      (recur (next c) (next rem))
-      c)))
+  (let [coll (seq coll)]
+    (loop [c   coll
+           rem (seq (drop n coll))]
+      (if rem
+        (recur (next c) (next rem))
+        c))))
 
 (defn min-key
   "Return the arg for which ``(k arg)`` is the smallest number. If multiple values
