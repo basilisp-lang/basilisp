@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "basilisp"
-version = "0.3.5"
+version = "0.3.6"
 description = "A Clojure-like lisp written for Python"
 authors = ["Christopher Rink <chrisrink10@gmail.com>"]
 license = "Eclipse Public License 1.0 (EPL-1.0)"

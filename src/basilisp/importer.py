@@ -132,7 +132,9 @@ class ImporterCacheEntry(TypedDict, total=False):
     module: BasilispModule
 
 
-class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstract-method
+class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
+    MetaPathFinder, SourceLoader
+):
     """Python import hook to allow directly loading Basilisp code within
     Python."""
 
