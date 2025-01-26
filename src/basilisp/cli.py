@@ -745,7 +745,7 @@ def test(
             "Cannot run tests without dependency PyTest. Please install PyTest and try again.",
         )
     else:
-        pytest.main(args=list(extra))
+        sys.exit(pytest.main(args=list(extra)))
 
 
 @_subcommand(
@@ -768,7 +768,9 @@ def test(
         If all options are unambiguous (e.g. they are only either used by Basilisp
         or by PyTest), then you can omit the `--`:
 
-            `basilisp test -k vector -p other_dir`"""
+            `basilisp test -k vector -p other_dir`
+
+        Returns the PyTest exit code as the exit code."""
     ),
     handler=test,
     allows_extra=True,

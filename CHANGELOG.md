@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed 
+ * Fixed a regression introduced in #1176 where the testrunner couldn't handle relative paths in `sys.path`, causing `basilisp test` to fail when no arugments were provided (#1204)
+
 ## [v0.3.6]
 ### Added
  * Added support for the `:decorators` meta key in anonymous `fn`s (#1178)

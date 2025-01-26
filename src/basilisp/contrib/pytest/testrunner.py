@@ -17,6 +17,7 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
+from basilisp.lang.util import munge
 from basilisp.util import Maybe
 
 _EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
@@ -183,9 +184,10 @@ def _get_fully_qualified_module_names(file: Path) -> list[str]:
     there, we derive a Python module name referring to the given module path."""
     paths = []
     for pth in sys.path:
-        root = Path(pth)
+        root = Path(pth).resolve()
         if file.is_relative_to(root):
-            elems = list(file.with_suffix("").relative_to(pth).parts)
+            elems = list(file.with_suffix("").relative_to(root).parts)
+
             if elems[-1] == "__init__":
                 elems.pop()
             paths.append(".".join(elems))
@@ -269,6 +271,12 @@ class BasilispFile(pytest.File):
         filename = self.path.name
         module = self._import_module()
         ns = module.__basilisp_namespace__
+
+        # Ensure the test module was loaded because it was directly
+        # relative to an entry in `sys.path`.
+        if module.__name__ != munge(str(ns)):
+            raise ModuleNotFoundError(f"Module named '{ns}' is not in sys.path")
+
         once_fixtures, each_fixtures = self._collected_fixtures(ns)
         self._fixture_manager = FixtureManager(once_fixtures)
         for test in self._collected_tests(ns):
