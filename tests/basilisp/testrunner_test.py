@@ -284,11 +284,6 @@ def test_basilisp_test_noargs(pytester: pytest.Pytester):
     cmd = [basilisp, "test"]
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=pytester.path)
 
-    print(f"\n\n--cmd--start: {' '.join(cmd)}")
-    print(f"\n\n--stdout--\n\n {result.stdout.strip()}")
-    print(f"\n\n--stderr--:\n\n {result.stderr.strip()}")
-    print(f"\n\n--cmd--end--: {' '.join(cmd)}\n\n")
-
     assert "==== 1 passed" in result.stdout.strip()
 
     assert result.returncode == 0
