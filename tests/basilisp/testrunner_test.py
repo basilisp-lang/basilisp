@@ -1,4 +1,6 @@
 import platform
+import shutil
+import subprocess
 import sys
 
 import pytest
@@ -263,6 +265,30 @@ def test_fixtures_with_errors(
     result.assert_outcomes(passed=passes, failed=failures, errors=errors)
 
 
+def test_basilisp_test_noargs(pytester: pytest.Pytester):
+    runtime.Namespace.remove(sym.symbol("a.test-path"))
+
+    code = """
+    (ns tests.test-path
+      (:require
+       [basilisp.test :refer [deftest is]]))
+    (deftest passing-test
+      (is true))
+    """
+    pytester.makefile(".lpy", **{"./tests/test_path": code})
+
+    # I couldn't find a way to directly manipulate the pytester's
+    # `sys.path` with the precise control needed by this test, so we're
+    # invoking `basilisp test` directly as a subprocess instead ...
+    basilisp = shutil.which("basilisp")
+    cmd = [basilisp, "test"]
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=pytester.path)
+
+    assert "==== 1 passed" in result.stdout.strip()
+
+    assert result.returncode == 0
+
+
 def test_ns_in_syspath(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch):
     runtime.Namespace.remove(sym.symbol("a.test-path"))
 
@@ -324,11 +350,18 @@ def test_ns_not_in_syspath(pytester: pytest.Pytester):
       (:require
        [basilisp.test :refer [deftest is]]))
     """
-    pytester.makefile(".lpy", **{"./test/a/test_path": code})
+    # In this test, we use a `testabc` directory instead of `test`, as
+    # the latter can cause issues on macOS.  Specifically, macOS has a
+    # `/Library/Frameworks/Python.framework/Versions/3.xx/lib/python3.13/test`
+    # directory is picked up, resulting in a slightly different error
+    # message.
+    pytester.makefile(".lpy", **{"./testabc/a/test_path": code})
     pytester.syspathinsert()
-    result: pytest.RunResult = pytester.runpytest("test")
+    result: pytest.RunResult = pytester.runpytest("testabc")
     assert result.ret != 0
-    result.stdout.fnmatch_lines(["*ModuleNotFoundError: No module named 'test.a'"])
+    result.stdout.fnmatch_lines(
+        ["*ModuleNotFoundError: Module named 'a.test-path' is not in sys.path"]
+    )
 
 
 def test_ns_with_underscore(pytester: pytest.Pytester):
