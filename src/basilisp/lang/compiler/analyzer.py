@@ -117,9 +117,21 @@ from basilisp.lang.compiler.nodes import (
     PyTuple,
 )
 from basilisp.lang.compiler.nodes import Queue as QueueNode
-from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require, RequireAlias
+from basilisp.lang.compiler.nodes import (
+    Quote,
+    Recur,
+    Reify,
+    Require,
+    RequireAlias,
+)
 from basilisp.lang.compiler.nodes import Set as SetNode
-from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
+from basilisp.lang.compiler.nodes import (
+    SetBang,
+    SpecialFormNode,
+    Throw,
+    Try,
+    VarRef,
+)
 from basilisp.lang.compiler.nodes import Vector as VectorNode
 from basilisp.lang.compiler.nodes import (
     WithMeta,
