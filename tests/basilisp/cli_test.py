@@ -108,6 +108,7 @@ class TestBootstrap:
         assert bootstrap_file.read_text() == "import basilisp.sitecustomize"
 
         assert res.out == (
+            f"(Added {bootstrap_file})\n\n"
             "Your Python installation has been bootstrapped! You can undo this at any "
             "time with with `basilisp bootstrap --uninstall`.\n"
         )
@@ -134,6 +135,29 @@ class TestBootstrap:
 
         res = capsys.readouterr()
         assert res.out == ""
+
+    @pytest.mark.skipif(
+        not os.getenv("GITHUB_ACTIONS"),
+        reason="Only runs on GitHub CI (time-consuming)",
+    )
+    def test_install_import(self, virtualenv):
+        virtualenv.install_package(os.path.abspath("."))
+        assert "basilisp" in virtualenv.installed_packages().keys()
+        lpy_file = virtualenv.workspace / "boottest.lpy"
+        lpy_file.write_text("(ns boottest) (defn abc [] (println (+ 155 4)))")
+
+        cmd = 'python -c "import boottest; boottest.abc()"'
+        try:
+            should_fail = virtualenv.run(cmd, capture=True)
+            assert False, should_fail
+        except subprocess.CalledProcessError as e:
+            print(f"Command failed as expected, with exit code {e.returncode}")
+
+        bs = virtualenv.run("basilisp bootstrap", capture=True)
+        assert "Your Python installation has been bootstrapped!" in bs
+
+        after = virtualenv.run(cmd, capture=True)
+        assert after.startswith("159")
 
     def test_nothing_to_uninstall(self, tmp_path: pathlib.Path, run_cli, capsys):
         bootstrap_file = tmp_path / "basilispbootstrap.pth"
