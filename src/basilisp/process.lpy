@@ -273,11 +273,12 @@
   If the return code is non-zero, throw
   :external:py:exc:`subprocess.CalledProcessError`."
   [& opts+args]
-  (let [process (apply start opts+args)
-        retcode (.wait process)]
+  (let [process    (apply start opts+args)
+        [stdout _] (.communicate process)
+        retcode    (.-returncode process)]
     (if (zero? retcode)
-      (if-let [out (.-stdout process)]
-        (slurp out)
+      (if stdout
+        stdout
         "")
       (throw
        (subprocess/CalledProcessError retcode
