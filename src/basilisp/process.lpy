@@ -265,7 +265,7 @@
 
 (defn exec
   "Execute a command as by :lpy:fn:`start` and, upon successful return, return the
-  captured value of the process ``stdout`` as by :lpy:fn:`basilisp.core/slurp`.
+  captured value of the process ``stdout`` as if by :lpy:fn:`basilisp.core/slurp`.
 
   If ``opts`` are specified, they should be provided as a map in the first argument
   position. ``opts`` are exactly the same as those in :lpy:fn:`start`.
@@ -277,9 +277,10 @@
         [stdout _] (.communicate process)
         retcode    (.-returncode process)]
     (if (zero? retcode)
-      (if stdout
-        stdout
-        "")
+      (cond
+        (byte-string? stdout) (.decode stdout "utf-8")
+        stdout                stdout
+        :else                 "")
       (throw
        (subprocess/CalledProcessError retcode
                                       (.-args process)
