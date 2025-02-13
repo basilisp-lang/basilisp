@@ -58,7 +58,7 @@ def bootstrap(
         getattr(mod, fn_name)()
 
 
-def bootstrap_python(site_packages: Optional[str] = None) -> None:
+def bootstrap_python(site_packages: Optional[str] = None) -> str:
     """Bootstrap a Python installation by installing a ``.pth`` file
     in ``site-packages`` directory (corresponding to "purelib" in
     :external:py:func:`sysconfig.get_paths`). Returns the path to the
@@ -75,10 +75,10 @@ def bootstrap_python(site_packages: Optional[str] = None) -> None:
     with open(pth, mode="w") as f:
         f.write("import basilisp.sitecustomize")
 
-    return pth
+    return str(pth)
 
 
-def unbootstrap_python(site_packages: Optional[str] = None) -> str:
+def unbootstrap_python(site_packages: Optional[str] = None) -> Optional[str]:
     """Remove the `basilispbootstrap.pth` file found in the Python site-packages
     directory (corresponding to "purelib" in :external:py:func:`sysconfig.get_paths`).
     Return the path of the removed file, if any."""
