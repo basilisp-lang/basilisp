@@ -137,7 +137,7 @@ class TestBootstrap:
         assert res.out == ""
 
     @pytest.mark.skipif(
-        not os.getenv("GITHUB_ACTIONS"),
+        not os.getenv("CI"),
         reason="Only runs on GitHub CI (time-consuming)",
     )
     def test_install_import(self, virtualenv):
