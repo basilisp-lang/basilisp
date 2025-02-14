@@ -33,7 +33,10 @@ from basilisp.lang.compiler.generator import (
     GeneratorContext,
 )
 from basilisp.lang.compiler.generator import expressionize as _expressionize  # noqa
-from basilisp.lang.compiler.generator import gen_py_ast, py_module_preamble
+from basilisp.lang.compiler.generator import (
+    gen_py_ast,
+    py_module_preamble,
+)
 from basilisp.lang.compiler.generator import statementize as _statementize
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
 from basilisp.lang.interfaces import ISeq

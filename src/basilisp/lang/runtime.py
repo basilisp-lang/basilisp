@@ -2098,7 +2098,7 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
 
 
 def _basilisp_fn(
-    arities: tuple[Union[int, kw.Keyword], ...]
+    arities: tuple[Union[int, kw.Keyword], ...],
 ) -> Callable[..., BasilispFunction]:
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""

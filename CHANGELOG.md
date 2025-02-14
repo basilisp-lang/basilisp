@@ -5,9 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
 ### Fixed 
- * Fixed a regression introduced in #1176 where the testrunner couldn't handle relative paths in `sys.path`, causing `basilisp test` to fail when no arugments were provided (#1204)
+ * Fix a regression introduced in #1176 where the testrunner couldn't handle relative paths in `sys.path`, causing `basilisp test` to fail when no arugments were provided (#1204)
+ * Fix a bug where `basilisp.process/exec` could deadlock reading process output if that output exceeded the buffer size (#1202)
 
 ## [v0.3.6]
 ### Added

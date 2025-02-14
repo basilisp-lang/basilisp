@@ -1,5 +1,6 @@
 (ns tests.basilisp.test-process
-  (:import pathlib
+  (:import os
+           pathlib
            subprocess
            sys)
   (:require
@@ -141,10 +142,12 @@
   (is (= "" (process/exec sys/executable "-c" "pass")))
   (is (= "" (process/exec {:out :inherit} sys/executable "-c" "print(\"hi\")")))
   (is (= "" (process/exec sys/executable "-c" "import sys; print(\"hi\", file=sys.stderr)")))
-  (is (= "hi\n" (process/exec sys/executable "-c" "print(\"hi\")")))
+  (is (= (str "hi" os/linesep)
+         (process/exec sys/executable "-c" "print(\"hi\")")))
   (is (thrown? subprocess/CalledProcessError
                (process/exec sys/executable "-c" "import sys; sys.exit(2)")))
-  (is (= "BASILISP\n" (process/exec {:env {"PYTHON_HOSTED_LANG" "BASILISP"}}
-                                    sys/executable
-                                    "-c"
-                                    "import os; print(os.environ[\"PYTHON_HOSTED_LANG\"])"))))
+  (is (= (str "BASILISP" os/linesep)
+         (process/exec {:env {"PYTHON_HOSTED_LANG" "BASILISP"}}
+                       sys/executable
+                       "-c"
+                       "import os; print(os.environ[\"PYTHON_HOSTED_LANG\"])"))))

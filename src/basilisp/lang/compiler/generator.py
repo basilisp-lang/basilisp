@@ -86,11 +86,25 @@ from basilisp.lang.compiler.nodes import (
     PyTuple,
 )
 from basilisp.lang.compiler.nodes import Queue as QueueNode
-from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require
+from basilisp.lang.compiler.nodes import (
+    Quote,
+    Recur,
+    Reify,
+    Require,
+)
 from basilisp.lang.compiler.nodes import Set as SetNode
-from basilisp.lang.compiler.nodes import SetBang, T_withmeta, Throw, Try, VarRef
+from basilisp.lang.compiler.nodes import (
+    SetBang,
+    T_withmeta,
+    Throw,
+    Try,
+    VarRef,
+)
 from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import WithMeta, Yield
+from basilisp.lang.compiler.nodes import (
+    WithMeta,
+    Yield,
+)
 from basilisp.lang.compiler.utils import (
     ast_AsyncFunctionDef,
     ast_ClassDef,
@@ -392,7 +406,7 @@ P_simplegen = ParamSpec("P_simplegen")
 
 
 def _simple_ast_generator(
-    gen_ast: Callable[P_simplegen, T_pynode]
+    gen_ast: Callable[P_simplegen, T_pynode],
 ) -> Callable[P_simplegen, GeneratedPyAST[T_pynode]]:
     """Wrap simpler AST generators to return a GeneratedPyAST."""
 
@@ -1737,7 +1751,7 @@ def __fn_meta(
 
 
 def __kwargs_support_decorator(
-    node: Union[Fn, DefTypeMethodArity, DefTypeClassMethod, DefTypeStaticMethod]
+    node: Union[Fn, DefTypeMethodArity, DefTypeClassMethod, DefTypeStaticMethod],
 ) -> Iterable[ast.expr]:
     if node.kwarg_support is None:
         return
@@ -3533,8 +3547,8 @@ _WITH_META_EXPR_HANDLER: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.expr]"] =
 def _with_meta_to_py_ast(
     ctx: GeneratorContext,
     node: WithMeta[T_withmeta],
-    *args: P_generator.args,
-    **kwargs: P_generator.kwargs,
+    *args,
+    **kwargs,
 ) -> GeneratedPyAST[ast.expr]:
     """Generate a Python AST node for Python interop method calls."""
     assert node.op == NodeOp.WITH_META

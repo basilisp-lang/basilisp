@@ -398,7 +398,7 @@ def _subcommand(
     Callable[["argparse._SubParsersAction"], None],
 ]:
     def _wrap_add_subcommand(
-        f: Callable[[argparse.ArgumentParser], None]
+        f: Callable[[argparse.ArgumentParser], None],
     ) -> Callable[["argparse._SubParsersAction"], None]:
         def _wrapped_subcommand(subparsers: "argparse._SubParsersAction"):
             parser = subparsers.add_parser(
