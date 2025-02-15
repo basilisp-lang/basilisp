@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 import attr
 import pytest
+import pytest_virtualenv
 
 from basilisp.cli import BOOL_FALSE, BOOL_TRUE, invoke_cli
 from basilisp.prompt import Prompter
