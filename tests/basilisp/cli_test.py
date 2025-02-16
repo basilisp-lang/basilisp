@@ -136,10 +136,7 @@ class TestBootstrap:
         res = capsys.readouterr()
         assert res.out == ""
 
-    # @pytest.mark.skipif(
-    #     not os.getenv("CI"),
-    #     reason="Only runs on GitHub CI (time-consuming)",
-    # )
+    @pytest.mark.slow
     def test_install_import(self, virtualenv):
         virtualenv.install_package(os.path.abspath("."))
         assert "basilisp" in virtualenv.installed_packages().keys()
