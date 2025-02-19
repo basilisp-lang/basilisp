@@ -142,16 +142,14 @@ class TestBootstrap:
         venv_path = tmp_path / "venv"
         venv.create(venv_path, with_pip=True)
 
-        basilisp_path = venv_path / "Scripts" / "basilisp"
-        if sys.platform == "win32":
-            pip_path = venv_path / "Scripts" / "pip.exe"
-            python_path = venv_path / "Scripts" / "python.exe"
-        else:
-            pip_path = venv_path / "bin" / "pip"
-            python_path = venv_path / "bin" / "python"
+        venv_bin = venv_path / ("Scripts" if sys.platform == "win32" else "bin")
+        pip_path = venv_bin / "pip"
+        python_path = venv_bin / "python"
+        basilisp_path = venv_bin / "basilisp"
 
-        cmd = [pip_path, "install", "."]
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+        result = subprocess.run(
+            [pip_path, "install", "."], capture_output=True, text=True, cwd=os.getcwd()
+        )
 
         lpy_file = tmp_path / "boottest.lpy"
         lpy_file.write_text("(ns boottest) (defn abc [] (println (+ 155 4)))")
@@ -162,8 +160,9 @@ class TestBootstrap:
         )
         assert "No module named 'boottest'" in result.stderr, result
 
-        cmd = [basilisp_path, "bootstrap"]
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp_path)
+        result = subprocess.run(
+            [basilisp_path, "bootstrap"], capture_output=True, text=True, cwd=tmp_path
+        )
         assert (
             "Your Python installation has been bootstrapped!" in result.stdout
         ), result
