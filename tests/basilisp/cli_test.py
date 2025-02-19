@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import venv
 from collections.abc import Sequence
 from threading import Thread
 from typing import Optional
@@ -108,6 +109,7 @@ class TestBootstrap:
         assert bootstrap_file.read_text() == "import basilisp.sitecustomize"
 
         assert res.out == (
+            f"(Added {bootstrap_file})\n\n"
             "Your Python installation has been bootstrapped! You can undo this at any "
             "time with with `basilisp bootstrap --uninstall`.\n"
         )
@@ -134,6 +136,41 @@ class TestBootstrap:
 
         res = capsys.readouterr()
         assert res.out == ""
+
+    @pytest.mark.slow
+    def test_install_import(self, tmp_path: pathlib.Path):
+        venv_path = tmp_path / "venv"
+        venv.create(venv_path, with_pip=True)
+
+        venv_bin = venv_path / ("Scripts" if sys.platform == "win32" else "bin")
+        pip_path = venv_bin / "pip"
+        python_path = venv_bin / "python"
+        basilisp_path = venv_bin / "basilisp"
+
+        result = subprocess.run(
+            [pip_path, "install", "."], capture_output=True, text=True, cwd=os.getcwd()
+        )
+
+        lpy_file = tmp_path / "boottest.lpy"
+        lpy_file.write_text("(ns boottest) (defn abc [] (println (+ 155 4)))")
+
+        cmd_import = [python_path, "-c", "import boottest; boottest.abc()"]
+        result = subprocess.run(
+            cmd_import, capture_output=True, text=True, cwd=tmp_path
+        )
+        assert "No module named 'boottest'" in result.stderr, result
+
+        result = subprocess.run(
+            [basilisp_path, "bootstrap"], capture_output=True, text=True, cwd=tmp_path
+        )
+        assert (
+            "Your Python installation has been bootstrapped!" in result.stdout
+        ), result
+
+        result = subprocess.run(
+            cmd_import, capture_output=True, text=True, cwd=tmp_path
+        )
+        assert result.stdout.strip() == "159", result
 
     def test_nothing_to_uninstall(self, tmp_path: pathlib.Path, run_cli, capsys):
         bootstrap_file = tmp_path / "basilispbootstrap.pth"

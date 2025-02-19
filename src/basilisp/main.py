@@ -1,5 +1,6 @@
 import importlib
-import site
+import os
+import sysconfig
 from pathlib import Path
 from typing import Optional
 
@@ -56,42 +57,41 @@ def bootstrap(
         getattr(mod, fn_name)()
 
 
-def bootstrap_python(site_packages: Optional[list[str]] = None) -> None:
-    """Bootstrap a Python installation by installing a ``.pth`` file in the first
-    available ``site-packages`` directory (as by
-    :external:py:func:`site.getsitepackages`).
+def bootstrap_python(site_packages: Optional[str] = None) -> str:
+    """Bootstrap a Python installation by installing a ``.pth`` file
+    in ``site-packages`` directory (corresponding to "purelib" in
+    :external:py:func:`sysconfig.get_paths`). Returns the path to the
+    ``.pth`` file.
 
     Subsequent startups of the Python interpreter will have Basilisp already
     bootstrapped and available to run."""
     if site_packages is None:  # pragma: no cover
-        site_packages = site.getsitepackages()
+        site_packages = sysconfig.get_paths()["purelib"]
 
-    assert site_packages, "Expected at least one site-package directory"
+    assert site_packages, "Expected a site-package directory"
 
-    for d in site_packages:
-        p = Path(d)
-        with open(p / "basilispbootstrap.pth", mode="w") as f:
-            f.write("import basilisp.sitecustomize")
-        break
+    pth = Path(site_packages) / "basilispbootstrap.pth"
+    with open(pth, mode="w") as f:
+        f.write("import basilisp.sitecustomize")
+
+    return str(pth)
 
 
-def unbootstrap_python(site_packages: Optional[list[str]] = None) -> list[str]:
-    """Remove any `basilispbootstrap.pth` files found in any Python site-packages
-    directory (as by :external:py:func:`site.getsitepackages`). Return a list of
-    removed filenames."""
+def unbootstrap_python(site_packages: Optional[str] = None) -> Optional[str]:
+    """Remove the `basilispbootstrap.pth` file found in the Python site-packages
+    directory (corresponding to "purelib" in :external:py:func:`sysconfig.get_paths`).
+    Return the path of the removed file, if any."""
     if site_packages is None:  # pragma: no cover
-        site_packages = site.getsitepackages()
+        site_packages = sysconfig.get_paths()["purelib"]
 
-    assert site_packages, "Expected at least one site-package directory"
+    assert site_packages, "Expected a site-package directory"
 
-    removed = []
-    for d in site_packages:
-        p = Path(d)
-        for file in p.glob("basilispbootstrap.pth"):
-            try:
-                file.unlink()
-            except FileNotFoundError:  # pragma: no cover
-                pass
-            else:
-                removed.append(str(file))
+    removed = None
+    pth = Path(site_packages) / "basilispbootstrap.pth"
+    try:
+        os.unlink(pth)
+    except FileNotFoundError:  # pragma: no cover
+        pass
+    else:
+        removed = str(pth)
     return removed

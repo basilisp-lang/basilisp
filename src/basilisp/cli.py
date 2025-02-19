@@ -425,11 +425,12 @@ def bootstrap_basilisp_installation(_, args: argparse.Namespace) -> None:
         ):
             print_("No Basilisp bootstrap files were found.")
         else:
-            for file in removed:
-                print_(f"Removed '{file}'")
+            if removed is not None:
+                print_(f"Removed '{removed}'")
     else:
-        basilisp.bootstrap_python(site_packages=args.site_packages)
+        path = basilisp.bootstrap_python(site_packages=args.site_packages)
         print_(
+            f"(Added {path})\n\n"
             "Your Python installation has been bootstrapped! You can undo this at any "
             "time with with `basilisp bootstrap --uninstall`."
         )
@@ -473,7 +474,6 @@ def _add_bootstrap_subcommand(parser: argparse.ArgumentParser) -> None:
     # Not intended to be used by end users.
     parser.add_argument(
         "--site-packages",
-        action="append",
         help=argparse.SUPPRESS,
     )
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed 
  * Fix a regression introduced in #1176 where the testrunner couldn't handle relative paths in `sys.path`, causing `basilisp test` to fail when no arugments were provided (#1204)
  * Fix a bug where `basilisp.process/exec` could deadlock reading process output if that output exceeded the buffer size (#1202)
+ * Fix `basilisp boostrap` issue on MS-Windows where the boostrap file loaded too early, before Basilisp was in `sys.path` (#1208)
 
 ## [v0.3.6]
 ### Added
