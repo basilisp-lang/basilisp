@@ -56,7 +56,6 @@ sphinx-copybutton = "^0.5.2"
 sphinxext-opengraph = "^v0.9.1"
 furo = "^2023.08.19"
 tox = "*"
-pytest-virtualenv = "^1.8.1"
 
 [tool.poetry.extras]
 pygments = ["pygments"]

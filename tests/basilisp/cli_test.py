@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import venv
 from collections.abc import Sequence
 from threading import Thread
 from typing import Optional
@@ -137,24 +138,40 @@ class TestBootstrap:
         assert res.out == ""
 
     @pytest.mark.slow
-    def test_install_import(self, virtualenv):
-        virtualenv.install_package(os.path.abspath("."))
-        assert "basilisp" in virtualenv.installed_packages().keys()
-        lpy_file = virtualenv.workspace / "boottest.lpy"
+    def test_install_import(self, tmp_path: pathlib.Path):
+        venv_path = tmp_path / "venv"
+        venv.create(venv_path, with_pip=True)
+
+        basilisp_path = venv_path / "Scripts" / "basilisp"
+        if sys.platform == "win32":
+            pip_path = venv_path / "Scripts" / "pip.exe"
+            python_path = venv_path / "Scripts" / "python.exe"
+        else:
+            pip_path = venv_path / "bin" / "pip"
+            python_path = venv_path / "bin" / "python"
+
+        cmd = [pip_path, "install", "."]
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+
+        lpy_file = tmp_path / "boottest.lpy"
         lpy_file.write_text("(ns boottest) (defn abc [] (println (+ 155 4)))")
 
-        cmd = 'python -c "import boottest; boottest.abc()"'
-        try:
-            should_fail = virtualenv.run(cmd, capture=True)
-            assert False, should_fail
-        except subprocess.CalledProcessError as e:
-            print(f"Command failed as expected, with exit code {e.returncode}")
+        cmd_import = [python_path, "-c", "import boottest; boottest.abc()"]
+        result = subprocess.run(
+            cmd_import, capture_output=True, text=True, cwd=tmp_path
+        )
+        assert "No module named 'boottest'" in result.stderr, result
 
-        bs = virtualenv.run("basilisp bootstrap", capture=True)
-        assert "Your Python installation has been bootstrapped!" in bs
+        cmd = [basilisp_path, "bootstrap"]
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp_path)
+        assert (
+            "Your Python installation has been bootstrapped!" in result.stdout
+        ), result
 
-        after = virtualenv.run(cmd, capture=True)
-        assert after.startswith("159")
+        result = subprocess.run(
+            cmd_import, capture_output=True, text=True, cwd=tmp_path
+        )
+        assert result.stdout.strip() == "159", result
 
     def test_nothing_to_uninstall(self, tmp_path: pathlib.Path, run_cli, capsys):
         bootstrap_file = tmp_path / "basilispbootstrap.pth"
