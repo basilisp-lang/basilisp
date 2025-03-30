@@ -1640,16 +1640,26 @@ def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
 
 
 def __fn_args_to_py_ast(
-    ctx: GeneratorContext, params: Iterable[Binding], body: Do
+    ctx: GeneratorContext,
+    params: Iterable[Binding],
+    body: Do,
+    globalize_param_names: bool = True,
 ) -> tuple[list[ast.arg], Optional[ast.arg], list[ast.stmt], Iterable[PyASTNode]]:
-    """Generate a list of Python AST nodes from function method parameters."""
+    """Generate a list of Python AST nodes from function method parameters.
+
+    Parameter names are munged and modified to ensure global
+    uniqueness by default.  If `globalize_param_names` is set to
+    False, the original munged parameter names are retained.
+    """
     fn_args, varg = [], None
     fn_body_ast: list[ast.stmt] = []
     fn_def_deps: list[PyASTNode] = []
     for binding in params:
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
-        arg_name = genname(munge(binding.name))
+        arg_name = munge(binding.name)
+        if globalize_param_names:
+            arg_name = genname(arg_name)
 
         arg_tag: Optional[ast.expr]
         if (
@@ -1786,8 +1796,10 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
             )
 
+        # maintain original parameter names if function is def'd.
+        globalize_param_names = def_name is None
         fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
-            ctx, method.params, method.body
+            ctx, method.params, method.body, globalize_param_names=globalize_param_names
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 

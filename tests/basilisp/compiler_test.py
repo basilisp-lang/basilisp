@@ -7186,3 +7186,53 @@ class TestYield:
         assert kw.keyword("coroutine-value") == state.deref()
         assert None is next(coro, None)
         assert kw.keyword("done") == state.deref()
+
+
+def test_defn_argument_names(lcompile: CompileFn):
+    # Single arity function `def`'initions preserve their original
+    # parameter names when compiled down to Python.
+    code = """
+    (defn test_dfn1 [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b"]
+
+    code = """
+    (def test_dfn2 (fn [a b & c] 5))
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b", "c"]
+
+    code = """
+    (def test_dfn3 (fn [a b & c] 5))
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b", "c"]
+
+    code = """
+    ^{:kwargs :collect}
+    (defn test_dfn4 [a b {:as xyz}] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b", "xyz"]
+
+    # Note: For other function definitions, the generated parameter
+    # names are an internal implementation detail and could change at
+    # any time.
+    #
+    # For example, notice how anonymous functions generate parameter
+    # names in the pattern
+    # <parameter-name>_<monotonically-increasing-number> to ensure
+    # global uniqueness.
+    code = """
+    (fn [a b] 5)
+    """
+    fn = lcompile(code)
+    args = list(inspect.signature(fn).parameters.keys())
+    assert all(
+        re.fullmatch(p, s) for p, s in zip([r"a_\d+", r"b_\d+"], args)
+    ), f"unexpected argument names {args}"
