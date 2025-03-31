@@ -1798,6 +1798,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
 
         # maintain original parameter names if function is def'd.
         globalize_param_names = def_name is None
+
         fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
             ctx, method.params, method.body, globalize_param_names=globalize_param_names
         )
