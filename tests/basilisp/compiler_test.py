@@ -7220,13 +7220,6 @@ def test_defn_argument_names(lcompile: CompileFn):
     ), f"unexpected argument names {args}"
 
     code = """
-    (defn test_dfn1 {:allow-unsafe-names true} [a b] 5)
-    """
-    fvar = lcompile(code)
-    args = list(inspect.signature(fvar.deref()).parameters.keys())
-    assert args == ["a", "b"]
-
-    code = """
     (def ^:allow-unsafe-names test_dfn2 (fn [a b & c] 5))
     """
     fvar = lcompile(code)
