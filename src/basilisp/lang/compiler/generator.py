@@ -37,6 +37,7 @@ from basilisp.lang.compiler.constants import (
     INTERFACE_KW,
     OPERATOR_ALIAS,
     REST_KW,
+    SYM_ALLOW_UNSAFE_NAMES,
     SYM_DYNAMIC_META_KEY,
     SYM_REDEF_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
@@ -896,7 +897,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
         assert node.init is not None  # silence MyPy
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
-            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            def_ast = _fn_to_py_ast(
+                ctx, node.init, def_name=defsym.name, meta_node=node.meta
+            )
             is_defn = True
         elif (
             node.init.op == NodeOp.WITH_META
@@ -1643,13 +1646,14 @@ def __fn_args_to_py_ast(
     ctx: GeneratorContext,
     params: Iterable[Binding],
     body: Do,
-    globalize_param_names: bool = True,
+    allow_unsafe_param_names: bool = True,
 ) -> tuple[list[ast.arg], Optional[ast.arg], list[ast.stmt], Iterable[PyASTNode]]:
     """Generate a list of Python AST nodes from function method parameters.
 
     Parameter names are munged and modified to ensure global
-    uniqueness by default.  If `globalize_param_names` is set to
-    False, the original munged parameter names are retained.
+    uniqueness by default.  If `allow_unsafe_param_names` is set to
+    True, the original munged parameter names are retained instead.
+
     """
     fn_args, varg = [], None
     fn_body_ast: list[ast.stmt] = []
@@ -1658,7 +1662,7 @@ def __fn_args_to_py_ast(
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
         arg_name = munge(binding.name)
-        if globalize_param_names:
+        if not allow_unsafe_param_names:
             arg_name = genname(arg_name)
 
         arg_tag: Optional[ast.expr]
@@ -1780,7 +1784,14 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST[ast.expr]:
-    """Return a Python AST node for a function with a single arity."""
+    """Return a Python AST node for a function with a single arity.
+
+    By default, parameter names are globally uniquified to support
+    inlining of Basilisp functions. If the `meta_node` contains
+    `SYM_ALLOW_UNSAFE_NAMES` set to True, the original (munged)
+    parameter names are retained instead.
+
+    """
     assert node.op == NodeOp.FN
     assert method.op == NodeOp.FN_ARITY
 
@@ -1796,11 +1807,17 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
             )
 
-        # maintain original parameter names if function is def'd.
-        globalize_param_names = def_name is None
+        # check if we should preserve the original parameter names
+        allow_unsafe_param_names = (
+            meta_node is not None
+            and meta_node.form.val_at(SYM_ALLOW_UNSAFE_NAMES) is True
+        )
 
         fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
-            ctx, method.params, method.body, globalize_param_names=globalize_param_names
+            ctx,
+            method.params,
+            method.body,
+            allow_unsafe_param_names=allow_unsafe_param_names,
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 

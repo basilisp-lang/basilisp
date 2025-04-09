@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-    * Preserve original argument names in Python compiled code for `def`-defined single-arity functions (#1212)
+    * Single arity functions can be tagged with `^:allow-unsafe-names` to preserve their parameter names (#1212)
 
 ## [v0.3.7]
 ### Fixed 

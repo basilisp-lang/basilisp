@@ -7189,24 +7189,52 @@ class TestYield:
 
 
 def test_defn_argument_names(lcompile: CompileFn):
-    # Single arity function `def`'initions preserve their original
-    # parameter names when compiled down to Python.
+    # By default, function parameter names are made globally unique.
+    #
+    # For example, notice how defn generate parameter names in the
+    # pattern <parameter-name>_<monotonically-increasing-number> to
+    # ensure global uniqueness.
     code = """
-    (defn test_dfn1 [a b] 5)
+    (defn test_dfn0 [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert all(
+        re.fullmatch(p, s) for p, s in zip([r"a_\d+", r"b_\d+"], args)
+    ), f"unexpected argument names {args}"
+
+    code = """
+    (defn ^:allow-unsafe-names test_dfn1a [a b] 5)
     """
     fvar = lcompile(code)
     args = list(inspect.signature(fvar.deref()).parameters.keys())
     assert args == ["a", "b"]
 
     code = """
-    (def test_dfn2 (fn [a b & c] 5))
+    (defn ^{:allow-unsafe-names false} test_dfn1b [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert all(
+        re.fullmatch(p, s) for p, s in zip([r"a_\d+", r"b_\d+"], args)
+    ), f"unexpected argument names {args}"
+
+    code = """
+    (defn test_dfn1 {:allow-unsafe-names true} [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b"]
+
+    code = """
+    (def ^:allow-unsafe-names test_dfn2 (fn [a b & c] 5))
     """
     fvar = lcompile(code)
     args = list(inspect.signature(fvar.deref()).parameters.keys())
     assert args == ["a", "b", "c"]
 
     code = """
-    (def test_dfn3 (fn [a b & c] 5))
+    (def test_dfn3 ^:allow-unsafe-names (fn [a b & c] 5))
     """
     fvar = lcompile(code)
     args = list(inspect.signature(fvar.deref()).parameters.keys())
@@ -7214,25 +7242,8 @@ def test_defn_argument_names(lcompile: CompileFn):
 
     code = """
     ^{:kwargs :collect}
-    (defn test_dfn4 [a b {:as xyz}] 5)
+    (defn ^:allow-unsafe-names test_dfn4 [a b {:as xyz}] 5)
     """
     fvar = lcompile(code)
     args = list(inspect.signature(fvar.deref()).parameters.keys())
     assert args == ["a", "b", "xyz"]
-
-    # Note: For other function definitions, the generated parameter
-    # names are an internal implementation detail and could change at
-    # any time.
-    #
-    # For example, notice how anonymous functions generate parameter
-    # names in the pattern
-    # <parameter-name>_<monotonically-increasing-number> to ensure
-    # global uniqueness.
-    code = """
-    (fn [a b] 5)
-    """
-    fn = lcompile(code)
-    args = list(inspect.signature(fn).parameters.keys())
-    assert all(
-        re.fullmatch(p, s) for p, s in zip([r"a_\d+", r"b_\d+"], args)
-    ), f"unexpected argument names {args}"

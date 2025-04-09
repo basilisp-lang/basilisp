@@ -10,7 +10,7 @@ Basilisp features myriad options for interfacing with host Python code.
 Name Munging
 ------------
 
-Per Python's `PEP 8 naming conventions <https://www.python.org/dev/peps/pep-0008/#naming-conventions>`_, Python method and function names frequently use ``snake_case``.
+Per Python's `PEP 8 naming conventions <https://www.python.org/dev/peps/pep-0008/#naming-conventions>`_, Python method and function and parameter names frequently use ``snake_case``.
 Basilisp is certainly capable of reading ``snake_case`` names without any special affordance.
 However, Basilisp code (like many Lisps) tends to prefer ``kebab-case`` for word separation.
 
@@ -21,6 +21,14 @@ When compiled, a ``kebab-case`` identifier always becomes a ``snake_case`` ident
 .. note::
 
    The Basilisp compiler munges *all* unsafe Basilisp identifiers to safe Python identifiers, but other cases are unlikely to appear in standard Python interop usage.
+
+.. note::
+
+   By default, the compiler munges function parameter names and makes them globally unique by appending a monotically increasing number suffix to support function inlining. To enable interop with Python libraries that rely on preserved parameter names, you can use the ```^:allow-unsafe-names`` metadata key to retain the (munged) parameter names. This flag only applies to single-arity Basilisp functions.
+
+   .. code-block::
+
+      (defn ^:allow-unsafe-names afun [a b] ...)
 
 .. _python_builtins:
 
