@@ -7186,3 +7186,57 @@ class TestYield:
         assert kw.keyword("coroutine-value") == state.deref()
         assert None is next(coro, None)
         assert kw.keyword("done") == state.deref()
+
+
+def test_defn_argument_names(lcompile: CompileFn):
+    # By default, function parameter names are made globally unique.
+    #
+    # For example, notice how defn generate parameter names in the
+    # pattern <parameter-name>_<monotonically-increasing-number> to
+    # ensure global uniqueness.
+    code = """
+    (defn test_dfn0 [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert all(
+        re.fullmatch(p, s) for p, s in zip([r"a_\d+", r"b_\d+"], args)
+    ), f"unexpected argument names {args}"
+
+    code = """
+    (defn ^:allow-unsafe-names test_dfn1a [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b"]
+
+    code = """
+    (defn ^{:allow-unsafe-names false} test_dfn1b [a b] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert all(
+        re.fullmatch(p, s) for p, s in zip([r"a_\d+", r"b_\d+"], args)
+    ), f"unexpected argument names {args}"
+
+    code = """
+    (def ^:allow-unsafe-names test_dfn2 (fn [a b & c] 5))
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b", "c"]
+
+    code = """
+    (def test_dfn3 ^:allow-unsafe-names (fn [a b & c] 5))
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b", "c"]
+
+    code = """
+    ^{:kwargs :collect}
+    (defn ^:allow-unsafe-names test_dfn4 [a b {:as xyz}] 5)
+    """
+    fvar = lcompile(code)
+    args = list(inspect.signature(fvar.deref()).parameters.keys())
+    assert args == ["a", "b", "xyz"]

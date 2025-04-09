@@ -37,6 +37,7 @@ from basilisp.lang.compiler.constants import (
     INTERFACE_KW,
     OPERATOR_ALIAS,
     REST_KW,
+    SYM_ALLOW_UNSAFE_NAMES_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_REDEF_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
@@ -110,7 +111,7 @@ from basilisp.lang.compiler.utils import (
     ast_ClassDef,
     ast_FunctionDef,
 )
-from basilisp.lang.interfaces import IMeta, ISeq
+from basilisp.lang.interfaces import IMeta, IPersistentMap, ISeq
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
 from basilisp.lang.runtime import BasilispModule, Var
@@ -649,6 +650,21 @@ def _with_ast_loc_deps(
     return with_lineno_and_col
 
 
+MetaNode = Union[Const, MapNode]
+
+
+def _is_allow_unsafe_names(fn_meta_node: Optional[MetaNode]) -> bool:
+    """Return True if the `fn_meta_node` has the meta key set to
+    retain functio parameter names.
+
+    """
+    return (
+        bool(fn_meta_node.form.val_at(SYM_ALLOW_UNSAFE_NAMES_META_KEY, False)) is True
+        if fn_meta_node is not None and isinstance(fn_meta_node.form, IPersistentMap)
+        else False
+    )
+
+
 def _is_dynamic(v: Var) -> bool:
     """Return True if the Var holds a value which should be compiled to a dynamic
     Var access."""
@@ -896,7 +912,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
         assert node.init is not None  # silence MyPy
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
-            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            def_ast = _fn_to_py_ast(
+                ctx, node.init, def_name=defsym.name, meta_node=node.meta
+            )
             is_defn = True
         elif (
             node.init.op == NodeOp.WITH_META
@@ -1622,9 +1640,6 @@ def _synthetic_do_to_py_ast(
     )
 
 
-MetaNode = Union[Const, MapNode]
-
-
 def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
     """Generate a safe Python function name from a function name symbol.
 
@@ -1640,16 +1655,27 @@ def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
 
 
 def __fn_args_to_py_ast(
-    ctx: GeneratorContext, params: Iterable[Binding], body: Do
+    ctx: GeneratorContext,
+    params: Iterable[Binding],
+    body: Do,
+    allow_unsafe_param_names: bool = True,
 ) -> tuple[list[ast.arg], Optional[ast.arg], list[ast.stmt], Iterable[PyASTNode]]:
-    """Generate a list of Python AST nodes from function method parameters."""
+    """Generate a list of Python AST nodes from function method parameters.
+
+    Parameter names are munged and modified to ensure global
+    uniqueness by default.  If `allow_unsafe_param_names` is set to
+    True, the original munged parameter names are retained instead.
+
+    """
     fn_args, varg = [], None
     fn_body_ast: list[ast.stmt] = []
     fn_def_deps: list[PyASTNode] = []
     for binding in params:
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
-        arg_name = genname(munge(binding.name))
+        arg_name = munge(binding.name)
+        if not allow_unsafe_param_names:
+            arg_name = genname(arg_name)
 
         arg_tag: Optional[ast.expr]
         if (
@@ -1786,8 +1812,14 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
             )
 
+        # check if we should preserve the original parameter names
+        allow_unsafe_param_names = _is_allow_unsafe_names(meta_node)
+
         fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
-            ctx, method.params, method.body
+            ctx,
+            method.params,
+            method.body,
+            allow_unsafe_param_names=allow_unsafe_param_names,
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 
