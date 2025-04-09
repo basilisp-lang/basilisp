@@ -37,7 +37,7 @@ from basilisp.lang.compiler.constants import (
     INTERFACE_KW,
     OPERATOR_ALIAS,
     REST_KW,
-    SYM_ALLOW_UNSAFE_NAMES,
+    SYM_ALLOW_UNSAFE_NAMES_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_REDEF_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
@@ -111,7 +111,7 @@ from basilisp.lang.compiler.utils import (
     ast_ClassDef,
     ast_FunctionDef,
 )
-from basilisp.lang.interfaces import IMeta, ISeq
+from basilisp.lang.interfaces import IMeta, IPersistentMap, ISeq
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
 from basilisp.lang.runtime import BasilispModule, Var
@@ -648,6 +648,21 @@ def _with_ast_loc_deps(
         return _ast_with_loc(py_ast, node.env, include_dependencies=True)
 
     return with_lineno_and_col
+
+
+MetaNode = Union[Const, MapNode]
+
+
+def _is_allow_unsafe_names(fn_meta_node: Optional[MetaNode]) -> bool:
+    """Return True if the `fn_meta_node` has the meta key set to
+    retain functio parameter names.
+
+    """
+    return (
+        bool(fn_meta_node.form.val_at(SYM_ALLOW_UNSAFE_NAMES_META_KEY, False)) is True
+        if fn_meta_node is not None and isinstance(fn_meta_node.form, IPersistentMap)
+        else False
+    )
 
 
 def _is_dynamic(v: Var) -> bool:
@@ -1625,9 +1640,6 @@ def _synthetic_do_to_py_ast(
     )
 
 
-MetaNode = Union[Const, MapNode]
-
-
 def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
     """Generate a safe Python function name from a function name symbol.
 
@@ -1784,14 +1796,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST[ast.expr]:
-    """Return a Python AST node for a function with a single arity.
-
-    By default, parameter names are globally uniquified to support
-    inlining of Basilisp functions. If the `meta_node` contains
-    `SYM_ALLOW_UNSAFE_NAMES` set to True, the original (munged)
-    parameter names are retained instead.
-
-    """
+    """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
     assert method.op == NodeOp.FN_ARITY
 
@@ -1808,10 +1813,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
             )
 
         # check if we should preserve the original parameter names
-        allow_unsafe_param_names = (
-            meta_node is not None
-            and meta_node.form.val_at(SYM_ALLOW_UNSAFE_NAMES) is True
-        )
+        allow_unsafe_param_names = _is_allow_unsafe_names(meta_node)
 
         fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
             ctx,
