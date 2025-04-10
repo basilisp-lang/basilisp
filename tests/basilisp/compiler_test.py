@@ -3025,6 +3025,42 @@ class TestFunctionDef:
             kw.keyword("await-result-0"), kw.keyword("await-result-1")
         ) == async_to_sync(awaiter)
 
+    def test_async_generator_single_statement(self, lcompile: CompileFn):
+        awaiter_fn: runtime.Var = lcompile(
+            """
+            (fn ^:async unique-kdghii
+              []
+              (yield :async-generator))
+            """
+        )
+
+        async def get():
+            async for val in awaiter_fn():
+                return val
+
+        assert kw.keyword("async-generator") == async_to_sync(get)
+
+    def test_async_generator_multi_statement(self, lcompile: CompileFn):
+        awaiter_fn: runtime.Var = lcompile(
+            """
+            (fn ^:async unique-kdghii
+              []
+              (yield :async-generator-1)
+              (yield :async-generator-2))
+            """
+        )
+
+        async def get():
+            vals = []
+            async for val in awaiter_fn():
+                vals.append(val)
+            return vals
+
+        assert [
+            kw.keyword("async-generator-1"),
+            kw.keyword("async-generator-2"),
+        ] == async_to_sync(get)
+
     def test_fn_with_meta_must_be_map(self, lcompile: CompileFn):
         f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
         with pytest.raises(TypeError):

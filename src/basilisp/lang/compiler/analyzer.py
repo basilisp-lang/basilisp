@@ -1244,8 +1244,6 @@ def __deftype_classmethod(  # pylint: disable=too-many-locals
                 statements=vec.vector(stmts),
                 ret=ret,
                 is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
                 env=ctx.get_node_env(),
             )
         method = DefTypeClassMethod(
@@ -1309,8 +1307,6 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
                     statements=vec.vector(stmts),
                     ret=ret,
                     is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
                     env=ctx.get_node_env(),
                 )
             method = DefTypeMethodArity(
@@ -1380,8 +1376,6 @@ def __deftype_or_reify_property(
                 statements=vec.vector(stmts),
                 ret=ret,
                 is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
                 env=ctx.get_node_env(),
             )
         prop = DefTypeProperty(
@@ -1418,8 +1412,6 @@ def __deftype_staticmethod(
                 statements=vec.vector(stmts),
                 ret=ret,
                 is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
                 env=ctx.get_node_env(),
             )
         method = DefTypeStaticMethod(
@@ -2123,8 +2115,6 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
                     statements=vec.vector(stmts),
                     ret=ret,
                     is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
                     env=ctx.get_node_env(),
                 )
             method = FnArity(
@@ -2135,8 +2125,6 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
                 is_variadic=has_vargs,
                 fixed_arity=len(param_nodes) - int(has_vargs),
                 body=body,
-                # Use the argument vector for fetching line/col since the
-                # form itself is a sequence with no meaningful metadata.
                 env=ctx.get_node_env(),
             )
             method.visit(partial(_assert_recur_is_tail, ctx))

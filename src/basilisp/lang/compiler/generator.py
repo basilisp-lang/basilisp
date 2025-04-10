@@ -1723,7 +1723,7 @@ def __fn_args_to_py_ast(
         and func_ctx.is_generator
         and func_ctx.function_type == FunctionContextType.ASYNC_FUNCTION
     ):
-        fn_body_ast.append(ast.Pass())
+        fn_body_ast.append(statementize(body_ast.node))
     else:
         fn_body_ast.append(ast.Return(value=body_ast.node))
 
