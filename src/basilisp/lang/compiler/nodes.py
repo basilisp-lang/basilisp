@@ -293,13 +293,19 @@ NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
 
 
-class FunctionContext(Enum):
+class FunctionContextType(Enum):
     FUNCTION = kw.keyword("function")
     ASYNC_FUNCTION = kw.keyword("async-function")
     METHOD = kw.keyword("method")
     CLASSMETHOD = kw.keyword("classmethod")
     STATICMETHOD = kw.keyword("staticmethod")
     PROPERTY = kw.keyword("property")
+
+
+@attr.define
+class FunctionContext:
+    function_type: FunctionContextType
+    is_generator: bool = False
 
 
 class KeywordArgSupport(Enum):
@@ -336,7 +342,7 @@ class NodeEnv:
 class Await(Node[ReaderLispForm]):
     form: ReaderLispForm
     expr: Node
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.AWAIT
     top_level: bool = False
@@ -348,7 +354,7 @@ class Binding(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
     local: LocalType
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     tag: Optional[Node] = None
     arg_id: Optional[int] = None
     is_variadic: bool = False
@@ -367,7 +373,7 @@ class Catch(Node[SpecialForm]):
     class_: Union["MaybeClass", "MaybeHostForm"]
     local: Binding
     body: "Do"
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(CLASS, LOCAL, BODY)
     op: NodeOp = NodeOp.CATCH
     top_level: bool = False
@@ -380,7 +386,7 @@ class Const(Node[ReaderLispForm]):
     type: ConstType
     val: ReaderLispForm
     is_literal: bool
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.CONST
@@ -395,7 +401,7 @@ class Def(Node[SpecialForm]):
     var: Var
     init: Optional[Node]
     doc: Optional[str]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     tag: Optional[Node] = None
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.EMPTY
@@ -414,7 +420,7 @@ class DefType(Node[SpecialForm]):
     interfaces: Iterable[DefTypeBase]
     fields: Iterable[Binding]
     members: Iterable["DefTypeMember"]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     verified_abstract: bool = False
     artificially_abstract: IPersistentSet[DefTypeBase] = lset.EMPTY
     is_frozen: bool = True
@@ -434,7 +440,7 @@ class DefType(Node[SpecialForm]):
 class DefTypeMember(Node[SpecialForm]):
     form: SpecialForm
     name: str
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
 
     @property
     def python_name(self) -> str:
@@ -475,7 +481,7 @@ class DefTypeMethodArity(Node[SpecialForm]):
     body: "Do"
     this_local: Binding
     loop_id: LoopID
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     is_variadic: bool = False
     kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
@@ -520,7 +526,7 @@ class Do(Node[SpecialForm]):
     form: SpecialForm
     statements: Iterable[Node]
     ret: Node
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     is_body: bool = False
     use_var_indirection: bool = False
     children: Sequence[kw.Keyword] = vec.v(STATEMENTS, RET)
@@ -534,7 +540,7 @@ class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
     arities: IPersistentVector["FnArity"]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     local: Optional[Binding] = None
     is_variadic: bool = False
     is_async: bool = False
@@ -553,7 +559,7 @@ class FnArity(Node[SpecialForm]):
     params: Iterable[Binding]
     fixed_arity: int
     body: Do
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     tag: Optional[Node] = None
     is_variadic: bool = False
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
@@ -569,7 +575,7 @@ class HostCall(Node[SpecialForm]):
     target: Node
     args: Iterable[Node]
     kwargs: KeywordArgs
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(TARGET, ARGS)
     op: NodeOp = NodeOp.HOST_CALL
     top_level: bool = False
@@ -581,7 +587,7 @@ class HostField(Node[Union[SpecialForm, sym.Symbol]], Assignable):
     form: Union[SpecialForm, sym.Symbol]
     field: str
     target: Node
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     is_assignable: bool = True
     children: Sequence[kw.Keyword] = vec.v(TARGET)
     op: NodeOp = NodeOp.HOST_FIELD
@@ -594,7 +600,7 @@ class If(Node[SpecialForm]):
     form: SpecialForm
     test: Node
     then: Node
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     else_: Node
     children: Sequence[kw.Keyword] = vec.v(TEST, THEN, ELSE)
     op: NodeOp = NodeOp.IF
@@ -606,7 +612,7 @@ class If(Node[SpecialForm]):
 class Import(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable["ImportAlias"]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.IMPORT
     top_level: bool = False
@@ -618,7 +624,7 @@ class ImportAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     form: Union[sym.Symbol, vec.PersistentVector]
     name: str
     alias: Optional[str]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.IMPORT_ALIAS
     top_level: bool = False
@@ -631,7 +637,7 @@ class Invoke(Node[SpecialForm]):
     fn: Node
     args: Iterable[Node]
     kwargs: KeywordArgs
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
     top_level: bool = False
@@ -643,7 +649,7 @@ class Let(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
     body: Do
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LET
     top_level: bool = False
@@ -655,7 +661,7 @@ class LetFn(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
     body: Do
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LETFN
     top_level: bool = False
@@ -667,7 +673,7 @@ class Local(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
     local: LocalType
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     is_assignable: bool = False
     arg_id: Optional[int] = None
     is_variadic: bool = False
@@ -683,7 +689,7 @@ class Loop(Node[SpecialForm]):
     bindings: Iterable[Binding]
     body: Do
     loop_id: LoopID
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LOOP
     top_level: bool = False
@@ -695,7 +701,7 @@ class Map(Node[IPersistentMap]):
     form: IPersistentMap
     keys: Iterable[Node]
     vals: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(KEYS, VALS)
     op: NodeOp = NodeOp.MAP
     top_level: bool = False
@@ -707,7 +713,7 @@ class MaybeClass(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
     target: Any
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.MAYBE_CLASS
     top_level: bool = False
@@ -720,7 +726,7 @@ class MaybeHostForm(Node[sym.Symbol]):
     class_: str
     field: str
     target: Any
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
     top_level: bool = False
@@ -732,7 +738,7 @@ class PyDict(Node[dict]):
     form: dict
     keys: Iterable[Node]
     vals: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(KEYS, VALS)
     op: NodeOp = NodeOp.PY_DICT
     top_level: bool = False
@@ -743,7 +749,7 @@ class PyDict(Node[dict]):
 class PyList(Node[list]):
     form: list
     items: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.PY_LIST
     top_level: bool = False
@@ -754,7 +760,7 @@ class PyList(Node[list]):
 class PySet(Node[Union[frozenset, set]]):
     form: Union[frozenset, set]
     items: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.PY_SET
     top_level: bool = False
@@ -765,7 +771,7 @@ class PySet(Node[Union[frozenset, set]]):
 class PyTuple(Node[tuple]):
     form: tuple
     items: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.PY_TUPLE
     top_level: bool = False
@@ -776,7 +782,7 @@ class PyTuple(Node[tuple]):
 class Queue(Node[lqueue.PersistentQueue]):
     form: lqueue.PersistentQueue
     items: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.QUEUE
     top_level: bool = False
@@ -787,7 +793,7 @@ class Queue(Node[lqueue.PersistentQueue]):
 class Quote(Node[SpecialForm]):
     form: SpecialForm
     expr: Const
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     is_literal: bool = True
     children: Sequence[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.QUOTE
@@ -800,7 +806,7 @@ class Recur(Node[SpecialForm]):
     form: SpecialForm
     exprs: Iterable[Node]
     loop_id: LoopID
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(EXPRS)
     op: NodeOp = NodeOp.RECUR
     top_level: bool = False
@@ -812,7 +818,7 @@ class Reify(Node[SpecialForm]):
     form: SpecialForm
     interfaces: Iterable[DefTypeBase]
     members: Iterable["DefTypeMember"]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     verified_abstract: bool = False
     artificially_abstract: IPersistentSet[DefTypeBase] = lset.EMPTY
     is_frozen: bool = True
@@ -833,7 +839,7 @@ class RequireAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     form: Union[sym.Symbol, vec.PersistentVector]
     name: str
     alias: Optional[str]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.REQUIRE_ALIAS
     top_level: bool = False
@@ -844,7 +850,7 @@ class RequireAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
 class Require(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable[RequireAlias]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.REQUIRE
     top_level: bool = False
@@ -855,7 +861,7 @@ class Require(Node[SpecialForm]):
 class Set(Node[IPersistentSet]):
     form: IPersistentSet
     items: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.SET
     top_level: bool = False
@@ -867,7 +873,7 @@ class SetBang(Node[SpecialForm]):
     form: SpecialForm
     target: Union[Assignable, Node]
     val: Node
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(TARGET, VAL)
     op: NodeOp = NodeOp.SET_BANG
     top_level: bool = False
@@ -879,7 +885,7 @@ class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
     cause: Optional[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
     top_level: bool = False
@@ -892,7 +898,7 @@ class Try(Node[SpecialForm]):
     body: Do
     catches: Iterable[Catch]
     children: Sequence[kw.Keyword]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     finally_: Optional[Do] = None
     op: NodeOp = NodeOp.TRY
     top_level: bool = False
@@ -903,7 +909,7 @@ class Try(Node[SpecialForm]):
 class VarRef(Node[Union[sym.Symbol, ISeq]], Assignable):
     form: Union[sym.Symbol, ISeq]
     var: Var
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     return_var: bool = False
     is_assignable: bool = True
     is_allow_var_indirection: bool = False
@@ -917,7 +923,7 @@ class VarRef(Node[Union[sym.Symbol, ISeq]], Assignable):
 class Vector(Node[IPersistentVector]):
     form: IPersistentVector
     items: Iterable[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.VECTOR
     top_level: bool = False
@@ -932,7 +938,7 @@ class WithMeta(Node[LispForm], Generic[T_withmeta]):
     form: LispForm
     meta: Union[Const, Map]
     expr: T_withmeta
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(META, EXPR)
     op: NodeOp = NodeOp.WITH_META
     top_level: bool = False
@@ -943,7 +949,7 @@ class WithMeta(Node[LispForm], Generic[T_withmeta]):
 class Yield(Node[SpecialForm]):
     form: SpecialForm
     expr: Optional[Node]
-    env: NodeEnv
+    env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.YIELD
     top_level: bool = False

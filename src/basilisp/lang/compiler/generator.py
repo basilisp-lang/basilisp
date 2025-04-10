@@ -60,6 +60,7 @@ from basilisp.lang.compiler.nodes import (
     Do,
     Fn,
     FnArity,
+    FunctionContextType,
     HostCall,
     HostField,
     If,
@@ -1715,7 +1716,16 @@ def __fn_args_to_py_ast(
 
     body_ast = _synthetic_do_to_py_ast(ctx, body)
     fn_body_ast.extend(map(statementize, body_ast.dependencies))
-    fn_body_ast.append(ast.Return(value=body_ast.node))
+
+    func_ctx = body.env.func_ctx
+    if (
+        func_ctx is not None
+        and func_ctx.is_generator
+        and func_ctx.function_type == FunctionContextType.ASYNC_FUNCTION
+    ):
+        fn_body_ast.append(ast.Pass())
+    else:
+        fn_body_ast.append(ast.Return(value=body_ast.node))
 
     return fn_args, varg, fn_body_ast, fn_def_deps
 
