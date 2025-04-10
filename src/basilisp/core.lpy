@@ -4101,13 +4101,13 @@
   (let [bound-name (first binding)
         iter       (second binding)]
     `(let [it# (. ~iter ~'__aiter__)]
-       (loop [is-running?# true]
-         (when is-running?#
-           (try
-             (let [~bound-name (await (. it# ~'__anext__))]
-               ~@body)
-             (catch python/StopAsyncIteration _
-               (recur false))))))))
+       (loop [val# nil]
+         (try
+           (let [~bound-name (await (. it# ~'__anext__))
+                 result#     (do ~@body)]
+             (recur result#))
+           (catch python/StopAsyncIteration _
+             val#))))))
 
 (defmacro awith
   "Evaluate ``body`` within a ``try`` / ``except`` expression, binding the named
