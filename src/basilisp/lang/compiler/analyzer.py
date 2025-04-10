@@ -10,7 +10,14 @@ import re
 import sys
 import uuid
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Mapping, MutableMapping, MutableSet
+from collections.abc import (
+    Collection,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+    MutableSet,
+)
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
@@ -89,6 +96,7 @@ from basilisp.lang.compiler.nodes import (
     Fn,
     FnArity,
     FunctionContext,
+    FunctionContextType,
     HostCall,
     HostField,
     If,
@@ -447,16 +455,23 @@ class AnalyzerContext:
 
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
-        return self.func_ctx == FunctionContext.ASYNC_FUNCTION
+        func_ctx = self.func_ctx
+        return (
+            func_ctx is not None
+            and func_ctx.function_type == FunctionContextType.ASYNC_FUNCTION
+        )
 
     @contextlib.contextmanager
-    def new_func_ctx(self, context_type: FunctionContext):
+    def new_func_ctx(
+        self, context_type: FunctionContextType
+    ) -> Iterator[FunctionContext]:
         """Context manager which can be used to set a function or method context for
         child nodes to examine. A new function context is pushed onto the stack each
         time the Analyzer finds a new function or method definition, so there may be
         many nested function contexts."""
-        self._func_ctx.append(context_type)
-        yield
+        func_ctx = FunctionContext(context_type)
+        self._func_ctx.append(func_ctx)
+        yield func_ctx
         self._func_ctx.pop()
 
     @property
@@ -1186,7 +1201,7 @@ def __deftype_method_param_bindings(
     return has_vargs, fixed_arity, param_nodes
 
 
-def __deftype_classmethod(
+def __deftype_classmethod(  # pylint: disable=too-many-locals
     form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     method_name: str,
@@ -1222,8 +1237,15 @@ def __deftype_classmethod(
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
             params, ctx, SpecialForm.DEFTYPE
         )
-        with ctx.new_func_ctx(FunctionContext.CLASSMETHOD), ctx.expr_pos():
+        with ctx.new_func_ctx(FunctionContextType.CLASSMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(runtime.nthrest(form, 2), ctx)
+            body = Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                env=ctx.get_node_env(),
+            )
         method = DefTypeClassMethod(
             form=form,
             name=method_name,
@@ -1231,15 +1253,7 @@ def __deftype_classmethod(
             fixed_arity=fixed_arity,
             is_variadic=has_vargs,
             kwarg_support=kwarg_support,
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
-                env=ctx.get_node_env(),
-            ),
+            body=body,
             class_local=cls_binding,
             env=ctx.get_node_env(),
         )
@@ -1286,8 +1300,15 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
 
         loop_id = genname(method_name)
         with ctx.new_recur_point(loop_id, param_nodes):
-            with ctx.new_func_ctx(FunctionContext.METHOD), ctx.expr_pos():
+            with ctx.new_func_ctx(FunctionContextType.METHOD), ctx.expr_pos():
                 stmts, ret = _body_ast(runtime.nthrest(form, 2), ctx)
+                body = Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    env=ctx.get_node_env(),
+                )
             method = DefTypeMethodArity(
                 form=form,
                 name=method_name,
@@ -1296,15 +1317,7 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
                 fixed_arity=fixed_arity,
                 is_variadic=has_vargs,
                 kwarg_support=kwarg_support,
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
+                body=body,
                 loop_id=loop_id,
                 env=ctx.get_node_env(),
             )
@@ -1356,22 +1369,21 @@ def __deftype_or_reify_property(
 
         assert not has_vargs, f"{special_form} properties may not have arguments"
 
-        with ctx.new_func_ctx(FunctionContext.PROPERTY), ctx.expr_pos():
+        with ctx.new_func_ctx(FunctionContextType.PROPERTY), ctx.expr_pos():
             stmts, ret = _body_ast(runtime.nthrest(form, 2), ctx)
+            body = Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                env=ctx.get_node_env(),
+            )
         prop = DefTypeProperty(
             form=form,
             name=method_name,
             this_local=this_binding,
             params=vec.vector(param_nodes),
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
-                env=ctx.get_node_env(),
-            ),
+            body=body,
             env=ctx.get_node_env(),
         )
         prop.visit(partial(_assert_no_recur, ctx))
@@ -1393,8 +1405,15 @@ def __deftype_staticmethod(
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
             args, ctx, SpecialForm.DEFTYPE
         )
-        with ctx.new_func_ctx(FunctionContext.STATICMETHOD), ctx.expr_pos():
+        with ctx.new_func_ctx(FunctionContextType.STATICMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(runtime.nthrest(form, 2), ctx)
+            body = Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                env=ctx.get_node_env(),
+            )
         method = DefTypeStaticMethod(
             form=form,
             name=method_name,
@@ -1402,15 +1421,7 @@ def __deftype_staticmethod(
             fixed_arity=fixed_arity,
             is_variadic=has_vargs,
             kwarg_support=kwarg_support,
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
-                env=ctx.get_node_env(),
-            ),
+            body=body,
             env=ctx.get_node_env(),
         )
         method.visit(partial(_assert_no_recur, ctx))
@@ -2092,13 +2103,20 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
         with ctx.new_recur_point(fn_loop_id, param_nodes):
             with (
                 ctx.new_func_ctx(
-                    FunctionContext.ASYNC_FUNCTION
+                    FunctionContextType.ASYNC_FUNCTION
                     if is_async
-                    else FunctionContext.FUNCTION
+                    else FunctionContextType.FUNCTION
                 ),
                 ctx.expr_pos(),
             ):
                 stmts, ret = _body_ast(form.rest, ctx)
+                body = Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    env=ctx.get_node_env(),
+                )
             method = FnArity(
                 form=form,
                 loop_id=fn_loop_id,
@@ -2106,17 +2124,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
                 tag=return_tag,
                 is_variadic=has_vargs,
                 fixed_arity=len(param_nodes) - int(has_vargs),
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
-                # Use the argument vector for fetching line/col since the
-                # form itself is a sequence with no meaningful metadata.
+                body=body,
                 env=ctx.get_node_env(),
             )
             method.visit(partial(_assert_recur_is_tail, ctx))
@@ -3419,6 +3427,9 @@ def _yield_ast(form: ISeq, ctx: AnalyzerContext) -> Yield:
         raise ctx.AnalyzerException(
             "yield forms must contain 1 or 2 elements, as in: (yield [expr])", form=form
         )
+
+    # Indicate that the current function is a generator
+    ctx.func_ctx.is_generator = True
 
     if nelems == 2:
         with ctx.expr_pos():

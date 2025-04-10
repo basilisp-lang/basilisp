@@ -6,7 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-    * Single arity functions can be tagged with `^:allow-unsafe-names` to preserve their parameter names (#1212)
+ * Single arity functions can be tagged with `^:allow-unsafe-names` to preserve their parameter names (#1212)
+
+### Fixed
+ * Fix an issue where the compiler would generate an illegal `return` statement for asynchronous generators (#1180) 
 
 ## [v0.3.7]
 ### Fixed 
