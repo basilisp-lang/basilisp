@@ -1667,7 +1667,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
         return _read_regex(ctx)
     elif char == "_":
         ctx.reader.advance()
-        _read_next(ctx)  # Ignore the entire next form
+        _read_next_consuming_comment(ctx)  # Ignore the entire next form
         return COMMENT
     elif char == "!":
         return _read_comment(ctx)
