@@ -1524,65 +1524,61 @@ class TestMetadata:
             read_str_first(s)
 
 
-def test_comment_reader_macro():
-    with pytest.raises(EOFError):
-        read_str_first("#_       (a list)", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_1", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first('#_"string"', is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_:keyword", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_symbol", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_[]", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_{}", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_()", is_eof_error=True)
-
-    with pytest.raises(EOFError):
-        read_str_first("#_#{}", is_eof_error=True)
-
-    assert kw.keyword("kw2") == read_str_first("#_:kw1 :kw2")
-
-    assert llist.EMPTY == read_str_first("(#_sym)")
-    assert llist.l(sym.symbol("inc"), 5) == read_str_first("(inc #_counter 5)")
-    assert llist.l(sym.symbol("dec"), 8) == read_str_first("(#_inc dec #_counter 8)")
-
-    assert vec.EMPTY == read_str_first("[#_m]")
-    assert vec.v(1) == read_str_first("[#_m 1]")
-    assert vec.v(1) == read_str_first("[#_m 1 #_2]")
-    assert vec.v(1, 2) == read_str_first("[#_m 1 2]")
-    assert vec.v(1, 4) == read_str_first("[#_m 1 #_2 4]")
-    assert vec.v(1, 4) == read_str_first("[#_m 1 #_2 4 #_5]")
-
-    assert lset.EMPTY == read_str_first("#{#_m}")
-    assert lset.s(1) == read_str_first("#{#_m 1}")
-    assert lset.s(1) == read_str_first("#{#_m 1 #_2}")
-    assert lset.s(1, 2) == read_str_first("#{#_m 1 2}")
-    assert lset.s(1, 4) == read_str_first("#{#_m 1 #_2 4}")
-    assert lset.s(1, 4) == read_str_first("#{#_m 1 #_2 4 #_5}")
-
-    assert lmap.EMPTY == read_str_first("{#_:key}")
-    assert lmap.EMPTY == read_str_first('{#_:key #_"value"}')
-    assert lmap.map({kw.keyword("key"): "value"}) == read_str_first(
-        '{:key #_"other" "value"}'
+class TestCommentReaderMacro:
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "#_       (a list)",
+            "#_1",
+            '#_"string"',
+            "#_:keyword",
+            "#_symbol",
+            "#_[]",
+            "#_{}",
+            "#_()",
+            "#_#{}",
+            "#_ #_ {} {}",
+        ],
     )
-    assert lmap.map({kw.keyword("key"): "value"}) == read_str_first(
-        '{:key "value" #_"other"}'
-    )
+    def test_comment_suppresses_form_with_eof(self, s: str):
+        with pytest.raises(EOFError):
+            read_str_first(s, is_eof_error=True)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('{:key #_"value"}')
+    @pytest.mark.parametrize(
+        "s,v",
+        [
+            ("#_:kw1 :kw2", kw.keyword("kw2")),
+            ("#_ #_ :kw1 :kw2 :kw3", kw.keyword("kw3")),
+            ("(#_sym)", llist.EMPTY),
+            ("(#_ #_ sym 1)", llist.EMPTY),
+            ("(inc #_counter 5)", llist.l(sym.symbol("inc"), 5)),
+            ("(#_inc dec #_counter 8)", llist.l(sym.symbol("dec"), 8)),
+            ("[#_m]", vec.EMPTY),
+            ("[#_m 1]", vec.v(1)),
+            ("[#_m 1 #_2]", vec.v(1)),
+            ("[#_m 1 2]", vec.v(1, 2)),
+            ("[#_m 1 #_2 4]", vec.v(1, 4)),
+            ("[#_m 1 #_2 4 #_5]", vec.v(1, 4)),
+            ("#{#_m}", lset.EMPTY),
+            ("#{#_m 1}", lset.s(1)),
+            ("#{#_m 1 #_2}", lset.s(1)),
+            ("#{#_m 1 2}", lset.s(1, 2)),
+            ("#{#_m 1 #_2 4}", lset.s(1, 4)),
+            ("#{#_m 1 #_2 4 #_5}", lset.s(1, 4)),
+            ("{#_:key}", lmap.EMPTY),
+            ('{#_:key #_"value"}', lmap.EMPTY),
+            ('{#_ #_:key "value"}', lmap.EMPTY),
+            ('{:key #_"other" "value"}', lmap.map({kw.keyword("key"): "value"})),
+            ('{:key "value" #_"other"}', lmap.map({kw.keyword("key"): "value"})),
+            ("{#_ #_:a 3 :b 5}", lmap.map({kw.keyword("b"): 5})),
+        ],
+    )
+    def test_comment_suppresses_form_in_other_form(self, s: str, v):
+        assert v == read_str_first(s)
+
+    def test_comment_creates_syntax_error(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('{:key #_"value"}')
 
 
 def test_comment_line():
