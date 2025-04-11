@@ -2409,6 +2409,24 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                 ),
             )
         )
+
+        if node.refer_all:
+            deps.append(
+                ast.ImportFrom(
+                    module=safe_name,
+                    names=[ast.alias(name="*")],
+                    level=0,
+                )
+            )
+        elif node.refers:
+            deps.append(
+                ast.ImportFrom(
+                    module=safe_name,
+                    names=[ast.alias(name=munge(name)) for name in node.refers],
+                    level=0,
+                )
+            )
+
         last = ast.Name(id=py_import_alias, ctx=ast.Load())
 
         deps.append(

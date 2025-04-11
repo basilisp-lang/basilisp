@@ -4950,14 +4950,26 @@
 (defn ns-map
   "Return a map of all the mapped symbols in the namespace.
 
-  Includes the return values of :lpy:fn:`ns-interns` and :lpy:fn:`ns-refers` in one
-  map."
+  Includes the return values of :lpy:fn:`ns-interns`, :lpy:fn:`ns-refers`, and
+  :lpy:fn:`ns-imports` in one map.
+
+  .. note::
+
+     It is possible that the same symbol is mapped to an interned name, a referred
+     name, an imported name, or an import-referred name. They are stored in separate
+     collections in each namespace and Basilisp symbol resolution rules determine the
+     precedence. This function returns the combined set of all mapped symbols in a
+     single map and therefore symbols defined in multiple maps will only show one
+     value. Inspecting the contents of each of the component maps will show all
+     mappings, including those that were overwritten by the merge operation in this
+     function."
   ([] (ns-map *ns*))
   ([ns]
    (let [resolved-ns (the-ns ns)]
      (merge
-      (ns-interns resolved-ns)
-      (ns-refers resolved-ns)))))
+      (ns-imports resolved-ns)
+      (ns-refers resolved-ns)
+      (ns-interns resolved-ns)))))
 
 (defn ^:inline ns-resolve
   "Return the Var which will be resolved by the symbol in the given namespace."

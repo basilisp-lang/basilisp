@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.3.8]
 ### Added
  * Added `afor` and `awith` macros to support async Python interop (#1179, #1181)
+ * Added support for referring imported Python names as by `from ... import ...` (#1154)
 
 ### Changed
  * Function parameter names will not be automatically generated with unique suffixes unless the function meta key `^:safe-py-params` is provided (#1212)
@@ -18,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue where consecutive reader comment forms would not be ignored (#1207)
 
 ## [v0.3.7]
-### Fixed 
+### Fixed
  * Fix a regression introduced in #1176 where the testrunner couldn't handle relative paths in `sys.path`, causing `basilisp test` to fail when no arugments were provided (#1204)
  * Fix a bug where `basilisp.process/exec` could deadlock reading process output if that output exceeded the buffer size (#1202)
  * Fix `basilisp boostrap` issue on MS-Windows where the boostrap file loaded too early, before Basilisp was in `sys.path` (#1208)
