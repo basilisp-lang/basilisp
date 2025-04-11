@@ -4091,7 +4091,11 @@
 
 (defmacro afor
   "Repeatedly execute ``body`` while the binding name is repeatedly rebound to
-  successive values from the asynchronous iterable."
+  successive values from the asynchronous iterable.
+
+  .. warning::
+
+     The ``afor`` macro may only be used in an asynchronous function context."
   [binding & body]
   (if (operator/ne 2 (count binding))
     (throw
@@ -4112,7 +4116,11 @@
 (defmacro awith
   "Evaluate ``body`` within a ``try`` / ``except`` expression, binding the named
   expressions as per Python's async context manager protocol spec (Python's
-  ``async with`` blocks)."
+  ``async with`` blocks).
+
+  .. warning::
+
+     The ``awith`` macro may only be used in an asynchronous function context."
   [bindings & body]
   (let [binding (first bindings)
         expr    (second bindings)]
