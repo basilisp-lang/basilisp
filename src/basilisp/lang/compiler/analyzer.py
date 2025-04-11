@@ -56,6 +56,7 @@ from basilisp.lang.compiler.constants import (
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_GEN_SAFE_NAMES_META_KEY,
     SYM_INLINE_META_KW,
     SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
@@ -1070,7 +1071,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
                     "Cannot have a user-generated inline function and an automatically "
                     "generated inline function"
                 )
-                var.meta.assoc(SYM_INLINE_META_KW, init.inline_fn)  # type: ignore[union-attr]
+                var.alter_meta(lambda m: m.assoc(SYM_INLINE_META_KW, init.inline_fn))  # type: ignore[union-attr]
                 def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)  # type: ignore[union-attr]
 
             if tag_ast is not None and any(
@@ -2210,6 +2211,7 @@ def _inline_fn_ast(
         *([sym.symbol(genname(f"{name.name}-inline"))] if name is not None else []),
         vec.vector(binding.form for binding in inline_arity.params),
         macroed_form,
+        meta=lmap.map({SYM_GEN_SAFE_NAMES_META_KEY: True}),
     )
     return _fn_ast(inline_fn_form, ctx)
 

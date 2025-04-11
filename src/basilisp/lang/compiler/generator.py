@@ -37,8 +37,8 @@ from basilisp.lang.compiler.constants import (
     INTERFACE_KW,
     OPERATOR_ALIAS,
     REST_KW,
-    SYM_ALLOW_UNSAFE_NAMES_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_GEN_SAFE_NAMES_META_KEY,
     SYM_REDEF_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
 )
@@ -654,13 +654,11 @@ def _with_ast_loc_deps(
 MetaNode = Union[Const, MapNode]
 
 
-def _is_allow_unsafe_names(fn_meta_node: Optional[MetaNode]) -> bool:
-    """Return True if the `fn_meta_node` has the meta key set to
-    retain functio parameter names.
-
-    """
+def _is_gen_safe_names(fn_meta_node: Optional[MetaNode]) -> bool:
+    """Return True if the `fn_meta_node` has the meta key set to generate globally
+    unique function parameter names."""
     return (
-        bool(fn_meta_node.form.val_at(SYM_ALLOW_UNSAFE_NAMES_META_KEY, False)) is True
+        bool(fn_meta_node.form.val_at(SYM_GEN_SAFE_NAMES_META_KEY, False)) is True
         if fn_meta_node is not None and isinstance(fn_meta_node.form, IPersistentMap)
         else False
     )
@@ -1659,7 +1657,7 @@ def __fn_args_to_py_ast(
     ctx: GeneratorContext,
     params: Iterable[Binding],
     body: Do,
-    allow_unsafe_param_names: bool = True,
+    should_generate_safe_names: bool = False,
 ) -> tuple[list[ast.arg], Optional[ast.arg], list[ast.stmt], Iterable[PyASTNode]]:
     """Generate a list of Python AST nodes from function method parameters.
 
@@ -1675,7 +1673,7 @@ def __fn_args_to_py_ast(
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
         arg_name = munge(binding.name)
-        if not allow_unsafe_param_names:
+        if should_generate_safe_names:
             arg_name = genname(arg_name)
 
         arg_tag: Optional[ast.expr]
@@ -1822,14 +1820,12 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
             )
 
-        # check if we should preserve the original parameter names
-        allow_unsafe_param_names = _is_allow_unsafe_names(meta_node)
-
         fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
             ctx,
             method.params,
             method.body,
-            allow_unsafe_param_names=allow_unsafe_param_names,
+            # check if we should preserve the original parameter names
+            should_generate_safe_names=_is_gen_safe_names(meta_node),
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 
@@ -2138,7 +2134,11 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 )
 
             fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
-                ctx, arity.params, arity.body
+                ctx,
+                arity.params,
+                arity.body,
+                # check if we should preserve the original parameter names
+                should_generate_safe_names=_is_gen_safe_names(meta_node),
             )
             all_arity_def_deps.extend(fn_def_deps)
 
