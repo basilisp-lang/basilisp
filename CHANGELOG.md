@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `afor` and `awith` macros to support async Python interop (#1179, #1181)
 
 ### Changed
- * Single arity functions can be tagged with `^:allow-unsafe-names` to preserve their parameter names (#1212)
+ * Function parameter names will not be automatically generated with unique suffixes unless the function meta key `^:safe-py-params` is provided (#1212)
 
 ### Fixed
  * Fix an issue where the compiler would generate an illegal `return` statement for asynchronous generators (#1180)

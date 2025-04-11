@@ -177,6 +177,16 @@ Functions not meeting these criteria will trigger compile time errors if they ar
 
    Users should consider inlining primarily a Basilisp internal feature and use it extremely sparingly in user code.
 
+.. warning::
+
+   Due to the nature of how inline functions are applied, there is a potential for name clashes between the inline function parameter names and names defined elsewhere in the containing Python module.
+   Therefore, it is recommended for any inline function to set the meta key ``^:safe-py-params`` to ensure that the compiler generates globally unique Python parameter names.
+   For inline functions generated automatically by the compiler, this setting is automatically enabled.
+
+   .. code-block::
+
+      ^:safe-py-params (fn [a b] ...)
+
 .. _compiler_debugging:
 
 Debugging
