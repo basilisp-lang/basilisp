@@ -4085,6 +4085,63 @@
        (finally
          (println (* 1000 (- (perf-counter) start#)) "msecs")))))
 
+;;;;;;;;;;;;;;;;;;
+;; Async Macros ;;
+;;;;;;;;;;;;;;;;;;
+
+(defmacro afor
+  "Repeatedly execute ``body`` while the binding name is repeatedly rebound to
+  successive values from the asynchronous iterable.
+
+  .. warning::
+
+     The ``afor`` macro may only be used in an asynchronous function context."
+  [binding & body]
+  (if (operator/ne 2 (count binding))
+    (throw
+     (ex-info "bindings take the form [name iter]"
+              {:bindings binding}))
+    nil)
+  (let [bound-name (first binding)
+        iter       (second binding)]
+    `(let [it# (. ~iter ~'__aiter__)]
+       (loop [val# nil]
+         (try
+           (let [~bound-name (await (. it# ~'__anext__))
+                 result#     (do ~@body)]
+             (recur result#))
+           (catch python/StopAsyncIteration _
+             val#))))))
+
+(defmacro awith
+  "Evaluate ``body`` within a ``try`` / ``except`` expression, binding the named
+  expressions as per Python's async context manager protocol spec (Python's
+  ``async with`` blocks).
+
+  .. warning::
+
+     The ``awith`` macro may only be used in an asynchronous function context."
+  [bindings & body]
+  (let [binding (first bindings)
+        expr    (second bindings)]
+    `(let [obj#        ~expr
+           ~binding    (await (. obj# ~'__aenter__))
+           hit-except# (volatile! false)]
+       (try
+         (let [res# ~@(if (nthnext bindings 2)
+                        [(concat
+                          (list 'awith (vec (nthrest bindings 2)))
+                          body)]
+                        (list (concat '(do) body)))]
+           res#)
+         (catch python/Exception e#
+           (vreset! hit-except# true)
+           (when-not (await (. obj# (~'__aexit__ (python/type e#) e# (.- e# ~'__traceback__))))
+             (throw e#)))
+         (finally
+           (when-not @hit-except#
+             (await (. obj# (~'__aexit__ nil nil nil)))))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Threading Macros ;;
 ;;;;;;;;;;;;;;;;;;;;;;
