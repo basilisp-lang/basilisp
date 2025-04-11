@@ -30,6 +30,7 @@ def test_format_source_context(monkeypatch, source_file, source_file_path):
             """
         )
     )
+    monkeypatch.setenv("TERM", "xterm")
     format_c = format_source_context(source_file_path, 2, end_line=4)
     assert [
         " 1   | \x1b[37m\x1b[39;49;00m\n",
