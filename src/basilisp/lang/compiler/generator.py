@@ -1673,7 +1673,11 @@ def __fn_args_to_py_ast(
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
         arg_name = munge(binding.name)
-        if should_generate_safe_names:
+        # Always generate a unique name for bindings named "_" since those are
+        # typically ignored parameters. Python doesn't allow duplicate param
+        # names (even including "_"), so this is a hack to support something
+        # Clojure allows.
+        if should_generate_safe_names or binding.name == "_":
             arg_name = genname(arg_name)
 
         arg_tag: Optional[ast.expr]
