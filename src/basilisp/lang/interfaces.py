@@ -1,6 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence, Sized
+from types import GeneratorType
 from typing import (
     AbstractSet,
     Any,
@@ -759,3 +760,7 @@ class IType(ABC):
        :ref:`data_types_and_records`"""
 
     __slots__ = ()
+
+
+def is_seqable(x):
+    return isinstance(x, (GeneratorType, ISeqable))
