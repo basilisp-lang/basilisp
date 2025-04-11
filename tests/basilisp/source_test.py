@@ -23,7 +23,7 @@ def test_format_source_context(monkeypatch, source_file, source_file_path):
         textwrap.dedent(
             """
             (ns source-test)
-            
+
             (a)
             (let [a 5]
               (b))
