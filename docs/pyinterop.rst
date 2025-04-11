@@ -316,7 +316,7 @@ These decorators are applied from right to left, similar to how Python decorator
     ;;; Decorators with arguments, and order of application (right to left)
     ;;
     ;; example decorator
-    (defn mult-x-decorator 
+    (defn mult-x-decorator
       [x]
       (fn [f]
         (fn [] (* (f) x))))
@@ -327,7 +327,7 @@ These decorators are applied from right to left, similar to how Python decorator
     ;;; defasync support
     ;;
     ;; example async decorator
-    (defn add-7-async-decorator 
+    (defn add-7-async-decorator
       [f]
       ^:async (fn [] (+ (await (f)) 7)))
 
@@ -357,3 +357,10 @@ Users still have the option to use the native :external:py:func:`operator.floord
 .. seealso::
 
    :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`mod`
+
+.. _proxies:
+
+Proxies
+-------
+
+TBD
