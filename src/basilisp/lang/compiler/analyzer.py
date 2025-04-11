@@ -1071,7 +1071,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
                     "Cannot have a user-generated inline function and an automatically "
                     "generated inline function"
                 )
-                var.alter_meta(lambda m: m.assoc(SYM_INLINE_META_KW, init.inline_fn))  # type: ignore[union-attr]
+                var.alter_meta(lambda m: m.assoc(SYM_INLINE_META_KW, init.inline_fn))  # type: ignore[misc]
                 def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)  # type: ignore[union-attr]
 
             if tag_ast is not None and any(
