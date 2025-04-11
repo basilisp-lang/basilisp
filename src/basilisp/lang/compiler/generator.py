@@ -38,7 +38,7 @@ from basilisp.lang.compiler.constants import (
     OPERATOR_ALIAS,
     REST_KW,
     SYM_DYNAMIC_META_KEY,
-    SYM_GEN_SAFE_NAMES_META_KEY,
+    SYM_GEN_SAFE_PYTHON_PARAM_NAMES_META_KEY,
     SYM_REDEF_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
 )
@@ -654,11 +654,12 @@ def _with_ast_loc_deps(
 MetaNode = Union[Const, MapNode]
 
 
-def _is_gen_safe_names(fn_meta_node: Optional[MetaNode]) -> bool:
+def _should_gen_safe_python_param_names(fn_meta_node: Optional[MetaNode]) -> bool:
     """Return True if the `fn_meta_node` has the meta key set to generate globally
     unique function parameter names."""
     return (
-        bool(fn_meta_node.form.val_at(SYM_GEN_SAFE_NAMES_META_KEY, False)) is True
+        bool(fn_meta_node.form.val_at(SYM_GEN_SAFE_PYTHON_PARAM_NAMES_META_KEY, False))
+        is True
         if fn_meta_node is not None and isinstance(fn_meta_node.form, IPersistentMap)
         else False
     )
@@ -1829,7 +1830,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
             method.params,
             method.body,
             # check if we should preserve the original parameter names
-            should_generate_safe_names=_is_gen_safe_names(meta_node),
+            should_generate_safe_names=_should_gen_safe_python_param_names(meta_node),
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 
@@ -2142,7 +2143,9 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 arity.params,
                 arity.body,
                 # check if we should preserve the original parameter names
-                should_generate_safe_names=_is_gen_safe_names(meta_node),
+                should_generate_safe_names=_should_gen_safe_python_param_names(
+                    meta_node
+                ),
             )
             all_arity_def_deps.extend(fn_def_deps)
 

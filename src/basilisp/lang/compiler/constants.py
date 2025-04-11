@@ -37,7 +37,7 @@ OPERATOR_ALIAS = genname("operator")
 
 SYM_ABSTRACT_META_KEY = kw.keyword("abstract")
 SYM_ABSTRACT_MEMBERS_META_KEY = kw.keyword("abstract-members")
-SYM_GEN_SAFE_NAMES_META_KEY = kw.keyword("gen-safe-names")
+SYM_GEN_SAFE_PYTHON_PARAM_NAMES_META_KEY = kw.keyword("safe-py-params")
 SYM_ASYNC_META_KEY = kw.keyword("async")
 SYM_KWARGS_META_KEY = kw.keyword("kwargs")
 SYM_PRIVATE_META_KEY = kw.keyword("private")

@@ -56,7 +56,7 @@ from basilisp.lang.compiler.constants import (
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
-    SYM_GEN_SAFE_NAMES_META_KEY,
+    SYM_GEN_SAFE_PYTHON_PARAM_NAMES_META_KEY,
     SYM_INLINE_META_KW,
     SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
@@ -1571,7 +1571,7 @@ def __deftype_or_reify_method_node_from_arities(
     )
 
 
-def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
+def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-locals
     form: ISeq, ctx: AnalyzerContext, special_form: sym.Symbol
 ) -> tuple[list[DefTypeBase], list[DefTypeMember]]:
     """Roll up `deftype*` and `reify*` declared bases and method implementations."""
@@ -2211,12 +2211,12 @@ def _inline_fn_ast(
         *([sym.symbol(genname(f"{name.name}-inline"))] if name is not None else []),
         vec.vector(binding.form for binding in inline_arity.params),
         macroed_form,
-        meta=lmap.map({SYM_GEN_SAFE_NAMES_META_KEY: True}),
+        meta=lmap.map({SYM_GEN_SAFE_PYTHON_PARAM_NAMES_META_KEY: True}),
     )
     return _fn_ast(inline_fn_form, ctx)
 
 
-@_with_meta  # noqa: MC0001
+@_with_meta
 def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
@@ -3603,7 +3603,7 @@ def __resolve_namespaced_symbol_in_ns(
     return None
 
 
-def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: MC0001
+def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: sym.Symbol
 ) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""

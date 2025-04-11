@@ -180,12 +180,12 @@ Functions not meeting these criteria will trigger compile time errors if they ar
 .. warning::
 
    Due to the nature of how inline functions are applied, there is a potential for name clashes between the inline function parameter names and names defined elsewhere in the containing Python module.
-   Therefore, it is recommended for any inline function to set the meta key ``^:gen-safe-names`` to ensure that the compiler generates globally unique Python parameter names.
+   Therefore, it is recommended for any inline function to set the meta key ``^:safe-py-params`` to ensure that the compiler generates globally unique Python parameter names.
    For inline functions generated automatically by the compiler, this setting is automatically enabled.
 
    .. code-block::
 
-      ^:gen-safe-names (fn [a b] ...)
+      ^:safe-py-params (fn [a b] ...)
 
 .. _compiler_debugging:
 

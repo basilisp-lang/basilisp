@@ -2794,10 +2794,10 @@ class TestFunctionDef:
     @pytest.mark.parametrize(
         "code",
         [
-            "(defn ^:gen-safe-names test_dfn0 [a b] 5)",
-            "(def ^:gen-safe-names test_dfn2 (fn [a b & c] 5))",
-            "(def test_dfn2 ^:gen-safe-names (fn [a b & c] 5))",
-            "(def test_dfn2 ^:gen-safe-names (fn [a b {:as c}] 5))",
+            "(defn ^:safe-py-params test_dfn0 [a b] 5)",
+            "(def ^:safe-py-params test_dfn2 (fn [a b & c] 5))",
+            "(def test_dfn2 ^:safe-py-params (fn [a b & c] 5))",
+            "(def test_dfn2 ^:safe-py-params (fn [a b {:as c}] 5))",
         ],
     )
     def test_fn_argument_names_globally_unique(self, lcompile: CompileFn, code: str):
