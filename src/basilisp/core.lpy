@@ -307,27 +307,27 @@
 ;; Define inline functions for earlier core functions now that we have all the
 ;; functionality required to do so.
 
-(.alter-meta #'first assoc :inline (fn [seq] `(basilisp.lang.runtime/first ~seq)))
-(.alter-meta #'rest assoc :inline (fn [seq] `(basilisp.lang.runtime/rest ~seq)))
-(.alter-meta #'next assoc :inline (fn [seq] `(basilisp.lang.runtime/next ~seq)))
-(.alter-meta #'second assoc :inline (fn [seq] `(first (rest ~seq))))
-(.alter-meta #'ffirst assoc :inline (fn [seq] `(first (first ~seq))))
-(.alter-meta #'identity assoc :inline (fn [o] `~o))
-(.alter-meta #'instance? assoc :inline (fn [class obj] `(python/isinstance ~obj ~class)))
-(.alter-meta #'boolean? assoc :inline (fn [o] `(instance? python/bool ~o)))
-(.alter-meta #'float? assoc :inline (fn [o] `(instance? python/float ~o)))
-(.alter-meta #'integer? assoc :inline (fn [o] `(instance? python/int ~o)))
-(.alter-meta #'string? assoc :inline (fn [o] `(instance? python/str ~o)))
-(.alter-meta #'symbol? assoc :inline (fn [o] `(instance? basilisp.lang.symbol/Symbol ~o)))
-(.alter-meta #'keyword? assoc :inline (fn [o] `(instance? basilisp.lang.keyword/Keyword ~o)))
-(.alter-meta #'list? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentList ~o)))
-(.alter-meta #'map? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentMap ~o)))
-(.alter-meta #'set? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentSet ~o)))
-(.alter-meta #'vector? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentVector ~o)))
-(.alter-meta #'seq? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/ISeq ~o)))
-(.alter-meta #'seq assoc :inline (fn [o] `(basilisp.lang.runtime/to-seq ~o)))
-(.alter-meta #'set assoc :inline (fn [coll] `(basilisp.lang.runtime/to-set ~coll)))
-(.alter-meta #'vec assoc :inline (fn [coll] `(basilisp.lang.runtime/vector ~coll)))
+(.alter-meta #'first assoc :inline ^:safe-py-params (fn [seq] `(basilisp.lang.runtime/first ~seq)))
+(.alter-meta #'rest assoc :inline ^:safe-py-params (fn [seq] `(basilisp.lang.runtime/rest ~seq)))
+(.alter-meta #'next assoc :inline ^:safe-py-params (fn [seq] `(basilisp.lang.runtime/next ~seq)))
+(.alter-meta #'second assoc :inline ^:safe-py-params (fn [seq] `(first (rest ~seq))))
+(.alter-meta #'ffirst assoc :inline ^:safe-py-params (fn [seq] `(first (first ~seq))))
+(.alter-meta #'identity assoc :inline ^:safe-py-params (fn [o] `~o))
+(.alter-meta #'instance? assoc :inline ^:safe-py-params (fn [class obj] `(python/isinstance ~obj ~class)))
+(.alter-meta #'boolean? assoc :inline ^:safe-py-params (fn [o] `(instance? python/bool ~o)))
+(.alter-meta #'float? assoc :inline ^:safe-py-params (fn [o] `(instance? python/float ~o)))
+(.alter-meta #'integer? assoc :inline ^:safe-py-params (fn [o] `(instance? python/int ~o)))
+(.alter-meta #'string? assoc :inline ^:safe-py-params (fn [o] `(instance? python/str ~o)))
+(.alter-meta #'symbol? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.symbol/Symbol ~o)))
+(.alter-meta #'keyword? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.keyword/Keyword ~o)))
+(.alter-meta #'list? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/IPersistentList ~o)))
+(.alter-meta #'map? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/IPersistentMap ~o)))
+(.alter-meta #'set? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/IPersistentSet ~o)))
+(.alter-meta #'vector? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/IPersistentVector ~o)))
+(.alter-meta #'seq? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/ISeq ~o)))
+(.alter-meta #'seq assoc :inline ^:safe-py-params (fn [o] `(basilisp.lang.runtime/to-seq ~o)))
+(.alter-meta #'set assoc :inline ^:safe-py-params (fn [coll] `(basilisp.lang.runtime/to-set ~coll)))
+(.alter-meta #'vec assoc :inline ^:safe-py-params (fn [coll] `(basilisp.lang.runtime/vector ~coll)))
 
 (def
   ^{:macro    true
@@ -4796,7 +4796,7 @@
   as the result. Returns the new value.
 
   .. note::
-  
+
      Due to Basilisp's :ref:`Direct Linking Optimization <direct_linking>`, changes to
      a Var's root value may not be reflected in the code unless the Var is dynamic.
      To ensure updates propagate, set the Var's `^:redef` metadata, which disables
@@ -6068,7 +6068,7 @@
       generated function from right to left.
 
    .. note::
-   
+
       The ``name`` metadata (i.e., ``(fn ^{...} <name>  ...)``) takes
       precedence over  the ``form`` metadata (i.e., ``^{...} (fn <name?> ...)``)
       when both specify the same key.

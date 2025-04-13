@@ -1644,7 +1644,7 @@ def _resolve_tagged_literal(
             raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
 
 
-def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
+def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     """Return a data structure evaluated as a reader macro from the input stream."""
     start = ctx.reader.advance()
     assert start == "#"
@@ -1731,7 +1731,7 @@ def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
     return _read_next(ctx)
 
 
-def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
+def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
     """Read the next full form from the input stream."""
     reader = ctx.reader
     char = reader.peek()

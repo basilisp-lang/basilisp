@@ -22,14 +22,6 @@ When compiled, a ``kebab-case`` identifier always becomes a ``snake_case`` ident
 
    The Basilisp compiler munges *all* unsafe Basilisp identifiers to safe Python identifiers, but other cases are unlikely to appear in standard Python interop usage.
 
-.. note::
-
-   By default, the compiler munges function parameter names and makes them globally unique by appending a monotically increasing number suffix to support function inlining. To enable interop with Python libraries that rely on preserved parameter names, you can use the ```^:allow-unsafe-names`` metadata key to retain the (munged) parameter names. This flag only applies to single-arity Basilisp functions.
-
-   .. code-block::
-
-      (defn ^:allow-unsafe-names afun [a b] ...)
-
 .. _python_builtins:
 
 Python Builtins
@@ -316,7 +308,7 @@ These decorators are applied from right to left, similar to how Python decorator
     ;;; Decorators with arguments, and order of application (right to left)
     ;;
     ;; example decorator
-    (defn mult-x-decorator 
+    (defn mult-x-decorator
       [x]
       (fn [f]
         (fn [] (* (f) x))))
@@ -327,7 +319,7 @@ These decorators are applied from right to left, similar to how Python decorator
     ;;; defasync support
     ;;
     ;; example async decorator
-    (defn add-7-async-decorator 
+    (defn add-7-async-decorator
       [f]
       ^:async (fn [] (+ (await (f)) 7)))
 
