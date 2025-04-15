@@ -5,11 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+* Added support for referring imported Python names as by `from ... import ...` (#1154)
 
 ## [v0.3.8]
 ### Added
  * Added `afor` and `awith` macros to support async Python interop (#1179, #1181)
- * Added support for referring imported Python names as by `from ... import ...` (#1154)
 
 ### Changed
  * Function parameter names will not be automatically generated with unique suffixes unless the function meta key `^:safe-py-params` is provided (#1212)

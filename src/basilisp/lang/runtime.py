@@ -21,6 +21,8 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence, Sized
 from fractions import Fraction
 from typing import AbstractSet, Any, Callable, NoReturn, Optional, TypeVar, Union, cast
 
+import attr
+
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
@@ -483,7 +485,14 @@ class _ThreadBindings(threading.local):
 _THREAD_BINDINGS = _ThreadBindings()
 
 
+@attr.frozen
+class ImportRefer:
+    module_name: sym.Symbol
+    value: Any
+
+
 AliasMap = lmap.PersistentMap[sym.Symbol, sym.Symbol]
+ImportReferMap = lmap.PersistentMap[sym.Symbol, ImportRefer]
 Module = Union[BasilispModule, types.ModuleType]
 ModuleMap = lmap.PersistentMap[sym.Symbol, Module]
 NamespaceMap = lmap.PersistentMap[sym.Symbol, "Namespace"]
@@ -576,6 +585,7 @@ class Namespace(ReferenceBase):
         "_aliases",
         "_imports",
         "_import_aliases",
+        "_import_refers",
     )
 
     def __init__(
@@ -597,6 +607,7 @@ class Namespace(ReferenceBase):
             )
         )
         self._import_aliases: AliasMap = lmap.EMPTY
+        self._import_refers: ImportReferMap = lmap.EMPTY
         self._interns: VarMap = lmap.EMPTY
         self._refers: VarMap = lmap.EMPTY
 
@@ -636,6 +647,12 @@ class Namespace(ReferenceBase):
         """A mapping of a symbolic alias and a Python module name."""
         with self._lock:
             return self._import_aliases
+
+    @property
+    def import_refers(self) -> ImportReferMap:
+        """A mapping of a symbolic alias and a Python object from an imported module."""
+        with self._lock:
+            return self._import_refers
 
     @property
     def interns(self) -> VarMap:
@@ -765,16 +782,39 @@ class Namespace(ReferenceBase):
                 return self._refers.val_at(sym, None)
             return v
 
-    def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
-        """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
-        the aliases will be applied to the"""
+    def add_import(
+        self,
+        sym: sym.Symbol,
+        module: Module,
+        *aliases: sym.Symbol,
+        refers: Optional[dict[sym.Symbol, Any]] = None,
+    ) -> None:
+        """Add the Symbol as an imported Symbol in this Namespace.
+
+        If aliases are given, the aliases will be associated to the module as well.
+
+        If a dictionary of refers is provided, add the referred names as import refers.
+        """
         with self._lock:
             self._imports = self._imports.assoc(sym, module)
+
+            if refers:
+                final_refers = self._import_refers
+                for s, v in refers.items():
+                    final_refers = final_refers.assoc(s, ImportRefer(sym, v))
+                self._import_refers = final_refers
+
             if aliases:
                 m = self._import_aliases
                 for alias in aliases:
                     m = m.assoc(alias, sym)
                 self._import_aliases = m
+
+    def get_import_refer(self, sym: sym.Symbol) -> Optional[ImportRefer]:
+        """Get the Python module member referred by Symbol or None if it does not
+        exist."""
+        with self._lock:
+            return self._import_refers.val_at(sym, None)
 
     def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
         """Return the module if a module named by sym has been imported into
@@ -963,13 +1003,16 @@ class Namespace(ReferenceBase):
         )
 
     def __complete_refers(self, value: str) -> Iterable[str]:
-        """Return an iterable of possible completions matching the given
-        prefix from the list of referred Vars."""
+        """Return an iterable of possible completions matching the given prefix from
+        the list of referred Vars and referred Python module members."""
         return map(
             lambda entry: f"{entry[0].name}",
             filter(
                 Namespace.__completion_matcher(value),
-                ((s, v) for s, v in self.refers.items()),
+                itertools.chain(
+                    ((s, v) for s, v in self.refers.items()),
+                    ((s, v.value) for s, v in self.import_refers.items()),
+                ),
             ),
         )
 

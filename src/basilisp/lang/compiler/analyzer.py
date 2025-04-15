@@ -2574,7 +2574,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
     aliases, refers, refer_all = [], [], False
-    for f in form.rest:
+    for f in form.rest:  # pylint: disable=too-many-nested-blocks
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
@@ -2606,7 +2606,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
             except IndexError:
                 raise ctx.AnalyzerException(
                     "Expected options: ':as alias' or ':refer [...]'", form=f
-                )
+                ) from None
 
             if not {AS, REFER}.issuperset(set(opts.keys())):
                 raise ctx.AnalyzerException(
@@ -3782,7 +3782,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
 
 def __resolve_bare_symbol(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, MaybeClass, VarRef]:
+) -> Union[Const, HostField, MaybeClass, VarRef]:
     """Resolve a non-namespaced symbol into a Python name or a local Basilisp Var."""
     assert form.ns is None
 
@@ -3808,6 +3808,25 @@ def __resolve_bare_symbol(
             form=form,
             class_=munged,
             target=vars(builtins)[munged],
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
+    maybe_import_refer = current_ns.get_import_refer(form)
+    if maybe_import_refer is not None:
+        refer_module = current_ns.get_import(maybe_import_refer.module_name)
+        # For referred imports, we want to generate a fully qualified reference
+        # to the object, so we don't have to pollute the module with more names.
+        # The user won't know the difference.
+        return HostField(
+            form=form,
+            field=munge(form.name),
+            target=MaybeClass(
+                form=maybe_import_refer.module_name,
+                class_=munge(maybe_import_refer.module_name.name),
+                target=refer_module,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            ),
+            is_assignable=False,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
