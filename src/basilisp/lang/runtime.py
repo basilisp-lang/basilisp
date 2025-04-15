@@ -499,6 +499,9 @@ NamespaceMap = lmap.PersistentMap[sym.Symbol, "Namespace"]
 VarMap = lmap.PersistentMap[sym.Symbol, Var]
 
 
+_PRIVATE_NAME_PATTERN = re.compile(r"(_\w*|__\w+__)")
+
+
 class Namespace(ReferenceBase):
     """Namespaces serve as organizational units in Basilisp code, just as they do in
     Clojure code.
@@ -801,6 +804,10 @@ class Namespace(ReferenceBase):
             if refers:
                 final_refers = self._import_refers
                 for s, v in refers.items():
+                    # Filter out dunder names and private names
+                    if _PRIVATE_NAME_PATTERN.fullmatch(s.name) is not None:
+                        logger.debug(f"Ignoring import refer for {sym} member {s}")
+                        continue
                     final_refers = final_refers.assoc(s, ImportRefer(sym, v))
                 self._import_refers = final_refers
 
