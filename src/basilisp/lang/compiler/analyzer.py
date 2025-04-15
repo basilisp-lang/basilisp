@@ -2647,6 +2647,11 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
                             form=module_refers,
                         )
 
+                    if len(module_refers) == 0:
+                        raise ctx.AnalyzerException(
+                            "Must refer at least one name", form=module_refers
+                        )
+
                     for refer in module_refers:
                         if not isinstance(refer, sym.Symbol):
                             raise ctx.AnalyzerException(

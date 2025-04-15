@@ -3486,6 +3486,31 @@ class TestImport:
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* [math :refer ()])",
+            "(import* [math :refer {}])",
+            "(import* [math :refer #{}])",
+        ],
+    )
+    def test_import_refer_name_collection_must_be_a_vector(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_import_refer_names_must_have_one_name(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [math :refer []])")
+
+    @pytest.mark.parametrize(
+        "code", ["(import* [math :refer [:sqrt]])", '(import* [math :refer ["sqrt"]])']
+    )
+    def test_import_refer_names_must_by_symbols(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
     def test_import_module_must_exist(self, lcompile: CompileFn):
         with pytest.raises(ImportError):
             lcompile("(import* real.fake.module)")
