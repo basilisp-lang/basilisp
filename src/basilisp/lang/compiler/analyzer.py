@@ -175,9 +175,11 @@ CATCHES = kw.keyword("catches")
 FINALLY = kw.keyword("finally")
 
 # Constants used in analyzing
+ALL = kw.keyword("all")
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
 INTERFACE = kw.keyword("interface")
+REFER = kw.keyword("refer")
 STAR_STAR = sym.symbol("**")
 _DOUBLE_DOT_MACRO_NAME = ".."
 _BUILTINS_NS = "python"
@@ -2571,8 +2573,8 @@ def _do_warn_on_import_or_require_name_clash(
 def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
-    aliases = []
-    for f in form.rest:
+    aliases, refers, refer_all = [], [], False
+    for f in form.rest:  # pylint: disable=too-many-nested-blocks
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
@@ -2588,40 +2590,85 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
                 symbol_table=ctx.symbol_table.context_boundary,
             )
         elif isinstance(f, vec.PersistentVector):
-            if len(f) != 3:
+            if len(f) < 1:
                 raise ctx.AnalyzerException(
-                    "import alias must take the form: [module :as alias]", form=f
+                    "import alias must take the form: [module :as alias :refer [...]]",
+                    form=f,
                 )
             module_name = f.val_at(0)  # type: ignore[assignment]
             if not isinstance(module_name, sym.Symbol):
                 raise ctx.AnalyzerException(
                     "Python module name must be a symbol", form=f
                 )
-            if not AS == f.val_at(1):
+
+            try:
+                opts = lmap.hash_map(*f[1:])
+            except IndexError:
                 raise ctx.AnalyzerException(
-                    "expected :as alias for Python import", form=f
-                )
-            module_alias_sym = f.val_at(2)
-            if not isinstance(module_alias_sym, sym.Symbol):
+                    "Expected options: ':as alias' or ':refer [...]'", form=f
+                ) from None
+
+            if not {AS, REFER}.issuperset(set(opts.keys())):
                 raise ctx.AnalyzerException(
-                    "Python module alias must be a symbol", form=f
-                )
-            module_alias = module_alias_sym.name
-            if "." in module_alias:
-                raise ctx.AnalyzerException(
-                    "Python module alias must not contain '.'", form=f
+                    f"Unexpected import options: {lset.set(opts.keys())}", form=f
                 )
 
-            ctx.put_new_symbol(
-                module_alias_sym,
-                Binding(
-                    form=module_alias_sym,
-                    name=module_alias,
-                    local=LocalType.IMPORT,
-                    env=ctx.get_node_env(),
-                ),
-                symbol_table=ctx.symbol_table.context_boundary,
-            )
+            if (module_alias_sym := opts.val_at(AS)) is not None:
+                if not isinstance(module_alias_sym, sym.Symbol):
+                    raise ctx.AnalyzerException(
+                        "Python module alias must be a symbol", form=f
+                    )
+                module_alias = module_alias_sym.name
+                if "." in module_alias:
+                    raise ctx.AnalyzerException(
+                        "Python module alias must not contain '.'", form=f
+                    )
+
+                ctx.put_new_symbol(
+                    module_alias_sym,
+                    Binding(
+                        form=module_alias_sym,
+                        name=module_alias,
+                        local=LocalType.IMPORT,
+                        env=ctx.get_node_env(),
+                    ),
+                    symbol_table=ctx.symbol_table.context_boundary,
+                )
+            else:
+                module_alias = module_name.name
+
+            if (module_refers := opts.val_at(REFER)) is not None:
+                if ALL == module_refers:
+                    refer_all = True
+                else:
+                    if not isinstance(module_refers, vec.PersistentVector):
+                        raise ctx.AnalyzerException(
+                            "Python module refers must be a vector of symbols",
+                            form=module_refers,
+                        )
+
+                    if len(module_refers) == 0:
+                        raise ctx.AnalyzerException(
+                            "Must refer at least one name", form=module_refers
+                        )
+
+                    for refer in module_refers:
+                        if not isinstance(refer, sym.Symbol):
+                            raise ctx.AnalyzerException(
+                                "Python module refer name must be a symbol", form=refer
+                            )
+                        refers.append(refer.name)
+
+                        ctx.put_new_symbol(
+                            refer,
+                            Binding(
+                                form=refer,
+                                name=refer.name,
+                                local=LocalType.IMPORT,
+                                env=ctx.get_node_env(),
+                            ),
+                            symbol_table=ctx.symbol_table.context_boundary,
+                        )
         else:
             raise ctx.AnalyzerException("symbol or vector expected for import*", form=f)
 
@@ -2643,6 +2690,8 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     return Import(
         form=form,
         aliases=aliases,
+        refers=refers,
+        refer_all=refer_all,
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -3738,7 +3787,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
 
 def __resolve_bare_symbol(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, MaybeClass, VarRef]:
+) -> Union[Const, HostField, MaybeClass, VarRef]:
     """Resolve a non-namespaced symbol into a Python name or a local Basilisp Var."""
     assert form.ns is None
 
@@ -3764,6 +3813,25 @@ def __resolve_bare_symbol(
             form=form,
             class_=munged,
             target=vars(builtins)[munged],
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
+    maybe_import_refer_module = current_ns.get_import_refer(form)
+    if maybe_import_refer_module is not None:
+        refer_module = current_ns.get_import(maybe_import_refer_module)
+        # For referred imports, we want to generate a fully qualified reference
+        # to the object, so we don't have to pollute the module with more names.
+        # The user won't know the difference.
+        return HostField(
+            form=form,
+            field=munge(form.name),
+            target=MaybeClass(
+                form=maybe_import_refer_module,
+                class_=munge(maybe_import_refer_module.name),
+                target=refer_module,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            ),
+            is_assignable=False,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 

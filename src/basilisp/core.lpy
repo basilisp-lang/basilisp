@@ -4915,6 +4915,11 @@
   [ns]
   (.-imports (the-ns ns)))
 
+(defn ^:inline ns-import-refers
+  "Return a set of Python module members which are referred in the current namespace."
+  [ns]
+  (.-import-refers (the-ns ns)))
+
 (defn ^:inline ns-interns
   "Return a map of symbols to Vars which are interned in the current namespace."
   [ns]
@@ -4950,14 +4955,26 @@
 (defn ns-map
   "Return a map of all the mapped symbols in the namespace.
 
-  Includes the return values of :lpy:fn:`ns-interns` and :lpy:fn:`ns-refers` in one
-  map."
+  Includes the return values of :lpy:fn:`ns-interns`, :lpy:fn:`ns-refers`, and
+  :lpy:fn:`ns-imports` in one map.
+
+  .. note::
+
+     It is possible that the same symbol is mapped to an interned name, a referred
+     name, an imported name, or an import-referred name. They are stored in separate
+     collections in each namespace and Basilisp symbol resolution rules determine the
+     precedence. This function returns the combined set of all mapped symbols in a
+     single map and therefore symbols defined in multiple maps will only show one
+     value. Inspecting the contents of each of the component maps will show all
+     mappings, including those that were overwritten by the merge operation in this
+     function."
   ([] (ns-map *ns*))
   ([ns]
    (let [resolved-ns (the-ns ns)]
      (merge
-      (ns-interns resolved-ns)
-      (ns-refers resolved-ns)))))
+      (ns-imports resolved-ns)
+      (ns-refers resolved-ns)
+      (ns-interns resolved-ns)))))
 
 (defn ^:inline ns-resolve
   "Return the Var which will be resolved by the symbol in the given namespace."
@@ -4974,7 +4991,13 @@
   "Import Python modules by name.
 
   Modules may be specified either as symbols naming the full module path or as a
-  vector taking the form ``[full.module.path :as alias]``\\.
+  vector taking the form ``[full.module.path & opts]``\\. The ``opts`` should be
+  pairs of a keyword and a value from below, similar to :lpy:fn:`import`:
+
+  - ``:as name`` which will alias the imported module to the symbol name
+  - ``:refer [& syms]`` which will refer module members in the local namespace
+    directly
+  - ``:refer :all`` which will refer all module members from the namespace directly
 
   Note that unlike in Python, ``import`` ed Python module names are always hoisted to
   the current Namespace, so imported names will be available within a Namespace even

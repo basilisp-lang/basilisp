@@ -2409,6 +2409,62 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                 ),
             )
         )
+
+        refers: Optional[ast.expr] = None
+        if node.refer_all:
+            key, val = genname("k"), genname("v")
+            refers = ast.DictComp(
+                key=ast.Call(
+                    func=_NEW_SYM_FN_NAME,
+                    args=[ast.Name(id=key, ctx=ast.Load())],
+                    keywords=[],
+                ),
+                value=ast.Name(id=val, ctx=ast.Load()),
+                generators=[
+                    ast.comprehension(
+                        target=ast.Tuple(
+                            elts=[
+                                ast.Name(id=key, ctx=ast.Store()),
+                                ast.Name(id=val, ctx=ast.Store()),
+                            ],
+                            ctx=ast.Store(),
+                        ),
+                        iter=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Call(
+                                    func=ast.Name(id="vars", ctx=ast.Load()),
+                                    args=[ast.Name(id=py_import_alias, ctx=ast.Load())],
+                                    keywords=[],
+                                ),
+                                attr="items",
+                                ctx=ast.Load(),
+                            ),
+                            args=[],
+                            keywords=[],
+                        ),
+                        ifs=[],
+                        is_async=0,
+                    )
+                ],
+            )
+        elif node.refers:
+            refer_keys: list[Optional[ast.expr]] = []
+            refer_vals: list[ast.expr] = []
+            for refer in node.refers:
+                refer_keys.append(
+                    ast.Call(
+                        func=_NEW_SYM_FN_NAME, args=[ast.Constant(refer)], keywords=[]
+                    )
+                )
+                refer_vals.append(
+                    ast.Attribute(
+                        value=ast.Name(id=py_import_alias, ctx=ast.Load()),
+                        attr=refer,
+                        ctx=ast.Load(),
+                    )
+                )
+            refers = ast.Dict(keys=refer_keys, values=refer_vals)
+
         last = ast.Name(id=py_import_alias, ctx=ast.Load())
 
         deps.append(
@@ -2437,7 +2493,11 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                         ),
                     )
                 ),
-                keywords=[],
+                keywords=(
+                    [ast.keyword(arg="refers", value=refers)]
+                    if refers is not None
+                    else []
+                ),
             )
         )
 

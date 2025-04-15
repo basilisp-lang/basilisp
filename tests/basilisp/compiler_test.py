@@ -3474,6 +3474,7 @@ class TestImport:
     @pytest.mark.parametrize(
         "code",
         [
+            "(import* [])",
             "(import* [:time :as py-time])",
             "(import* [time py-time])",
             "(import* [time :as :py-time])",
@@ -3485,6 +3486,51 @@ class TestImport:
     def test_import_aliased_module_format(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* [math :refer ()])",
+            "(import* [math :refer {}])",
+            "(import* [math :refer #{}])",
+        ],
+    )
+    def test_import_refer_name_collection_must_be_a_vector(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_import_refer_names_must_have_one_name(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [math :refer []])")
+
+    @pytest.mark.parametrize(
+        "code", ["(import* [math :refer [:sqrt]])", '(import* [math :refer ["sqrt"]])']
+    )
+    def test_import_refer_names_must_by_symbols(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_import_refer_multiple_names(self, lcompile: CompileFn):
+        import math
+
+        lcompile("(import* [math :refer [pi sqrt]])")
+        refers = lcompile("[pi sqrt]")
+        assert refers[0] == math.pi
+        assert refers[1] == math.sqrt
+
+    def test_import_refer_all(self, lcompile: CompileFn, ns: runtime.Namespace):
+        import math
+
+        lcompile("(import* [math :refer :all])")
+
+        import_refers = {name: val for name, val in ns.import_refers.items()}
+        assert import_refers == {
+            sym.symbol(name): val
+            for name, val in vars(math).items()
+            if not runtime._PRIVATE_NAME_PATTERN.fullmatch(name)
+        }
 
     def test_import_module_must_exist(self, lcompile: CompileFn):
         with pytest.raises(ImportError):

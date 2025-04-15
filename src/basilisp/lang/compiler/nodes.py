@@ -612,6 +612,8 @@ class If(Node[SpecialForm]):
 class Import(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable["ImportAlias"]
+    refers: Iterable[str]
+    refer_all: bool
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.IMPORT

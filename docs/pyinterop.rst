@@ -49,12 +49,38 @@ Submodules will be available under the full, dot-separated name.
 
 To avoid name clashes from the above, you may alias imports (as in native Python code) using the same syntax as ``require``.
 Both top-level modules and submodules may be aliased: ``(import [module.sub :as sm])``.
-Note that none of the other convenience features or flags from :lpy:fn:`require` are available, so you will not be able to, say, refer unqualified module members into the current Namespace.
 
 .. code-block::
 
     (import [os.path :as path])
     (path/exists "test.txt") ;;=> false
+
+As with Basilisp ``refers`` (and as in Python), it is possible to refer individual module members by name into the current namespace using the ``:refer`` option.
+It is also possible to refer all module members into the namespace using ``:refer :all``.
+
+.. code-block::
+
+   (import [math :refer [sqrt pi]])
+   pi  ;; 3.141592653589793
+
+   (import [statistics :refer :all])
+   mean  ;; <function mean at 0x...>
+
+.. warning::
+
+   Basilisp refers names into the current module in different conceptual namespaces and resolves names against those namespaces in order of precedence, preferring Basilisp members first.
+   Referred Python module members may not resolve if other names take precedence within the current namespace context.
+
+   .. code-block::
+
+      (import [datetime :as dt :refer :all])
+
+      ;; This name using the module alias directly will guarantee we are referencing
+      ;; the module member `datetime.time` (a class)
+      dt/time  ;; <class 'datetime.time'>
+
+      ;; ...whereas this reference prefers the `basilisp.core` function `time`
+      time  ;; <function time at 0x...>
 
 .. note::
 
@@ -65,14 +91,9 @@ Note that none of the other convenience features or flags from :lpy:fn:`require`
       (ns myproject.ns
        (:import [os.path :as path]))
 
-.. warning::
-
-   Unlike in Python, imported module names and aliases cannot be referred to directly in Basilisp code.
-   Module and Namespace names are resolved separately from local names and will not resolve as unqualified names.
-
 .. seealso::
 
-   :lpy:form:`import`, :lpy:fn:`import`, :lpy:fn:`ns-imports`, :lpy:fn:`ns-map`
+   :lpy:form:`import`, :lpy:fn:`import`, :lpy:fn:`ns-imports`, :lpy:fn:`ns-import-refers`, :lpy:fn:`ns-map`
 
 .. seealso::
 
