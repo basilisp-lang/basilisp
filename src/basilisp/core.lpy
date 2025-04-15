@@ -4915,6 +4915,11 @@
   [ns]
   (.-imports (the-ns ns)))
 
+(defn ^:inline ns-import-refers
+  "Return a set of Python module members which are referred in the current namespace."
+  [ns]
+  (.-import-refers (the-ns ns)))
+
 (defn ^:inline ns-interns
   "Return a map of symbols to Vars which are interned in the current namespace."
   [ns]

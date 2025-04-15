@@ -3525,7 +3525,7 @@ class TestImport:
 
         lcompile("(import* [math :refer :all])")
 
-        import_refers = {name: val.value for name, val in ns.import_refers.items()}
+        import_refers = {name: val for name, val in ns.import_refers.items()}
         assert import_refers == {
             sym.symbol(name): val
             for name, val in vars(math).items()

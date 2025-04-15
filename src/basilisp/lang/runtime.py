@@ -492,7 +492,7 @@ class ImportRefer:
 
 
 AliasMap = lmap.PersistentMap[sym.Symbol, sym.Symbol]
-ImportReferMap = lmap.PersistentMap[sym.Symbol, ImportRefer]
+ImportReferMap = lmap.PersistentMap[sym.Symbol, Any]
 Module = Union[BasilispModule, types.ModuleType]
 ModuleMap = lmap.PersistentMap[sym.Symbol, Module]
 NamespaceMap = lmap.PersistentMap[sym.Symbol, "Namespace"]
@@ -610,7 +610,7 @@ class Namespace(ReferenceBase):
             )
         )
         self._import_aliases: AliasMap = lmap.EMPTY
-        self._import_refers: ImportReferMap = lmap.EMPTY
+        self._import_refers: lmap.PersistentMap[sym.Symbol, ImportRefer] = lmap.EMPTY
         self._interns: VarMap = lmap.EMPTY
         self._refers: VarMap = lmap.EMPTY
 
@@ -655,7 +655,7 @@ class Namespace(ReferenceBase):
     def import_refers(self) -> ImportReferMap:
         """A mapping of a symbolic alias and a Python object from an imported module."""
         with self._lock:
-            return self._import_refers
+            return lmap.map({name: v.value for name, v in self._import_refers.items()})
 
     @property
     def interns(self) -> VarMap:
@@ -1018,7 +1018,7 @@ class Namespace(ReferenceBase):
                 Namespace.__completion_matcher(value),
                 itertools.chain(
                     ((s, v) for s, v in self.refers.items()),
-                    ((s, v.value) for s, v in self.import_refers.items()),
+                    ((s, v) for s, v in self.import_refers.items()),
                 ),
             ),
         )
