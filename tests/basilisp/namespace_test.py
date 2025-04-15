@@ -327,7 +327,12 @@ class TestCompletion:
 
         time_sym = sym.symbol("time")
         time_alias = sym.symbol("py-time")
-        ns.add_import(time_sym, __import__("time"), time_alias)
+        ns.add_import(
+            time_sym,
+            __import__("time"),
+            time_alias,
+            refers={sym.symbol("sleep"): __import__("time").sleep},
+        )
 
         core_ns = Namespace(sym.symbol("basilisp.core"))
         map_alias = sym.symbol("map")
@@ -341,6 +346,7 @@ class TestCompletion:
         assert {"str/", "string?", "str"} == set(ns.complete("st"))
         assert {"map"} == set(ns.complete("m"))
         assert {"map"} == set(ns.complete("ma"))
+        assert {"sleep"} == set(ns.complete("sl"))
 
     def test_import_and_alias(self, ns: Namespace):
         assert {"time/"} == set(ns.complete("ti"))
