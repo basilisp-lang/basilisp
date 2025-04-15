@@ -817,11 +817,12 @@ class Namespace(ReferenceBase):
                     m = m.assoc(alias, sym)
                 self._import_aliases = m
 
-    def get_import_refer(self, sym: sym.Symbol) -> Optional[ImportRefer]:
-        """Get the Python module member referred by Symbol or None if it does not
+    def get_import_refer(self, sym: sym.Symbol) -> Optional[sym.Symbol]:
+        """Get the Python module member name referred by Symbol or None if it does not
         exist."""
         with self._lock:
-            return self._import_refers.val_at(sym, None)
+            refer = self._import_refers.val_at(sym, None)
+            return refer.module_name if refer is not None else None
 
     def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
         """Return the module if a module named by sym has been imported into

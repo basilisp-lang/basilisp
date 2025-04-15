@@ -3816,9 +3816,9 @@ def __resolve_bare_symbol(
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
-    maybe_import_refer = current_ns.get_import_refer(form)
-    if maybe_import_refer is not None:
-        refer_module = current_ns.get_import(maybe_import_refer.module_name)
+    maybe_import_refer_module = current_ns.get_import_refer(form)
+    if maybe_import_refer_module is not None:
+        refer_module = current_ns.get_import(maybe_import_refer_module)
         # For referred imports, we want to generate a fully qualified reference
         # to the object, so we don't have to pollute the module with more names.
         # The user won't know the difference.
@@ -3826,8 +3826,8 @@ def __resolve_bare_symbol(
             form=form,
             field=munge(form.name),
             target=MaybeClass(
-                form=maybe_import_refer.module_name,
-                class_=munge(maybe_import_refer.module_name.name),
+                form=maybe_import_refer_module,
+                class_=munge(maybe_import_refer_module.name),
                 target=refer_module,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             ),
