@@ -4,6 +4,23 @@
    [basilisp.string :as str]
    [basilisp.test :refer [deftest is are testing]]))
 
+(defprotocol ProtocolWithLeadingHyphenMethod
+  (-method [this] [this arg1] [this arg1 & args]))
+
+(extend-protocol ProtocolWithLeadingHyphenMethod
+  python/str
+  (-method [this]
+    "no args")
+  (-method [this arg1]
+    "1 arg")
+  (-method [this arg1 & args]
+    "varargs"))
+
+(deftest protocol-method-name-test
+  (is (= "no args" (-method "")))
+  (is (= "1 arg" (-method "" "other")))
+  (is (= "varargs" (-method "" "other" "rest"))))
+
 (defprotocol Shape
   (area [this]))
 

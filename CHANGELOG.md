@@ -6,7 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-* Added support for referring imported Python names as by `from ... import ...` (#1154)
+ * Added support for referring imported Python names as by `from ... import ...` (#1154)
+
+### Fixed
+ * Fix a bug where protocols with methods with leading hyphens in the could not be defined (#1230)
+ * Fix a bug where attempting to `:refer` a non-existent Var from another namespace would throw an unhelpful exception (#1231)
 
 ## [v0.3.8]
 ### Added

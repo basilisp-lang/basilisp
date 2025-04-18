@@ -5235,8 +5235,12 @@
               (seq refer-opt)
               (let [new-ns-interns (ns-interns new-ns)]
                 (doseq [var-sym refer-opt]
-                  (let [var (get new-ns-interns var-sym)]
-                    (.add-refer current-ns var-sym var))))
+                  (if-let [var (get new-ns-interns var-sym)]
+                    (.add-refer current-ns var-sym var)
+                    (throw
+                     (ex-info "Cannot find Var in the given namespace"
+                              {:namespace new-ns
+                               :var       var-sym})))))
 
               :else nil)))))
     nil))
@@ -6463,18 +6467,28 @@
                                         :method      ~method-name
                                         :object-type obj-type#})))))
                   arglists))))
-     (let [dotted-method-name (symbol (str "." (name method-name)))]
-       `(.register ~(vary-meta method-name assoc :no-warn-on-var-indirection true)
-                   ~interface-name
-                   (fn ~method-name
-                     ~@(map (fn [[obj-sym & args]]
-                              (let [has-varargs (some #(= '& %) args)
-                                    clean-args  (filter #(not= '& %) args)]
-                                (list `[~obj-sym ~@args]
-                                      (if has-varargs
-                                        `(apply-method ~obj-sym ~method-name ~@clean-args)
-                                        `(~dotted-method-name ~obj-sym ~@clean-args)))))
-                            arglists))))]))
+     `(.register ~(vary-meta method-name assoc :no-warn-on-var-indirection true)
+                 ~interface-name
+                 (fn ~method-name
+                   ~@(map (fn [[obj-sym & args]]
+                            (let [has-varargs (some #(= '& %) args)
+                                  clean-args  (filter #(not= '& %) args)]
+                              (list `[~obj-sym ~@args]
+                                    (cond
+                                      has-varargs
+                                      `(apply-method ~obj-sym ~method-name ~@clean-args)
+
+                                      ;; methods starting with "-" will be interpreted
+                                      ;; by the compiler as a property access (which
+                                      ;; prohibit arguments to be provided), so we have
+                                      ;; to hack around that by accessing the method as
+                                      ;; a property and then calling it
+                                      (.startswith (name method-name) "-")
+                                      `((. ~obj-sym ~method-name) ~@clean-args)
+
+                                      :else
+                                      `(. ~obj-sym ~method-name ~@clean-args)))))
+                          arglists)))]))
 
 ;; For each protocol, the following keys are defined:
 ;;
