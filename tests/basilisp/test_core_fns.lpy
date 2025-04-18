@@ -1778,6 +1778,9 @@
                     (ex-info "This is an exception" {})))))
     (is (= :a redeffable))))
 
+(deftest require-test
+  (is (thrown? basilisp.lang.exception/ExceptionInfo (require '[basilisp.set :refer [non-existent-var]]))))
+
 (deftest requiring-resolve-test
   (is (thrown? basilisp.lang.exception/ExceptionInfo (requiring-resolve 'a-symbol)))
   (is (thrown? basilisp.lang.exception/ExceptionInfo (requiring-resolve :a-keyword)))
