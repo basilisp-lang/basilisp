@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for referring imported Python names as by `from ... import ...` (#1154)
+ * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Fixed
  * Fix a bug where protocols with methods with leading hyphens in the could not be defined (#1230)
