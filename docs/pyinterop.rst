@@ -306,7 +306,7 @@ If it is **re-iterable**, each call gets a fresh iterator beginning at the start
 But if it is a **single-use** iterable, like a generator, both operations share the same iterator.
 As a result, ``count`` consumes all elements, and ``first`` returns ``nil``, which is wrong, since the iterator is already exhausted, leading to incorect behavior.
 
-To prevent this subtle bug, Basilisp throws a :external:py:obj:`TypeError` an iterator is requested from such functions.
+To prevent this subtle bug, Basilisp throws a :external:py:obj:`TypeError` when an iterator is requested from such functions.
 The correct approach is to use :lpy:fn:`basilisp.core/iterator-seq` to create a sequence from it:
 
 .. code-block:: clojure

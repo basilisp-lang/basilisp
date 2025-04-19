@@ -1290,6 +1290,11 @@ to_seq = lseq.to_seq
 to_iterator_seq = lseq.iterator_sequence
 
 
+def is_reiterable_iterable(x: Any) -> bool:
+    """Return ``true`` if x is a re-iterable Iterable object."""
+    return isinstance(x, Iterable) and iter(x) is not x
+
+
 def concat(*seqs: Any) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
     return lseq.iterator_sequence(
@@ -2647,8 +2652,3 @@ def get_compiler_opts() -> CompilerOpts:
     v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(COMPILER_OPTIONS_VAR_NAME))
     assert v is not None, "*compiler-options* Var not defined"
     return cast(CompilerOpts, v.value)
-
-
-def is_reiterable_iterable(x: Any) -> bool:
-    """Return ``true`` if x is a re-iterable Iterable object."""
-    return isinstance(x, Iterable) and iter(x) is not x
