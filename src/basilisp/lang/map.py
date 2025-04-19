@@ -29,7 +29,7 @@ from basilisp.lang.obj import (
     process_lrepr_kwargs,
 )
 from basilisp.lang.reduced import Reduced
-from basilisp.lang.seq import sequence
+from basilisp.lang.seq import iterator_sequence
 from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
 
@@ -354,7 +354,7 @@ class PersistentMap(
     def seq(self) -> Optional[ISeq[IMapEntry[K, V]]]:
         if len(self._inner) == 0:
             return None
-        return sequence(MapEntry.of(k, v) for k, v in self._inner.items())
+        return iterator_sequence((MapEntry.of(k, v) for k, v in self._inner.items()))
 
     def to_transient(self) -> TransientMap[K, V]:
         return TransientMap(self._inner.mutate())

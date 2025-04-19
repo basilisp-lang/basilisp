@@ -222,7 +222,7 @@ class BasilispFunctionLike(BasilispObject):  # pylint: disable=abstract-method
 
         self._add_source_annotations(signode)
 
-        sig_sexp = runtime.first(reader.read_str(sig))
+        sig_sexp = runtime.first(runtime.to_iterator_seq(reader.read_str(sig)))
         assert isinstance(sig_sexp, IPersistentList)
         fn_sym = runtime.first(sig_sexp)
         assert isinstance(fn_sym, sym.Symbol)
@@ -285,7 +285,7 @@ class BasilispFunction(BasilispFunctionLike):
 
     def get_index_text(self, modname: str, name: tuple[str, str]) -> str:
         sig, prefix = name
-        sig_sexp = runtime.first(reader.read_str(sig))
+        sig_sexp = runtime.first(runtime.to_iterator_seq(reader.read_str(sig)))
         if isinstance(sig_sexp, IPersistentList):
             sig = runtime.first(sig_sexp)
         return f"{sig} ({prefix} in {modname})"
@@ -560,7 +560,7 @@ class BasilispDomain(Domain):
             maybe_obj = self.forms.get(target)
             title = target
         else:
-            obj_sym = runtime.first(reader.read_str(target))
+            obj_sym = runtime.first(runtime.to_iterator_seq(reader.read_str(target)))
             assert isinstance(
                 obj_sym, sym.Symbol
             ), f"Symbol expected; not {obj_sym.__class__}"
