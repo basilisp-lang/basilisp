@@ -88,7 +88,7 @@ class NamespaceDocumenter(Documenter):
         return False
 
     def parse_name(self) -> bool:
-        v = runtime.first(reader.read_str(self.name))
+        v = runtime.first(runtime.to_iterator_seq(reader.read_str(self.name)))
         if isinstance(v, sym.Symbol) and v.ns is None:
             self.modname = v.name
             self.objpath: list[str] = []

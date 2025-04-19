@@ -218,9 +218,17 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return EMPTY
 
 
-def sequence(s: Iterable[T]) -> ISeq[T]:
-    """Create a Sequence from Iterable s."""
+def sequence(s: Iterable[T], support_single_use: bool = False) -> ISeq[T]:
+    """Create a Sequence from Iterable `s`.
+
+    By default, raise a ``TypeError`` if `s` is a single-use
+    Iterable, unless `fail_single_use` is ``True``.
+
+    """
     i = iter(s)
+
+    if not support_single_use and i is s:
+        raise TypeError(f"Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {type(s)}")
 
     def _next_elem() -> ISeq[T]:
         try:
@@ -232,6 +240,10 @@ def sequence(s: Iterable[T]) -> ISeq[T]:
 
     return LazySeq(_next_elem)
 
+
+def iterator_sequence(s: Iterable[T]) -> ISeq[T]:
+    """Create a Sequence from any iterable `s`."""
+    return sequence(s, support_single_use=True)
 
 @overload
 def _seq_or_nil(s: None) -> None: ...

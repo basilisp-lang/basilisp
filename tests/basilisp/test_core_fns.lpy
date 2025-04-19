@@ -707,6 +707,47 @@
     (is (not (reduced? (unreduced (reduced [])))))
     (is (= [] (unreduced (reduced []))))))
 
+;;;;;;;;;;;;;;;
+;; Sequences ;;
+;;;;;;;;;;;;;;;
+
+(deftest seq-iterable-test
+  (testing "re-iterable"
+    (let [re-iterable (python/range 3)]
+      (is (= 3 (count re-iterable)))
+      (is (= 0 (first re-iterable)))
+      (is (= '(1 2) (rest re-iterable)))
+      (is (= [0 1 2] (seq re-iterable)))
+      (is (= [0 1 2] (iterator-seq re-iterable)))
+      (is (= false (seq? re-iterable)))
+      (is (= true (seqable? re-iterable)))
+      (is (not (empty? re-iterable)))
+      (is (seq re-iterable))))
+
+  (testing "single-use"
+    ;; single use iterators are not seq's or seqable
+    (let [single-use (os/scandir)]
+      (is (thrown? python/TypeError (seq single-use)))
+      (is (thrown? python/TypeError (first single-use)))
+      (is (thrown? python/TypeError (rest single-use)))
+      (is (thrown? python/TypeError (empty? single-use)))
+      (is (= false (seq? single-use)))
+      (is (= false (seqable? single-use)))
+      ;; they can't even be counted
+      (is (thrown? python/TypeError (count single-use)))
+      ;; it can be though explicitly converted to a seq
+      (let [it-seq (iterator-seq single-use)
+            ;; it is now a seq, can be reused
+            it-seq-count1 (count it-seq)
+            it-seq-count2 (count it-seq)
+            ;; it's elements is consumed once iterated, here we
+            ;; consumed everything with `count`
+            it-exhausted (iterator-seq single-use)]
+        (is (< 0 it-seq-count1))
+        (is (= it-seq-count1 it-seq-count2))
+        (is (not (empty? it-seq)))
+        (is (empty? it-exhausted))))))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;; Lazy Sequences ;;
 ;;;;;;;;;;;;;;;;;;;;

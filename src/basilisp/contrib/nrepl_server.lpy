@@ -299,8 +299,8 @@
                             (create-ns (symbol ns))
                             eval-ns)
         completions       (when-not (str/blank? prefix)
-                            (seq (binding [*ns* completion-ns]
-                                   (basilisp.lang.runtime/repl_completions prefix))))]
+                            (iterator-seq (binding [*ns* completion-ns]
+                                            (basilisp.lang.runtime/repl_completions prefix))))]
     (send-fn request {"completions" (->> (map str completions)
                                          sort
                                          (map (fn [completion]

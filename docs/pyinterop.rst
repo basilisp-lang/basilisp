@@ -283,6 +283,41 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
    Return annotations are combined as by :external:py:obj:`typing.Union`, so ``typing.Union[str, str] == str``.
    The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
 
+.. _python_iterators:
+
+Python Iterators
+----------------
+
+In Python, an **iterable** is an object like a list, range, or generator that can be looped over, while an **iterator** is the object that actually yields each item of the iterable one at a time using ``next()``. They are ubiquituous in Python, showing up in ``for`` loops, list comprehensions and many built in functions.
+
+In Basilisp, iterables are treated as first-class sequences and are :lpy:fn:`basilisp.core/seq`-able, except for **single-use** iterables, which must be explicitly converted to a sequence using :lpy:fn:`basilisp.core/iterator-seq` before use.
+
+Single-use iterables are those that return the same iterator every time one is requested.
+This becomes problematic when the single-use iterable is coerced to a sequence more than once. For example:
+
+.. code-block:: clojure
+
+   (when (> (count iterable-coll) 0)
+     (first iterable-coll))
+
+
+Here, both :lpy:fn:`basilisp.core/count` and :lpy:fn:`basilisp.core/first` internally request an iterator from ``iterable-coll``.
+If it is **re-iterable**, each call gets a fresh iterator beginning at the start of the collection, and the code behaves as expected.
+But if it is a **single-use** iterable, like a generator, both operations share the same iterator.
+As a result, ``count`` consumes all elements, and ``first`` returns ``nil``, which is wrong, since the iterator is already exhausted, leading to incorect behavior.
+
+To prevent this subtle bug, Basilisp throws a :external:py:obj:`TypeError` an iterator is requested from such functions.
+The correct approach is to use :lpy:fn:`basilisp.core/iterator-seq` to create a sequence from it:
+
+.. code-block:: clojure
+
+   (let [s (iterator-seq iterable-coll)]
+     (when (> (count s) 0)
+       (first s)))
+
+
+This ensures ``count`` and ``first`` operate on the same stable sequence rather than consuming a shared iterator.
+
 .. _python_decorators:
 
 Python Decorators

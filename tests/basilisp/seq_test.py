@@ -123,6 +123,25 @@ def test_seq_iterator():
     assert 10000 == len(vec.vector(s))
 
 
+def test_seq_iterables():
+    iterable1 = range(3)
+    s1 = lseq.sequence(iterable1)
+    s2 = lseq.sequence(iterable1)
+    assert 3 == runtime.count(s1)
+    assert llist.l(0, 1, 2) == s1 == s2
+
+    # A generator is an example of a single-use iterable
+    iterable2 = (i for i in [4, 5, 6])
+    with pytest.raises(TypeError):
+        lseq.sequence(iterable2)
+    with pytest.raises(TypeError):
+        runtime.count(iterable2)
+
+    s3 = lseq.iterator_sequence(iterable2)
+    assert 3 == runtime.count(s3)
+    assert llist.l(4, 5, 6) == s3
+
+
 def test_seq_equals():
     # to_seq should be first to ensure that `ISeq.__eq__` is used
     assert runtime.to_seq(vec.v(1, 2, 3)) == llist.l(1, 2, 3)
@@ -130,3 +149,4 @@ def test_seq_equals():
 
     assert lseq.sequence(vec.v(1, 2, 3)) == llist.l(1, 2, 3)
     assert False is (lseq.sequence(vec.v(1, 2, 3)) == kw.keyword("abc"))
+

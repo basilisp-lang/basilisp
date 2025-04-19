@@ -158,9 +158,9 @@
              (set (seq p3)))))
 
     (testing "iterator"
-      (is (= #{:x :y :z} (set (seq (python/iter p)))))
-      (is (= #{:w :x :y :z} (set (seq (python/iter p1)))))
-      (is (= #{:w :x :y :z :new-key} (set (seq (python/iter p2))))))
+      (is (= #{:x :y :z} (set (iterator-seq (python/iter p)))))
+      (is (= #{:w :x :y :z} (set (iterator-seq (python/iter p1)))))
+      (is (= #{:w :x :y :z :new-key} (set (iterator-seq (python/iter p2))))))
 
     (testing "keys"
       (is (= #{:x :y :z} (set (keys p))))

@@ -197,6 +197,15 @@
   (fn seq [o]
     (basilisp.lang.runtime/to-seq o)))
 
+(def ^{:doc      "Coerce the python Iterable ``it`` to a Seq. Supports both re-iterable
+                  (as with ``seq``) as well as single-use iterables that always return
+                  the same iterator."
+       :arglists '([it])}
+  iterator-seq
+  (fn iterator-seq [it]
+    (basilisp.lang.runtime/to-iterator-seq it)))
+
+
 (def ^{:doc      "Apply function ``f`` to the arguments provided.
 
                   The last argument must always be coercible to a Seq. Intermediate
@@ -326,6 +335,7 @@
 (.alter-meta #'vector? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/IPersistentVector ~o)))
 (.alter-meta #'seq? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.interfaces/ISeq ~o)))
 (.alter-meta #'seq assoc :inline ^:safe-py-params (fn [o] `(basilisp.lang.runtime/to-seq ~o)))
+(.alter-meta #'iterator-seq assoc :inline ^:safe-py-params (fn [it] `(basilisp.lang.runtime/to-iterator-seq ~it)))
 (.alter-meta #'set assoc :inline ^:safe-py-params (fn [coll] `(basilisp.lang.runtime/to-set ~coll)))
 (.alter-meta #'vec assoc :inline ^:safe-py-params (fn [coll] `(basilisp.lang.runtime/vector ~coll)))
 
@@ -1484,10 +1494,10 @@
   (instance? basilisp.lang.interfaces/IReversible x))
 
 (defn ^:inline seqable?
-  "Return ``true`` if an :py:class:`basilisp.lang.interfaces.ISeq` can be produced from
-  ``x``\\."
+  "Return ``true`` if :lpy:fn:``seq`` is supported on``x``\\."
   [x]
-  (instance? basilisp.lang.interfaces/ISeqable x))
+  (or (instance? basilisp.lang.interfaces/ISeqable x)
+      (basilisp.lang.runtime/is-reiterable-iterable x)))
 
 (defn ^:inline sequential?
   "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.ISequential`\\."
@@ -2514,7 +2524,8 @@
   "Return a lazy sequence of the concatenation of ``colls``\\. None of the input
   collections will be evaluated until it is needed."
   [& colls]
-  `(concat ~@(map (fn [coll] `(lazy-seq ~coll)) colls)))
+  `(concat ~@(iterator-seq (python/map (fn [coll] `(lazy-seq ~coll)) colls))))
+
 
 (defn dorun
   "Force a lazy sequence be fully realized. Returns ``nil``\\.
@@ -3259,7 +3270,7 @@
   sequence."
   [v]
   (lazy-seq
-   (when (and (or (seq? v) (seqable? v)) (seq v))
+   (when (and (sequential? v) (seq v))
      (let [e (first v)
            r (rest v)]
        (if (or (seq? e) (seqable? e))
@@ -4570,17 +4581,17 @@
    (read-seq {} stream))
   ([opts stream]
    (let [read (:read opts basilisp.lang.reader/read)]
-      (seq (read stream
-                 *resolver*
-                 *data-readers*
-                 (:eof opts)
-                 (= (:eof opts) :eofthrow)
-                 (:features opts)
-                 (not= :preserve (:read-cond opts))
-                 *default-data-reader-fn*
-                 **
-                 :init-line (:init-line opts)
-                 :init-column (:init-column opts))))))
+     (iterator-seq (read stream
+                         *resolver*
+                         *data-readers*
+                         (:eof opts)
+                         (= (:eof opts) :eofthrow)
+                         (:features opts)
+                         (not= :preserve (:read-cond opts))
+                         *default-data-reader-fn*
+                         **
+                         :init-line (:init-line opts)
+                         :init-column (:init-column opts))))))
 
 (defn read-string
   "Read a string of Basilisp code.
@@ -5497,7 +5508,7 @@
   string. Otherwise, return a vector with the string in the first position and the
   match groups in the following positions."
   [pattern s]
-  (lazy-re-seq (seq (re/finditer pattern s))))
+  (lazy-re-seq (iterator-seq (re/finditer pattern s))))
 
 ;;;;;;;;;;;;;;;;;
 ;; Hierarchies ;;
@@ -6125,7 +6136,7 @@
         fmeta (merge (meta fn-decl) (meta name))
         decorators (:decorators fmeta)]
     (if decorators
-      (loop [wrappers (seq (python/reversed decorators))
+      (loop [wrappers (iterator-seq (python/reversed decorators))
              final fn-decl]
         (if (seq wrappers)
           (recur (rest wrappers)
@@ -7640,13 +7651,13 @@
                                 (mapcat (fn [^os/DirEntry entry]
                                           (if (.is-dir entry)
                                             ;; immediate subdirectory
-                                            (os/scandir (.-path entry))
+                                            (iterator-seq (os/scandir (.-path entry)))
                                             ;; top level file
                                             [entry])))
                                 (filter #(.is-file %))
                                 (map #(pathlib/Path (.-path %)))
                                 (filter (comp #{"data_readers.lpy" "data_readers.cljc"} name)))
-                               (eduction (os/scandir dir))))))
+                               (eduction (iterator-seq (os/scandir dir)))))))
        (group-by #(.-parent %))
        vals
        ;; Only load one data readers file per directory and prefer

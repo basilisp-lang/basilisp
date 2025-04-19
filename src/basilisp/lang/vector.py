@@ -24,7 +24,7 @@ from basilisp.lang.interfaces import (
 from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.reduced import Reduced
-from basilisp.lang.seq import sequence
+from basilisp.lang.seq import iterator_sequence, sequence
 from basilisp.util import partition
 
 T = TypeVar("T")
@@ -213,7 +213,7 @@ class PersistentVector(
         return self[:-1]
 
     def rseq(self) -> ISeq[T]:
-        return sequence(reversed(self))
+        return iterator_sequence(reversed(self))
 
     def to_transient(self) -> TransientVector:
         return TransientVector(self._inner.evolver())
