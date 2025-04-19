@@ -199,7 +199,7 @@
                        "#tests.basilisp.test-defrecord.Point{:y 2 :x 1 :z 3}"
                        "#tests.basilisp.test-defrecord.Point{:x 1 :z 3 :y 2}"
                        "#tests.basilisp.test-defrecord.Point{:z 3 :y 2 :x 1}"}
-                     (str p)))
+                     (repr p)))
       (is (contains? #{"^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:x 1 :y 2 :z 3}"
                        "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:y 2 :z 3 :x 1}"
                        "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:z 3 :x 1 :y 2}"
@@ -207,7 +207,7 @@
                        "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:x 1 :z 3 :y 2}"
                        "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:z 3 :y 2 :x 1}"}
                      (binding [*print-meta* true]
-                       (str (with-meta p {:interesting :yes}))))))))
+                       (repr (with-meta p {:interesting :yes}))))))))
 
 (definterface Shape
   (area []))
@@ -215,7 +215,10 @@
 (defrecord Circle [radius]
   Shape
   (area [self]
-    (* 3.14 radius radius)))
+    (* 3.14 radius radius))
+
+  (__str__ [self]
+    (str "radius: " radius)))
 
 (defrecord InvokeConstructorsRecord []
   (__call__ [self ctor]
@@ -251,13 +254,18 @@
 
     (testing "repr"
       (is (= "#tests.basilisp.test-defrecord.Circle{:radius 1}"
-             (str c)))
+             (repr c)))
       (is (= "^{:interesting :yes} #tests.basilisp.test-defrecord.Circle{:radius 1}"
              (binding [*print-meta* true]
-               (str (with-meta c {:interesting :yes})))))
+               (pr-str (with-meta c {:interesting :yes})))))
       (is (contains? #{"#tests.basilisp.test-defrecord.Circle{:radius 1 :name \"Kurt\"}"
                        "#tests.basilisp.test-defrecord.Circle{:name \"Kurt\" :radius 1}"}
-                     (str c1))))))
+                     (repr c1))))
+
+    (testing "str"
+      (is (= "radius: 1" (str c)))
+      (is (= "radius: 1" (str c1)))
+      (is (= "radius: 2" (str (assoc c :radius 2)))))))
 
 (defrecord ?Name [? x? ?x ?? ?x? ??x ?x- x?x])
 
@@ -279,19 +287,19 @@
           p1 (assoc p :w 0)
           p2 (assoc p1 :new-key "some-value")
           p3 (dissoc p :y)]
-      (is (= p (eval (read-string (str p)))))
-      (is (= p1 (eval (read-string (str p1)))))
-      (is (= p2 (eval (read-string (str p2)))))
-      (is (= p3 (eval (read-string (str p3)))))
+      (is (= p (eval (read-string (repr p)))))
+      (is (= p1 (eval (read-string (repr p1)))))
+      (is (= p2 (eval (read-string (repr p2)))))
+      (is (= p3 (eval (read-string (repr p3)))))
       (is (= p #tests.basilisp.test-defrecord.Point[1 2 3]))))
 
   (testing "record with methods"
     (let [c  (->Circle 1)
           c1 (assoc c :name "Kurt")
           c2 (assoc c1 :radius 3)]
-      (is (= c (eval (read-string (str c)))))
-      (is (= c1 (eval (read-string (str c1)))))
-      (is (= c2 (eval (read-string (str c2)))))
+      (is (= c (eval (read-string (repr c)))))
+      (is (= c1 (eval (read-string (repr c1)))))
+      (is (= c2 (eval (read-string (repr c2)))))
       (is (= c #tests.basilisp.test-defrecord.Circle[1]))))
 
   (testing "illegal other forms"

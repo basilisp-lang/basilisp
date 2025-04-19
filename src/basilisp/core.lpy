@@ -4394,8 +4394,9 @@
 
 (defn pr
   "Print the arguments to the stream bound to :lpy:var:`*out*` in a format which is
-  readable by the Basilisp reader. Multiple arguments will be separated by the string
-  value bound to :lpy:var:`*print-sep*` (default is an ASCII space).
+  readable by the Basilisp reader (as by :lpy:fn:`repr`). Multiple arguments will be
+  separated by the string value bound to :lpy:var:`*print-sep*` (default is an ASCII
+  space).
 
   Note that some dynamically created Basilisp forms (such keywords and symbols) and
   Python objects may not be readable again.
@@ -4461,13 +4462,13 @@
   :lpy:var:`*print-sep*` (default is an ASCII space)."
   ([] (print ""))
   ([x]
-   (.write *out* (basilisp.lang.runtime/lstr x))
+   (.write *out* (basilisp.lang.runtime/lrepr x ** :human-readable true))
    nil)
   ([x & args]
    (let [stdout    *out*
          sep       *print-sep*
-         repr-args (interpose sep (map basilisp.lang.runtime/lstr args))]
-     (.write stdout (basilisp.lang.runtime/lstr x))
+         repr-args (interpose sep (map #(basilisp.lang.runtime/lrepr % ** :human-readable true) args))]
+     (.write stdout (basilisp.lang.runtime/lrepr x ** :human-readable true))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      nil)))

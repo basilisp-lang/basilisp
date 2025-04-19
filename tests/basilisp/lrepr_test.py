@@ -277,14 +277,8 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
         ),
         # In Clojure, (print-str #uuid "...") produces '#uuid "..."' but in Basilisp
         # print-str is tied directly to str (which in Clojure simply returns the string
-        # part of the UUID).
-        #
-        # I'm not sure which one is right, but it feels a little inconsistent on the
-        # Clojure side. For now, I'm erring on the side of preferring for str to return
-        # only the string portion of the UUID and have print-str be slightly wrong.
-        #
-        # Maybe at some point, we can deep dive on whether Clojure is in error or if
-        # Basilisp should just try harder to match the Clojure side regardless.
+        # part of the UUID). I believe the more correct approach is Basilisp's, so
+        # I am leaving this as it is.
         (
             "81f35603-0408-4b3d-bbc0-462e3702747f",
             '(print-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
@@ -332,7 +326,7 @@ def test_lstr(lcompile: CompileFn, s: str, code: str):
             "81f35603-0408-4b3d-bbc0-462e3702747f",
             '(str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
         ),
-        ('#"\\s"', '(str #"\\s")'),
+        ("\\s", '(str #"\\s")'),
         (
             '#inst "2018-11-28T12:43:25.477000+00:00"',
             '(str #inst "2018-11-28T12:43:25.477-00:00")',
