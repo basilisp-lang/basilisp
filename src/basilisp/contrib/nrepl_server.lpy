@@ -192,7 +192,7 @@
                                            (read reader))}
                                   (catch python/Exception e
                                     (debug :symbol-identify-reader-error :input symbol-str :exception e)
-                                    {:error (str e)}))]
+                                    {:error (repr e)}))]
 
     (cond
       error
@@ -210,7 +210,7 @@
       :else
       (let [{:keys [var error]} (try {:var (ns-resolve resolve-ns form)}
                                      (catch python/Exception e
-                                       {:error (str e)}))]
+                                       {:error (repr e)}))]
         (cond
           var   [:var var]
           error [:error error]

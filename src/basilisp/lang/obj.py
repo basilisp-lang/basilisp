@@ -1,4 +1,5 @@
 import datetime
+import fractions
 import math
 import re
 import uuid
@@ -121,6 +122,49 @@ def seq_lrepr(
         return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
 
     return f"{start}{seq_lrepr}{end}"
+
+
+@singledispatch
+def lstr(o: Any) -> str:
+    return str(o)
+
+
+@lstr.register(type(re.compile("")))
+def _lstr_pattern(o: Pattern) -> str:
+    return o.pattern
+
+
+@lstr.register(bool)
+@lstr.register(bytes)
+@lstr.register(type(None))
+@lstr.register(str)
+@lstr.register(list)
+@lstr.register(dict)
+@lstr.register(set)
+@lstr.register(tuple)
+@lstr.register(complex)
+@lstr.register(float)
+@lstr.register(datetime.datetime)
+@lstr.register(Decimal)
+@lstr.register(fractions.Fraction)
+@lstr.register(Path)
+def _lstr_lrepr(o) -> str:
+    """For built-in types, we want the `str()` representation to match the `lrepr()`.
+
+    User types can be customized to their liking.
+
+    This function intentionally does not capture the runtime values of the lrepr
+    keyword arguments."""
+    return lrepr(
+        o,
+        human_readable=True,
+        print_dup=PRINT_DUP,
+        print_length=PRINT_LENGTH,
+        print_level=PRINT_LEVEL,
+        print_meta=PRINT_META,
+        print_namespace_maps=PRINT_NAMESPACE_MAPS,
+        print_readably=PRINT_READABLY,
+    )
 
 
 # pylint: disable=unused-argument

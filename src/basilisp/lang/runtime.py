@@ -2011,8 +2011,8 @@ def lrepr(o, human_readable: bool = False) -> str:
 
 
 def lstr(o) -> str:
-    """Produce a human readable string representation of an object."""
-    return lrepr(o, human_readable=True)
+    """Produce a human-readable string representation of an object."""
+    return lobj.lstr(o)
 
 
 __NOT_COMPLETEABLE = re.compile(r"^[0-9].*")

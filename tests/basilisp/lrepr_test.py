@@ -168,6 +168,10 @@ def test_print_readably(lcompile: CompileFn):
         ("##Inf", "(pr-str ##Inf)"),
         ("##-Inf", "(pr-str ##-Inf)"),
         ('"hi"', '(pr-str "hi")'),
+        ("sym", "(pr-str 'sym)"),
+        ("some.ns/sym", "(pr-str 'some.ns/sym)"),
+        (":kw", "(pr-str :kw)"),
+        (":some.ns/kw", "(pr-str :some.ns/kw)"),
         ('"Hello\\nworld!"', '(pr-str "Hello\nworld!")'),
         (r'"\"Hello world!\""', r'(pr-str "\"Hello world!\"")'),
         (
@@ -196,6 +200,8 @@ def test_print_readably(lcompile: CompileFn):
         ("#py #{:a}", "(pr-str #py #{:a})"),
         ("#py ()", "(pr-str #py ())"),
         ('#py (:a 1 "s")', '(pr-str #py (:a 1 "s"))'),
+        ("#'basilisp.core/pr-str", "(pr-str #'pr-str)"),
+        ("basilisp.lrepr-test", "(pr-str *ns*)"),
     ],
 )
 def test_lrepr(lcompile: CompileFn, repr: str, code: str):
@@ -267,6 +273,10 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
         ("##NaN", "(print-str ##NaN)"),
         ("##Inf", "(print-str ##Inf)"),
         ("##-Inf", "(print-str ##-Inf)"),
+        ("sym", "(print-str 'sym)"),
+        ("some.ns/sym", "(print-str 'some.ns/sym)"),
+        (":kw", "(print-str :kw)"),
+        (":some.ns/kw", "(print-str :some.ns/kw)"),
         ("hi", '(print-str "hi")'),
         ("Hello\nworld!", '(print-str "Hello\nworld!")'),
         ('"Hello world!"', r'(print-str "\"Hello world!\"")'),
@@ -277,14 +287,8 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
         ),
         # In Clojure, (print-str #uuid "...") produces '#uuid "..."' but in Basilisp
         # print-str is tied directly to str (which in Clojure simply returns the string
-        # part of the UUID).
-        #
-        # I'm not sure which one is right, but it feels a little inconsistent on the
-        # Clojure side. For now, I'm erring on the side of preferring for str to return
-        # only the string portion of the UUID and have print-str be slightly wrong.
-        #
-        # Maybe at some point, we can deep dive on whether Clojure is in error or if
-        # Basilisp should just try harder to match the Clojure side regardless.
+        # part of the UUID). I believe the more correct approach is Basilisp's, so
+        # I am leaving this as it is.
         (
             "81f35603-0408-4b3d-bbc0-462e3702747f",
             '(print-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
@@ -298,6 +302,8 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
         ("#py ()", "(print-str #py ())"),
         ("#py {}", "(print-str #py {})"),
         ("#py #{}", "(print-str #py #{})"),
+        ("#'basilisp.core/print-str", "(print-str #'print-str)"),
+        ("basilisp.lrepr-test", "(print-str *ns*)"),
     ],
 )
 def test_lstr(lcompile: CompileFn, s: str, code: str):
@@ -320,6 +326,10 @@ def test_lstr(lcompile: CompileFn, s: str, code: str):
         ("##NaN", "(str ##NaN)"),
         ("##Inf", "(str ##Inf)"),
         ("##-Inf", "(str ##-Inf)"),
+        ("sym", "(str 'sym)"),
+        ("some.ns/sym", "(str 'some.ns/sym)"),
+        (":kw", "(str :kw)"),
+        (":some.ns/kw", "(str :some.ns/kw)"),
         ("hi", '(str "hi")'),
         ("Hello\nworld!", '(str "Hello\nworld!")'),
         ('"Hello world!"', r'(str "\"Hello world!\"")'),
@@ -332,7 +342,7 @@ def test_lstr(lcompile: CompileFn, s: str, code: str):
             "81f35603-0408-4b3d-bbc0-462e3702747f",
             '(str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
         ),
-        ('#"\\s"', '(str #"\\s")'),
+        ("\\s", '(str #"\\s")'),
         (
             '#inst "2018-11-28T12:43:25.477000+00:00"',
             '(str #inst "2018-11-28T12:43:25.477-00:00")',
@@ -341,6 +351,8 @@ def test_lstr(lcompile: CompileFn, s: str, code: str):
         ('#py ("a" 1 false)', '(str #py ("a" 1 false))'),
         ('#py {"a" "b"}', '(str #py {"a" "b"})'),
         ("#py #{}", "(str #py #{})"),
+        ("#'basilisp.core/str", "(str #'str)"),
+        ("basilisp.lrepr-test", "(str *ns*)"),
         ("abc", '(str "abc")'),
         ("false", "(str false)"),
         ("123", "(str 123)"),
