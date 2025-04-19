@@ -29,7 +29,7 @@ from basilisp.lang.obj import (
     process_lrepr_kwargs,
 )
 from basilisp.lang.reduced import Reduced
-from basilisp.lang.seq import iterator_sequence, sequence
+from basilisp.lang.seq import iterator_sequence
 from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
 

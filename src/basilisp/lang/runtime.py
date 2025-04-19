@@ -1289,9 +1289,12 @@ to_seq = lseq.to_seq
 
 to_iterator_seq = lseq.iterator_sequence
 
+
 def concat(*seqs: Any) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
-    return lseq.iterator_sequence(itertools.chain.from_iterable(filter(None, map(to_seq, seqs))))
+    return lseq.iterator_sequence(
+        itertools.chain.from_iterable(filter(None, map(to_seq, seqs)))
+    )
 
 
 T_reduce_init = TypeVar("T_reduce_init")
@@ -1392,8 +1395,10 @@ def apply_kw(f, args):
 
 @functools.singledispatch
 def count(coll) -> int:
-    if isinstance(coll, Iterator) and iter(coll) is coll:
-        raise TypeError(f"The count function is not supported on single-use iterable objects because it would exhaust them during counting. Object type: {type(coll)}")
+    if isinstance(coll, Iterable) and iter(coll) is coll:
+        raise TypeError(
+            f"The count function is not supported on single-use iterable objects because it would exhaust them during counting. Please use iterator-seq to coerce them into sequences first. Iterable Object type: {type(coll)}"
+        )
 
     try:
         return sum(1 for _ in coll)
@@ -2642,6 +2647,7 @@ def get_compiler_opts() -> CompilerOpts:
     v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(COMPILER_OPTIONS_VAR_NAME))
     assert v is not None, "*compiler-options* Var not defined"
     return cast(CompilerOpts, v.value)
+
 
 def is_reiterable_iterable(x: Any) -> bool:
     """Return ``true`` if x is a re-iterable Iterable object."""

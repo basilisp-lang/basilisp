@@ -149,4 +149,3 @@ def test_seq_equals():
 
     assert lseq.sequence(vec.v(1, 2, 3)) == llist.l(1, 2, 3)
     assert False is (lseq.sequence(vec.v(1, 2, 3)) == kw.keyword("abc"))
-

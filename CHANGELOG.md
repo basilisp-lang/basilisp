@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for referring imported Python names as by `from ... import ...` (#1154)
 
+### Changed
+ * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
+
 ### Fixed
  * Fix a bug where protocols with methods with leading hyphens in the could not be defined (#1230)
  * Fix a bug where attempting to `:refer` a non-existent Var from another namespace would throw an unhelpful exception (#1231)
