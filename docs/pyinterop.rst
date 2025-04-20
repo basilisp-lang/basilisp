@@ -427,8 +427,8 @@ Proxies can also be useful in cases where it is necessary to wrap superclass met
    ;; prints "length 4"
    (.getvalue p)  ;; => "blah"
 
-   .. seealso::
+.. seealso::
 
-      lpy:fn:`proxy`, :lpy:fn:`proxy-mappings`, :lpy:fn:`proxy-super`,
-      :lpy:fn:`construct-proxy`, :lpy:fn:`init-proxy`, :lpy:fn:`update-proxy`,
-      :lpy:fn:`get-proxy-class`
+   :lpy:fn:`proxy`, :lpy:fn:`proxy-mappings`, :lpy:fn:`proxy-super`,
+   :lpy:fn:`construct-proxy`, :lpy:fn:`init-proxy`, :lpy:fn:`update-proxy`,
+   :lpy:fn:`get-proxy-class`
