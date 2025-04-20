@@ -1,0 +1,25 @@
+(ns tests.basilisp.test-url
+  (:require
+   [basilisp.url :as url]
+   [basilisp.test :refer [deftest is]]))
+
+(deftest blank-url-test
+  (is (= url/blank-url
+         (url/map->URL {:scheme   ""
+                        :username nil
+                        :password nil
+                        :hostname nil
+                        :port     nil
+                        :path     ""
+                        :params   ""
+                        :query    {}
+                        :fragment "" }))))
+
+(deftest to-url-test
+  (are [res url] (= res (url/to-url url))
+    (assoc url/blank-url
+           :scheme "https"
+           :hostname "en.wikipedia.org"
+           :path "/wiki/Python_(programming_language)"
+           :fragment "Libraries")
+    "https://en.wikipedia.org/wiki/Python_(programming_language)#Libraries"))
