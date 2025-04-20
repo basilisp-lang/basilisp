@@ -6884,7 +6884,16 @@
 
   Methods must supply a ``this`` or ``self`` parameter. ``recur`` special forms used in
   the body of a method should not include that parameter, as it will be supplied
-  automatically."
+  automatically.
+
+  .. note::
+
+     ``deftype`` creates new types with ``__slots__`` by default. To disable usage
+     of ``__slots__``, provide the ``^{:slots false}`` meta key on the type name.
+
+     .. code-block::
+
+        (deftype ^{:slots false} Point [x y z])"
   [type-name fields & method-impls]
   (let [ctor-name (with-meta
                     (symbol (str "->" (name type-name)))
