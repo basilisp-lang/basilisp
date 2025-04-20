@@ -7020,6 +7020,11 @@
                                                                              (persistent!))]
                                                    (. self (_set_proxy_mappings updated-mappings))
                                                    nil))
+                      "__setattr__"            (fn __setattr__ [self attr val]
+                                                 "Override __setattr__ specifically for _proxy_mappings."
+                                                 (if (= attr "_proxy_mappings")
+                                                   (. python/object __setattr__ self attr val)
+                                                   ((.- (python/super (.- self __class__) self) __setattr__) attr val)))
                       "_proxy_mappings"        nil}
 
         ;; Remove Python ``object`` from the bases if it is present to avoid errors

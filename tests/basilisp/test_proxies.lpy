@@ -20,6 +20,18 @@
     (is (thrown? basilisp.lang.exception/ExceptionInfo
                  (construct-proxy python/object)))))
 
+(deftest init-proxy-test
+  (let [obj-proxy (construct-proxy (get-proxy-class))]
+    (is (identical? obj-proxy (init-proxy obj-proxy {})))
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (init-proxy (python/object) {})))))
+
+(deftest update-proxy-test
+  (let [obj-proxy (construct-proxy (get-proxy-class))]
+    (is (identical? obj-proxy (update-proxy obj-proxy {})))
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (update-proxy (python/object) {})))))
+
 (definterface Describable
   (describe-me []))
 
@@ -28,8 +40,7 @@
   (to-string [arg1])
   (to-string [arg1 & rest]))
 
-;; TODO: (?) needs to be mutable or setting _proxy_mappings on the instance fails
-(deftype ConcreteToString [^:mutable arg]
+(deftype ConcreteToString [arg]
   ToString
   (to-string [this] "0")
   (to-string [this arg1] (str "1" arg1))
