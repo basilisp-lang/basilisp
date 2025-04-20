@@ -24,15 +24,15 @@
 
 (deftype ^{:slots false} ConcreteToString [arg]
   ToString
-  (to-string [this] "0")
-  (to-string [this arg1] (str "1" arg1))
-  (to-string [this arg1 & rest] (str "rest" arg1 rest)))
+  (to-string [this] (str "0 " arg))
+  (to-string [this arg1] (str "1 " arg " " arg1))
+  (to-string [this arg1 & rest] (str "rest" arg arg1 rest)))
 
 (def multi-arity-proxy
   (proxy [ConcreteToString] [1]
     (to-string
-      ([] "hi i am 0")
-      ([arg1] (str "i am 1 " arg1))
+      ([] (str "hi i am 0 arg " (proxy-super to-string)))
+      ([arg1] (str "i am 1 arg " (proxy-super to-string arg1)))
       ([arg1 & args] (str "i am rest " arg1 " " args)))))
 
 (deftest get-proxy-class-test
@@ -53,22 +53,50 @@
   (is (= #{"to_string"} (set (keys (proxy-mappings multi-arity-proxy))))))
 
 (deftest construct-proxy-test
-  (let [obj-proxy-cls (get-proxy-class)]
-    (is (instance? obj-proxy-cls (construct-proxy obj-proxy-cls)))
-    (is (thrown? basilisp.lang.exception/ExceptionInfo
-                 (construct-proxy python/object)))))
+  (testing "no args"
+    (let [obj-proxy-cls (get-proxy-class)]
+      (is (instance? obj-proxy-cls (construct-proxy obj-proxy-cls)))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (construct-proxy python/object)))))
+
+  (testing "superclass args"
+    (let [obj-proxy-cls (get-proxy-class DescribableType)]
+      (is (instance? obj-proxy-cls (construct-proxy obj-proxy-cls 1)))
+      (is (thrown? python/TypeError (construct-proxy obj-proxy-cls))))))
 
 (deftest init-proxy-test
-  (let [obj-proxy (construct-proxy (get-proxy-class))]
-    (is (identical? obj-proxy (init-proxy obj-proxy {})))
-    (is (thrown? basilisp.lang.exception/ExceptionInfo
-                 (init-proxy (python/object) {})))))
+  (testing "no proxy methods"
+    (let [obj-proxy (construct-proxy (get-proxy-class))]
+      (is (identical? obj-proxy (init-proxy obj-proxy {})))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (init-proxy (python/object) {})))))
+
+  (testing "has proxy methods"
+    (let [obj-proxy (proxy [DescribableType] [1]
+                      (describe-me [] "I'm a proxy"))]
+      (is (= "I'm a proxy" (.describe-me obj-proxy)))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (init-proxy obj-proxy {"some-other-method" identity})))
+      (init-proxy obj-proxy {"describe_me" (fn [this] "I'm not a proxy")})
+      (is (= "I'm not a proxy" (.describe-me obj-proxy))))))
 
 (deftest update-proxy-test
-  (let [obj-proxy (construct-proxy (get-proxy-class))]
-    (is (identical? obj-proxy (update-proxy obj-proxy {})))
-    (is (thrown? basilisp.lang.exception/ExceptionInfo
-                 (update-proxy (python/object) {})))))
+  (testing "no proxy methods"
+    (let [obj-proxy (construct-proxy (get-proxy-class))]
+      (is (identical? obj-proxy (update-proxy obj-proxy {})))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (update-proxy (python/object) {})))))
+
+  (testing "has proxy methods"
+    (let [obj-proxy (proxy [DescribableType] [1]
+                      (describe-me [] "I'm a proxy"))]
+      (is (= "I'm a proxy" (.describe-me obj-proxy)))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (update-proxy obj-proxy {"some-other-method" identity})))
+      (update-proxy obj-proxy {"describe_me" nil})
+      (is (= "I'm a type with 1" (.describe-me obj-proxy)))
+      (update-proxy obj-proxy {"describe_me" (fn [this] "I'm a proxy again")})
+      (is (= "I'm a proxy again" (.describe-me obj-proxy))))))
 
 (deftest proxy-test
   (testing "disallows duplicate method overrides"
@@ -86,6 +114,6 @@
     (is (= "Proxy with: I'm a type with :orig" (.describe-me single-arity-proxy))))
 
   (testing "multi-arity interface methods"
-    (is (= "hi i am 0" (.to-string multi-arity-proxy)))
-    (is (= "i am 1 yes" (.to-string multi-arity-proxy "yes")))
+    (is (= "hi i am 0 arg 0 1" (.to-string multi-arity-proxy)))
+    (is (= "i am 1 arg 1 1 yes" (.to-string multi-arity-proxy "yes")))
     (is (= "i am rest first (:yes)" (.to-string multi-arity-proxy "first" :yes)))))
