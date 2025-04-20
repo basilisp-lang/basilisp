@@ -7,6 +7,7 @@
          decimal
          fractions
          importlib.util
+         inspect
          math
          multiprocessing
          os
@@ -6447,7 +6448,7 @@
   (let [name-str    (name interface-name)
         method-sigs (->> methods
                          (map (fn [[method-name args docstring]]
-                                [method-name (conj args 'self) docstring]))
+                                [method-name (vec (concat ['self] args)) docstring]))
                          (map #(list 'quote %)))]
     `(def ~interface-name
        (gen-interface :name ~name-str
@@ -6883,7 +6884,16 @@
 
   Methods must supply a ``this`` or ``self`` parameter. ``recur`` special forms used in
   the body of a method should not include that parameter, as it will be supplied
-  automatically."
+  automatically.
+
+  .. note::
+
+     ``deftype`` creates new types with ``__slots__`` by default. To disable usage
+     of ``__slots__``, provide the ``^{:slots false}`` meta key on the type name.
+
+     .. code-block::
+
+        (deftype ^{:slots false} Point [x y z])"
   [type-name fields & method-impls]
   (let [ctor-name (with-meta
                     (symbol (str "->" (name type-name)))
@@ -6950,6 +6960,254 @@
       `(~reify-sym :implements [~@interfaces python/object]
                ~@methods)
       (meta &form))))
+
+;;;;;;;;;;;;;
+;; Proxies ;;
+;;;;;;;;;;;;;
+
+(def ^:private excluded-proxy-methods
+  #{"__getattribute__"
+    "__init__"
+    "__new__"
+    "__subclasshook__"})
+
+(def ^:private proxy-cache (atom {}))
+
+;; One consequence of adhering so closely to the Clojure proxy model is that this
+;; style of dispatch method doesn't align well with the Basilisp style of defining
+;; multi-arity methods (which involves creating the "main" entrypoint method which
+;; dispatches to private implementations for all of the defined arities).
+;;
+;; Fortunately, since the public interface of even multi-arity methods is a single
+;; public method, when callers provide a multi-arity override for such methods,
+;; only the public entrypoint method is overridden in the proxy mappings. This
+;; should be a sufficient compromise, but it does mean that the superclass arity
+;; implementations are never overridden.
+(defn ^:private proxy-base-methods
+  [base]
+  (->> (inspect/getmembers base inspect/isroutine)
+       (remove (comp excluded-proxy-methods first))
+       (mapcat (fn [[method-name method]]
+                 (let [meth-sym (symbol method-name)
+                       meth `(fn ~meth-sym [~'self & args#]
+                               (if-let [override (get (.- ~'self ~'-proxy-mappings) ~method-name)]
+                                 (apply override ~'self args#)
+                                 (-> (.- ~'self __class__)
+                                     (python/super ~'self)
+                                     (.- ~meth-sym)
+                                     (apply args#))))]
+                   [method-name (eval meth *ns*)])))))
+
+(defn ^:private proxy-type
+  "Generate a proxy class with the given bases."
+  [bases]
+  (let [methods      (apply hash-map (mapcat proxy-base-methods bases))
+        method-names (set (map munge (keys methods)))
+        base-methods {"__init__"               (fn __init__ [self proxy-mappings & args]
+                                                 (apply (.- (python/super (.- self __class__) self) __init__) args)
+                                                 (. self (_set_proxy_mappings proxy-mappings))
+                                                 nil)
+                      "_get_proxy_mappings"    (fn _get_proxy_mappings [self]
+                                                 (.- self -proxy-mappings))
+                      "_set_proxy_mappings"    (fn _set_proxy_mappings [self proxy-mappings]
+                                                 (let [provided-methods (set (keys proxy-mappings))]
+                                                   (when-not (.issubset provided-methods method-names)
+                                                     (throw
+                                                      (ex-info "Proxy override methods must correspond to methods on the declared supertypes"
+                                                               {:expected method-names
+                                                                :given    provided-methods
+                                                                :diff     (.difference provided-methods method-names)}))))
+                                                 (set! (.- self -proxy-mappings) proxy-mappings)
+                                                 nil)
+                      "_update_proxy_mappings" (fn _update_proxy_mappings [self proxy-mappings]
+                                                 (let [updated-mappings (->> proxy-mappings
+                                                                             (reduce* (fn [m [k v]]
+                                                                                        (if v
+                                                                                          (assoc! m k v)
+                                                                                          (dissoc! m k)))
+                                                                                      (transient (.- self -proxy-mappings)))
+                                                                             (persistent!))]
+                                                   (. self (_set_proxy_mappings updated-mappings))
+                                                   nil))
+                      "__setattr__"            (fn __setattr__ [self attr val]
+                                                 "Override __setattr__ specifically for _proxy_mappings."
+                                                 (if (= attr "_proxy_mappings")
+                                                   (. python/object __setattr__ self attr val)
+                                                   ((.- (python/super (.- self __class__) self) __setattr__) attr val)))
+                      "_proxy_mappings"        nil}
+
+        ;; Remove Python ``object`` from the bases if it is present to avoid errors
+        ;; about creating a consistent MRO for the given bases
+        proxy-bases (concat (remove #{python/object} bases) [basilisp.lang.interfaces/IProxy])]
+    (python/type (basilisp.lang.util/genname "Proxy")
+                 (python/tuple proxy-bases)
+                 (python/dict (merge methods base-methods)))))
+
+(defn get-proxy-class
+  "Given zero or more base classes, return a proxy class for the given classes.
+
+  If no classes, Python's ``object`` will be used as the superclass.
+
+  Generated classes are cached, such that the same set of base classes will always
+  return the same resulting proxy class."
+  [& bases]
+  (let [base-set (if (seq bases)
+                   (set bases)
+                   #{python/object})]
+    (-> (swap! proxy-cache (fn [cache]
+                             (if (get cache base-set)
+                               cache
+                               (assoc cache base-set (proxy-type base-set)))))
+        (get base-set))))
+
+(defn proxy-mappings
+  "Return the current method map for the given proxy.
+
+  Throws an exception if ``proxy`` is not a proxy."
+  [proxy]
+  (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
+    (throw
+     (ex-info "Cannot get proxy mappings from object which does not implement IProxy"
+              {:obj proxy}))
+    (. proxy (_get-proxy-mappings))))
+
+(defn construct-proxy
+  "Construct an instance of the proxy class ``c`` with the given constructor arguments.
+
+  Throws an exception if ``c`` is not a subclass of
+  :py:class:`basilisp.lang.interfaces.IProxy`.
+
+  .. note::
+
+     In JVM Clojure, this function is useful for selecting a specific constructor based
+     on argument count, but Python does not support multi-arity methods (including
+     constructors), so this is likely of limited use."
+  [c & ctor-args]
+  (if-not (python/issubclass c basilisp.lang.interfaces/IProxy)
+    (throw
+     (ex-info "Cannot construct instance of class which is not a subclass of IProxy"
+              {:class c :args ctor-args}))
+    (apply c {} ctor-args)))
+
+(defn init-proxy
+  "Set the current proxy method map for the given proxy.
+
+  Method maps are maps of string method names to their implementations as Basilisp
+  functions.
+
+  Throws an exception if ``proxy`` is not a proxy."
+  [proxy mappings]
+  (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
+    (throw
+     (ex-info "Cannot set proxy mappings for an object which does not implement IProxy"
+              {:obj proxy}))
+    (do
+      (. proxy (_set-proxy-mappings mappings))
+      proxy)))
+
+(defn update-proxy
+  "Update the current proxy method map for the given proxy.
+
+  Method maps are maps of string method names to their implementations as Basilisp
+  functions. If ``nil`` is passed in place of a function for a method, that method will
+  revert to its default behavior.
+
+  Throws an exception if ``proxy`` is not a proxy."
+  [proxy mappings]
+  (if-not (instance? basilisp.lang.interfaces/IProxy proxy)
+    (throw
+     (ex-info "Cannot update proxy mappings for object which does not implement IProxy"
+              {:obj proxy}))
+    (do
+      (. proxy (_update-proxy-mappings mappings))
+      proxy)))
+
+(defmacro proxy
+  "Create a new proxy class instance.
+
+  The proxy class may implement 0 or more interface (or subclass 0 or more classes),
+  which are given as the vector ``class-and-interfaces``. If 0 such supertypes are
+  provided, Python's ``object`` type will be used.
+
+  If the supertype constructors take arguments, those arguments are given in the
+  potentially empty vector ``args``.
+
+  The remaining forms (if any) should be method overrides for any methods of the
+  declared classes and interfaces. Not every method needs to be overridden. Override
+  declarations may be multi-arity to simulate multi-arity methods. Overrides need
+  not include ``this``, as it will be automatically added and is available within
+  all proxy methods. Proxy methods may access the proxy superclass using the
+  :lpy:fn:`proxy-super` macro.
+
+  Overrides take the following form::
+
+     (single-arity []
+       ...)
+
+     (multi-arity
+       ([] ...)
+       ([arg1] ...)
+       ([arg1 & others] ...))
+
+  .. note::
+
+     Proxy override methods can be defined with Python keyword argument support since
+     they are just standard Basilisp functions. See :ref:`basilisp_functions_with_kwargs`
+     for more information.
+
+  .. warning::
+
+     The ``proxy`` macro does not verify that the provided override implementations
+     arities match those of the method being overridden.
+
+  .. warning::
+
+     Attempting to create a proxy with multiple superclasses defined with ``__slots__``
+     may fail with a ``TypeError``. If you control any of the designated superclasses,
+     removing conflicting ``__slots__`` should enable creation of the proxy type."
+  [class-and-interfaces args & fs]
+  (let [formatted-single (fn [method-name [arg-vec & body]]
+                           (apply list
+                                  'fn
+                                  method-name
+                                  (with-meta (vec (concat ['this] arg-vec)) (meta arg-vec))
+                                  body))
+        formatted-multi  (fn [method-name & arities]
+                           (apply list
+                                  'fn
+                                  method-name
+                                  (map (fn [[arg-vec & body]]
+                                         (apply list
+                                                (with-meta (vec (concat ['this] arg-vec)) (meta arg-vec))
+                                                body))
+                                       arities)))
+        methods          (map (fn [[method-name & body :as form]]
+                                [(munge method-name)
+                                 (with-meta
+                                   (if (vector? (first body))
+                                     (formatted-single method-name body)
+                                     (apply formatted-multi method-name body))
+                                   (meta form))])
+                              fs)
+        method-map       (reduce* (fn [m [method-name method]]
+                                    (if-let [existing-method (get m method-name)]
+                                      (throw
+                                       (ex-info "Cannot define proxy class with duplicate method"
+                                                {:method-name method-name
+                                                 :impls       [existing-method method]}))
+                                      (assoc m method-name method)))
+                                  {}
+                                  methods)]
+    `((get-proxy-class ~@class-and-interfaces) ~method-map ~@args)))
+
+(defmacro proxy-super
+  "Macro which expands to a call to the method named ``meth`` on the superclass
+  with the provided ``args``.
+
+  Note this macro explicitly captures the implicit ``this`` parameter added to proxy
+  methods."
+  [meth & args]
+  `(. (~'python/super (.- ~'this ~'__class__) ~'this) (~meth ~@args)))
 
 ;;;;;;;;;;;;;
 ;; Records ;;

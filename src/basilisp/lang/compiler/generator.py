@@ -1548,7 +1548,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
                             verified_abstract=node.verified_abstract,
                             artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=node.is_frozen,
-                            use_slots=True,
+                            use_slots=node.use_slots,
                             use_weakref_slot=node.use_weakref_slot,
                         ),
                         ast.Call(

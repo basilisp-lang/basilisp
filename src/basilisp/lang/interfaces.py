@@ -372,6 +372,36 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
+class IProxy(ABC):
+    """``IProxy`` is a marker interface for proxy types.
+
+    All types created by ``proxy`` are automatically marked with ``IProxy``.
+
+    .. seealso::
+
+       :ref:`proxies`, :lpy:fn:`proxy`, :lpy:fn:`proxy-mappings`, :lpy:fn:`proxy-super`,
+       :lpy:fn:`construct-proxy`, :lpy:fn:`init-proxy`, :lpy:fn:`update-proxy`,
+       :lpy:fn:`get-proxy-class`"""
+
+    __slots__ = ()
+
+    @abstractmethod
+    def _get_proxy_mappings(self) -> "IPersistentMap[str, Callable]":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _set_proxy_mappings(
+        self, proxy_mappings: "IPersistentMap[str, Callable]"
+    ) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _update_proxy_mappings(
+        self, proxy_mappings: "IPersistentMap[str, Callable]"
+    ) -> None:
+        raise NotImplementedError()
+
+
 T_key = TypeVar("T_key")
 V_contra = TypeVar("V_contra", contravariant=True)
 

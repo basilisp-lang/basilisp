@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for referring imported Python names as by `from ... import ...` (#1154)
  * Added the `basilisp.url` namespace for structured URL manipulation (#1239)
+ * Added support for proxies (#425)
+ * Added a `:slots` meta flag for `deftype` to disable creation of `__slots__` on created types (#1241)
 
 ### Changed
  * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
