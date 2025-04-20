@@ -283,6 +283,27 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
    Return annotations are combined as by :external:py:obj:`typing.Union`, so ``typing.Union[str, str] == str``.
    The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
 
+.. _python_slicing:
+
+Python Slicing
+--------------
+
+Python slicing lets you extract parts of a sequence (like a list or string) using the syntax ``sequence[start:end:step]``:
+
+.. code-block:: python
+
+   coll = [-3, -2, -1, 0, 1, 2, 3]
+   coll[1:5:2]
+   # => [-2, 0]
+
+Basilisp does not support slicing syntax directly, but it can be achieved using the :external:py:obj:`slice` operator combined with the :lpy:fn:`basilisp.core/aget` function:
+
+.. code-block:: clojure
+
+   (def coll #py [-3 -2 -1 0 1 2 3])
+   (aget coll (python/slice 1 5 2))
+   ;; => #py [-2 0]
+
 .. _python_iterators:
 
 Python Iterators
