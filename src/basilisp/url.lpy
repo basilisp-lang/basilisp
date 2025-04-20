@@ -43,9 +43,10 @@
   (let [creds     (when (or (:username url) (:password url))
                     (str/join ":" [(urllib.parse/quote (or (:username url) "") ** :safe "")
                                    (urllib.parse/quote (or (:password url) "") ** :safe "")]))
+        hostname  (or (:hostname url) "")
         host+port (if (:port url)
-                    (str/join ":" [(or (:hostname url) "") (:port url)])
-                    (or (:hostname url) ""))]
+                    (str/join ":" [hostname (:port url)])
+                    hostname)]
     (if creds
       (str/join "@" [creds host+port])
       host+port)))
