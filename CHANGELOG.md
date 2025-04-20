@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for referring imported Python names as by `from ... import ...` (#1154)
  * Added the `basilisp.url` namespace for structured URL manipulation (#1239)
+ * Added support for proxies (#425)
 
 ### Changed
  * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
@@ -37,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.3.6]
 ### Added
  * Added support for the `:decorators` meta key in anonymous `fn`s (#1178)
- * Added support for proxies (#425)
 
 ### Changed
  * `import` now returns nil instead of the last module's string representation (#1174)
