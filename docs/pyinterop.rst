@@ -411,4 +411,24 @@ Users still have the option to use the native :external:py:func:`operator.floord
 Proxies
 -------
 
-TBD
+Basilisp supports creating instances of anonymous classes deriving from one or more concrete types with the :lpy:fn:`proxy` macro.
+It may be necessary to use ``proxy`` in preference to :lpy:fn:`reify` for cases when the superclass type is concrete, where ``reify`` would otherwise fail.
+Proxies can also be useful in cases where it is necessary to wrap superclass methods with additional functionality or access internal state of class instances.
+
+.. code-block::
+
+   (def p
+     (proxy [io/StringIO] []
+       (write [s]
+         (println "length" (count s))
+         (proxy-super write s))))
+
+   (.write p "blah")  ;; => 4
+   ;; prints "length 4"
+   (.getvalue p)  ;; => "blah"
+
+   .. seealso::
+
+      lpy:fn:`proxy`, :lpy:fn:`proxy-mappings`, :lpy:fn:`proxy-super`,
+      :lpy:fn:`construct-proxy`, :lpy:fn:`init-proxy`, :lpy:fn:`update-proxy`,
+      :lpy:fn:`get-proxy-class`
