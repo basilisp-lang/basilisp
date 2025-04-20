@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
  * `basilisp.core/str` now delegates to the builtin Python `str` in all cases except for customizing the string output for builtin Python types (#1237)
+ * Optimised mainstream seq-consuming functions by coercing their inputs into `seq` upfront (#1234)
 
 ### Fixed
  * Fix a bug where protocols with methods with leading hyphens in the could not be defined (#1230)
