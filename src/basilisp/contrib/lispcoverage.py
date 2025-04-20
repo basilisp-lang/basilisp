@@ -15,7 +15,7 @@ class LispCoverage(CoveragePlugin):
         return LispReporter(filename)
 
     def find_executable_files(self, src_dir):
-        for (dirpath, dirnames, filenames) in os.walk(src_dir):
+        for dirpath, dirnames, filenames in os.walk(src_dir):
             for filename in filenames:
                 _, ext = os.path.splitext(filename)
                 if ext == ".lpy":
