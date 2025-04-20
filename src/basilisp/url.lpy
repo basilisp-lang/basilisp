@@ -1,0 +1,152 @@
+(ns basilisp.url
+  "Namespace providing simple utility functions for creating and modifying URLs,
+  wrapping functionality provided in :external:py:mod:`urllib.parse` in a more
+  Clojure-like API.
+
+  The primary entrypoint function is :lpy:fn:`url` which will parse the input
+  value into an :lpy:rec:`URL` record type, which allows for structured manipulation.
+  Because the source type is a record, it can be manipulated using standard Clojure
+  idioms such as :lpy:fn:`basilisp.core/assoc`.
+
+  After any modifications are made, :lpy:fn:`basilisp.core/str` can turn the URL
+  record type into a string that can be used wherever string URLs are expected.
+
+  .. code-block::
+
+     (-> (url/url \"https://en.wikipedia.org/wiki/Python_(programming_language)#Libraries\")
+         (assoc :query {\"mobile\" [\"true\"]})
+         (str))
+     ;; => \"https://en.wikipedia.org/wiki/Python_%28programming_language%29?mobile=true#Libraries\"
+
+  .. note::
+
+     Per the note in :external:py:func:`urllib.parse.urlunparse`, it is possible that
+     round-trip return from this function is not identical to the input if no other
+     changes are made to the URL parts, but the resulting URL should be equivalent.
+
+  .. warning::
+
+     No validation occurs creating a URL string from the provided URL record type,
+     so users should take care to validate any components carefully before using
+     these results.
+
+  To create a new URL record, :lpy:fn:`basilisp.core/assoc` keys onto
+  :lpy:var:`blank-url`. This ensures that your URL has the correct defaults."
+  (:import urllib.parse)
+  (:require
+   [basilisp.string :as str]))
+
+(defn ^:private authority
+  "Return a URL's authority (called ``netloc`` in :external:py:mod:`urllib.parse`),
+  which consists of the 4 optional members: username, password, hostname, and port."
+  [url]
+  (let [creds     (when (or (:username url) (:password url))
+                    (str/join ":" [(urllib.parse/quote (or (:username url) "") ** :safe "")
+                                   (urllib.parse/quote (or (:password url) "") ** :safe "")]))
+        hostname  (or (:hostname url) "")
+        host+port (if (:port url)
+                    (str/join ":" [hostname (:port url)])
+                    hostname)]
+    (if creds
+      (str/join "@" [creds host+port])
+      host+port)))
+
+(defn ^:private query-string
+  "Convert the ``:query`` element of a URL from a map of vectors into a sequence of
+  key/value pairs which can be consumed by :external:py:func:`urllib.parse.urlencode`."
+  [url]
+  (->> (:query url)
+       (mapcat (fn [[k vs]]
+                 (map (fn [v] #py (k v)) vs)))
+       (python/list)
+       (urllib.parse/urlencode)))
+
+(defrecord URL [scheme username password hostname port path params query fragment]
+  (__str__ [self]
+    (let [parts #py (scheme
+                     (authority self)
+                     (urllib.parse/quote path)
+                     params
+                     (query-string self)
+                     fragment)]
+      (urllib.parse/urlunparse parts))))
+
+(defprotocol URLSource
+  (to-url* [this]
+    "Convert the input type to an :lpy:rec:`URL`."))
+
+(extend-protocol URLSource
+  urllib.parse/ParseResult
+  (to-url* [this]
+    (let [query  (-> (.-query this)
+                     (urllib.parse/parse-qs)
+                     (py->lisp :keywordize-keys false))]
+      (->URL (.-scheme this)
+             (when-let [username (.-username this)]
+               (urllib.parse/unquote username))
+             (when-let [password (.-password this)]
+               (urllib.parse/unquote password))
+             (.-hostname this)
+             (.-port this)
+             (urllib.parse/unquote (.-path this))
+             (.-params this)
+             query
+             (.-fragment this))))
+
+  python/str
+  (to-url* [this]
+    (to-url* (urllib.parse/urlparse this))))
+
+(defn url
+  "Construct an :lpy:rec:`URL` record from the input value (such as a string) as by
+  :external:py:func:`urllib.parse.urlparse`.
+
+  :lpy:rec:`URL` types have the following fields which you can manipulate directly
+  using :lpy:fn:`basilisp.core/assoc`. The default values for each field is an empty
+  string unless otherwise noted.
+
+   * ``:scheme``
+   * ``:username`` (default ``nil``)
+   * ``:password`` (default ``nil``)
+   * ``:hostname`` (default ``nil``)
+   * ``:port`` (default ``nil``)
+   * ``:path``
+   * ``:params``
+   * ``:query`` (default ``{}``)
+   * ``:fragment``
+
+  .. note::
+
+     Component fields of what Python calls the ``netloc`` (\"network location\")
+     must be ``nil`` to be excluded from the final URL output. Empty strings are
+     not equivalent to ``nil``. These include ``:username``, ``:password``,
+     ``:hostname``, and ``:port``.
+
+  .. note::
+
+     The ``:query`` component should be a mapping of string keys to vectors of
+     values:
+
+     .. code-block::
+
+        (:query (url/url \"http://localhost/some/path?a=1&a=2&b=3\"))
+        ;; => {\"b\" [\"3\"] \"a\" [\"1\" \"2\"]}
+
+  .. note::
+
+     ``url`` always decodes percent-encoded ``:username``, ``:password``, ``:path``, and
+     ``:query`` values. Users should not attempt to URL encode values added to the
+     :lpy:rec:`URL` object returned by that function. Converting the ``URL`` back into
+     a string will URL encode those same fields.
+
+  .. warning::
+
+     Because this function relies on ``urllib.parse.urlparse``, it does not perform
+     any validation of the input URLs and all the caveats of that function apply here."
+  [url-str]
+  (to-url* url-str))
+
+(def blank-url
+  "Blank :lpy:rec:`URL` type which can be used as a base for URL manipulation."
+  (url ""))
+

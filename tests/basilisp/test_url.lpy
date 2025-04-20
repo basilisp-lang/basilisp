@@ -1,0 +1,94 @@
+(ns tests.basilisp.test-url
+  (:require
+   [basilisp.url :as url]
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest blank-url-test
+  (is (= url/blank-url
+         (url/map->URL {:scheme   ""
+                        :username nil
+                        :password nil
+                        :hostname nil
+                        :port     nil
+                        :path     ""
+                        :params   ""
+                        :query    {}
+                        :fragment "" }))))
+
+(deftest url-test
+  (are [res url-str] (= res (url/url url-str))
+    (assoc url/blank-url
+           :scheme   "https"
+           :hostname "en.wikipedia.org"
+           :path     "/wiki/Python_(programming_language)"
+           :fragment "Libraries")
+    "https://en.wikipedia.org/wiki/Python_(programming_language)#Libraries"
+
+    (assoc url/blank-url
+           :scheme   "http"
+           :username "user name"
+           :password "pass word"
+           :hostname "localhost")
+    "http://user%20name:pass%20word@localhost"
+
+    (assoc url/blank-url
+           :scheme   "http"
+           :username ""
+           :password "pass word"
+           :hostname "localhost")
+    "http://:pass%20word@localhost"
+
+    (assoc url/blank-url
+           :scheme   "http"
+           :username "user name"
+           :password ""
+           :hostname "localhost")
+    "http://user%20name:@localhost"
+
+    (assoc url/blank-url
+           :scheme   "http"
+           :hostname "localhost"
+           :path     "/path with/some spaces/")
+    "http://localhost/path%20with/some%20spaces/"
+
+    (assoc url/blank-url
+           :scheme   "http"
+           :hostname "localhost"
+           :path     "/path/to/some/resource"
+           :query    {"arg" ["val with spaces"]})
+    "http://localhost/path/to/some/resource?arg=val+with+spaces"))
+
+(deftest url-authority-test
+  (let [base-url (url/url "http://localhost")]
+    (testing "username and password"
+      (is (= (str (assoc base-url :username "user"))
+             "http://user:@localhost"))
+      (is (= (str (assoc base-url :password "pass"))
+             "http://:pass@localhost"))
+      (is (= (str (assoc base-url :username "" :password ""))
+             "http://:@localhost"))
+      (is (= (str (assoc base-url :username "user" :password "pass"))
+             "http://user:pass@localhost"))
+      (is (= (str (assoc base-url :username "user name" :password "pass word"))
+             "http://user%20name:pass%20word@localhost")))
+
+    (testing "hostname and port"
+      (is (= (str (assoc base-url :port 8080))
+             "http://localhost:8080"))
+      (is (= (str (assoc base-url :hostname nil :port 8080))
+             "http://:8080"))
+      (is (= (str (assoc base-url :hostname "chris-laptop.local" :port 8080))
+             "http://chris-laptop.local:8080")))
+
+    (testing "username, password, hostname, and port"
+      (is (= (str (assoc base-url
+                         :username "aîlene"
+                         :password "pass with space"
+                         :hostname "chris-laptop.local"
+                         :port 8080))
+             "http://a%C3%AElene:pass%20with%20space@chris-laptop.local:8080")))))
+
+(deftest url-query-string-test
+  (is (contains? #{{"a" ["1"] "b" ["2" "3"]}
+                   {"a" ["1"] "b" ["3" "2"]}}
+                 (:query (url/url "http://localhost?a=1&b=2&b=3")))))
