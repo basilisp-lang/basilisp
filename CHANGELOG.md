@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added the `basilisp.url` namespace for structured URL manipulation (#1239)
  * Added support for proxies (#425)
  * Added a `:slots` meta flag for `deftype` to disable creation of `__slots__` on created types (#1241)
+ * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Changed
  * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
@@ -213,7 +214,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.1]
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
- * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Fixed
  * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
