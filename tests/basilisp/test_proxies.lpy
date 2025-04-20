@@ -5,14 +5,52 @@
 (def no-op-proxy
   (proxy [] []))
 
+(definterface Describable
+  (describe-me []))
+
+(deftype ^{:slots false} DescribableType [arg]
+  Describable
+  (describe-me [this] (str "I'm a type with " arg)))
+
+(def single-arity-proxy
+  (proxy [DescribableType] [:orig]
+    (describe-me []
+      (str "Proxy with: " (proxy-super describe-me)))))
+
+(definterface ToString
+  (to-string [])
+  (to-string [arg1])
+  (to-string [arg1 & rest]))
+
+(deftype ^{:slots false} ConcreteToString [arg]
+  ToString
+  (to-string [this] "0")
+  (to-string [this arg1] (str "1" arg1))
+  (to-string [this arg1 & rest] (str "rest" arg1 rest)))
+
+(def multi-arity-proxy
+  (proxy [ConcreteToString] [1]
+    (to-string
+      ([] "hi i am 0")
+      ([arg1] (str "i am 1 " arg1))
+      ([arg1 & args] (str "i am rest " arg1 " " args)))))
+
 (deftest get-proxy-class-test
   (is (identical? (get-proxy-class) (get-proxy-class)))
-  (is (python/issubclass (get-proxy-class) basilisp.lang.interfaces/IProxy)))
+  (is (python/issubclass (get-proxy-class) basilisp.lang.interfaces/IProxy))
+  (is (identical? (get-proxy-class DescribableType) (get-proxy-class DescribableType)))
+  (is (python/issubclass (get-proxy-class DescribableType) basilisp.lang.interfaces/IProxy))
+  (is (identical? (get-proxy-class DescribableType ConcreteToString)
+                  (get-proxy-class DescribableType ConcreteToString)))
+  (is (python/issubclass (get-proxy-class DescribableType ConcreteToString)
+                         basilisp.lang.interfaces/IProxy)))
 
 (deftest proxy-mappings-test
   (is (= {} (proxy-mappings no-op-proxy)))
   (is (thrown? basilisp.lang.exception/ExceptionInfo
-               (proxy-mappings (python/object)))))
+               (proxy-mappings (python/object))))
+  (is (= #{"describe_me"} (set (keys (proxy-mappings single-arity-proxy)))))
+  (is (= #{"to_string"} (set (keys (proxy-mappings multi-arity-proxy))))))
 
 (deftest construct-proxy-test
   (let [obj-proxy-cls (get-proxy-class)]
@@ -32,20 +70,6 @@
     (is (thrown? basilisp.lang.exception/ExceptionInfo
                  (update-proxy (python/object) {})))))
 
-(definterface Describable
-  (describe-me []))
-
-(definterface ToString
-  (to-string [])
-  (to-string [arg1])
-  (to-string [arg1 & rest]))
-
-(deftype ConcreteToString [arg]
-  ToString
-  (to-string [this] "0")
-  (to-string [this arg1] (str "1" arg1))
-  (to-string [this arg1 & rest] (str "rest" arg1 rest)))
-
 (deftest proxy-test
   (testing "disallows duplicate method overrides"
     (is (thrown? basilisp.lang.compiler/CompilerException
@@ -58,12 +82,10 @@
                  (proxy [Describable] []
                    (other-method [] "Proxy")))))
 
+  (testing "single-arity interface method"
+    (is (= "Proxy with: I'm a type with :orig" (.describe-me single-arity-proxy))))
+
   (testing "multi-arity interface methods"
-    (let [p (proxy [ConcreteToString] [1]
-              (to-string
-                ([] "hi i am 0")
-                ([arg1] (str "i am 1 " arg1))
-                ([arg1 & args] (str "i am rest " arg1 " " args))))]
-      (is (= "hi i am 0" (.to-string p)))
-      (is (= "i am 1 yes" (.to-string p "yes")))
-      (is (= "i am rest first (:yes)" (.to-string p "first" :yes))))))
+    (is (= "hi i am 0" (.to-string multi-arity-proxy)))
+    (is (= "i am 1 yes" (.to-string multi-arity-proxy "yes")))
+    (is (= "i am rest first (:yes)" (.to-string multi-arity-proxy "first" :yes)))))

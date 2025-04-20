@@ -424,6 +424,7 @@ class DefType(Node[SpecialForm]):
     verified_abstract: bool = False
     artificially_abstract: IPersistentSet[DefTypeBase] = lset.EMPTY
     is_frozen: bool = True
+    use_slots: bool = True
     use_weakref_slot: bool = True
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.v(FIELDS, MEMBERS)

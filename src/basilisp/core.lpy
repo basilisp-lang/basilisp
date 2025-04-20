@@ -7149,7 +7149,13 @@
   .. warning::
 
      The ``proxy`` macro does not verify that the provided override implementations
-     arities match those of the method being overridden."
+     arities match those of the method being overridden.
+
+  .. warning::
+
+     Attempting to create a proxy with multiple superclasses defined with ``__slots__``
+     may fail with a ``TypeError``. If you control any of the designated superclasses,
+     removing conflicting ``__slots__`` should enable creation of the proxy type."
   [class-and-interfaces args & fs]
   (let [formatted-single (fn [method-name [arg-vec & body]]
                            (apply list

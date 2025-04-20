@@ -69,6 +69,7 @@ from basilisp.lang.compiler.constants import (
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_REDEF_META_KEY,
+    SYM_SLOTS_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SYM_TAG_META_KEY,
     SYM_USE_VAR_INDIRECTION_KEY,
@@ -659,13 +660,13 @@ BoolMetaGetter = Callable[[Union[IMeta, Var]], bool]
 MetaGetter = Callable[[Union[IMeta, Var]], Any]
 
 
-def _bool_meta_getter(meta_kw: kw.Keyword) -> BoolMetaGetter:
+def _bool_meta_getter(meta_kw: kw.Keyword, default: bool = False) -> BoolMetaGetter:
     """Return a function which checks an object with metadata for a boolean
     value by meta_kw."""
 
     def has_meta_prop(o: Union[IMeta, Var]) -> bool:
         return bool(
-            Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).or_else_get(False)
+            Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).or_else_get(default)
         )
 
     return has_meta_prop
@@ -688,6 +689,7 @@ _is_mutable = _bool_meta_getter(SYM_MUTABLE_META_KEY)
 _is_py_classmethod = _bool_meta_getter(SYM_CLASSMETHOD_META_KEY)
 _is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
 _is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
+_is_slotted_type = _bool_meta_getter(SYM_SLOTS_META_KEY, True)
 _is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
 _is_no_inline = _bool_meta_getter(SYM_NO_INLINE_META_KEY)
 _is_allow_var_indirection = _bool_meta_getter(SYM_NO_WARN_ON_VAR_INDIRECTION_META_KEY)
@@ -2022,6 +2024,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
             verified_abstract=type_abstractness.is_statically_verified_as_abstract,
             artificially_abstract=type_abstractness.artificially_abstract_supertypes,
             is_frozen=is_frozen,
+            use_slots=_is_slotted_type(name),
             use_weakref_slot=not type_abstractness.supertype_already_weakref,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
