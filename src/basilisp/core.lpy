@@ -2764,7 +2764,7 @@
    (lazy-seq
     (when-let [coll (seq coll)]
       (let [colls (map seq colls)]
-        (when (every? some? colls)
+        (when (every? identity colls)
           (cons (apply f (first coll) (map first colls))
                 (apply map f (rest coll) (map rest colls)))))))))
 
@@ -3055,7 +3055,7 @@
      (lazy-seq
       (when-let [coll (seq coll)]
         (let [colls (map seq colls)]
-          (when (every? some? colls)
+          (when (every? identity colls)
             (concat (apply coll-firsts coll colls)
                     (apply interleave (rest coll) (map rest colls))))))))))
 
