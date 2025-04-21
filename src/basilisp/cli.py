@@ -4,6 +4,7 @@ import io
 import os
 import pathlib
 import sys
+import sysconfig
 import textwrap
 import types
 from collections.abc import Sequence
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
 from basilisp import main as basilisp
+from basilisp.contrib import jarutil
 from basilisp.lang import compiler as compiler
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -90,7 +92,7 @@ def init_path(args: argparse.Namespace, unsafe_path: str = "") -> None:
         sys.path.insert(0, path)
 
     for pth in args.include_path or []:
-        p = pathlib.Path(pth).resolve()
+        p = pathlib.Path(pth).expanduser().resolve()
         prepend_once(str(p))
 
     if args.include_unsafe_path:
@@ -478,6 +480,29 @@ def _add_bootstrap_subcommand(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def install_jar(_, args: argparse.Namespace) -> None:
+    jars = args.jars
+    site_packages = sysconfig.get_paths()["purelib"]
+
+    for jar in jars:
+        jarutil.install_jar(Path(site_packages), Path(jar))
+
+
+@_subcommand(
+    "install-jar",
+    help="install a JAR file into the virtualenv",
+    description=textwrap.dedent(
+        """Install a JAR file from your local Maven repository into the current
+        virtualenv."""
+    ),
+    handler=install_jar,
+)
+def _add_install_jar_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "jars", nargs="*", help="one or more JAR files from a local filesystem location"
+    )
+
+
 def nrepl_server(
     _,
     args: argparse.Namespace,
@@ -818,6 +843,7 @@ def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
 
     subparsers = parser.add_subparsers(help="sub-commands")
     _add_bootstrap_subcommand(subparsers)
+    _add_install_jar_subcommand(subparsers)
     _add_nrepl_server_subcommand(subparsers)
     _add_repl_subcommand(subparsers)
     _add_run_subcommand(subparsers)
