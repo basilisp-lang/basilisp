@@ -1,6 +1,7 @@
 import importlib
 import os
 import sysconfig
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -11,8 +12,11 @@ from basilisp.lang.compiler import compiler_opts
 from basilisp.lang.typing import CompilerOpts
 from basilisp.lang.util import munge
 
+_INIT_LOCK = threading.Lock()
+_runtime_is_initialized = False
 
-def init(opts: Optional[CompilerOpts] = None) -> None:
+
+def init(opts: Optional[CompilerOpts] = None, force_reload: bool = False) -> None:
     """
     Initialize the runtime environment for Basilisp code evaluation.
 
@@ -22,12 +26,22 @@ def init(opts: Optional[CompilerOpts] = None) -> None:
 
     If you want to execute a Basilisp file which is stored in a well-formed package
     or module structure, you probably want to use :py:func:`bootstrap`.
+
+    ``init()`` may be called more than once. Only the first invocation will initialize
+    the runtime unless ``force_reload=True``.
     """
-    logconfig.configure_root_logger()
-    runtime.init_ns_var()
-    runtime.bootstrap_core(opts if opts is not None else compiler_opts())
-    importer.hook_imports()
-    importlib.import_module("basilisp.core")
+    global _runtime_is_initialized
+
+    with _INIT_LOCK:
+        if _runtime_is_initialized and not force_reload:
+            return
+
+        logconfig.configure_root_logger()
+        runtime.init_ns_var()
+        runtime.bootstrap_core(opts if opts is not None else compiler_opts())
+        importer.hook_imports()
+        importlib.import_module("basilisp.core")
+        _runtime_is_initialized = True
 
 
 def bootstrap(
