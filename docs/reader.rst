@@ -155,6 +155,28 @@ Their meanings match the equivalent escape sequences supported in `Python string
 
    :ref:`strings_and_byte_strings`
 
+.. _reader_f_strings:
+
+f-strings
+^^^^^^^^^
+
+::
+
+    basilisp.user=> #f ""
+    ""
+    basilisp.user=> (let [a 1] #f "this is a string with {(inc a)}")
+    "this is a string with 2"
+    basilisp.user=> (let [a 1] #f "this is a string with \{(inc a)}")
+    "this is a string with {(inc a)}"
+
+f-strings are denoted as a series of characters enclosed by ``"`` quotation marks and preceded by a ``#f``.
+Expressions may be interpolated in the string enclosed in ``{}``.
+Each interpolation must contain exactly 1 expression and may be surrounded by optional whitespace characters which will not be included in the final string.
+Any valid expression may appear in a string interpolation, including another string.
+To include a literal opening ``{`` character, it must be escaped as ``\{``.
+
+f-strings are otherwise identical to standard :ref:`string literals <reader_strings>`.
+
 .. _reader_byte_strings:
 
 Byte Strings
