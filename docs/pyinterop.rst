@@ -288,7 +288,7 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 Python Slicing
 --------------
 
-Python slicing lets you extract parts of a sequence (like a list or string) using the syntax ``sequence[start:end:step]``:
+Python slicing lets you extract parts of a sequence (like a list or string) using the syntax ``sequence[start:stop:step]``:
 
 .. code-block:: python
 
@@ -296,7 +296,22 @@ Python slicing lets you extract parts of a sequence (like a list or string) usin
    coll[1:5:2]
    # => [-2, 0]
 
-Basilisp does not support slicing syntax directly, but it can be achieved using the :external:py:obj:`slice` operator combined with the :lpy:fn:`basilisp.core/aget` function:
+Basilisp provides the :lpy:fn:`basilisp.core/aslice` macro to facilitate this syntax:
+
+.. code-block:: clojure
+
+   (def coll #py [-3 -2 -1 0 1 2 3])
+   (aslice coll 3)
+   ;; => #py [-3 -2 -1]
+
+   (aslice coll nil -3)
+   ;; => #py [-3 -2 -1 0]
+
+   (aslice coll 1 5 2)
+   ;; => #py [-2 0]
+
+
+This macro is just a wrapper around Python's :external:py:obj:`slice` operator combined with the :lpy:fn:`basilisp.core/aget` function:
 
 .. code-block:: clojure
 
