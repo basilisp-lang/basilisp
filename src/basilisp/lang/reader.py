@@ -105,6 +105,7 @@ _HASH_MAP = sym.symbol("hash-map", ns="basilisp.core")
 _HASH_SET = sym.symbol("hash-set", ns="basilisp.core")
 _LIST = sym.symbol("list", ns="basilisp.core")
 _SEQ = sym.symbol("seq", ns="basilisp.core")
+_STR= sym.symbol("str", ns="basilisp.core")
 _UNQUOTE = sym.symbol("unquote", ns="basilisp.core")
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", ns="basilisp.core")
 _VECTOR = sym.symbol("vector", ns="basilisp.core")
@@ -599,6 +600,14 @@ def _with_loc(f: W) -> W:
     return cast(W, with_lineno_and_col)
 
 
+def _consume_whitespace(ctx: ReaderContext) -> str:
+    reader = ctx.reader
+    char = reader.peek()
+    while whitespace_chars.match(char):
+        char = reader.next_char()
+    return char
+
+
 def _read_namespaced(
     ctx: ReaderContext, allowed_suffix: Optional[str] = None
 ) -> tuple[Optional[str], str]:
@@ -831,9 +840,7 @@ def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
                 "be specified as keywords without namespaces"
             )
 
-    char = ctx.reader.peek()
-    while whitespace_chars.match(char):
-        char = ctx.reader.next_char()
+    _consume_whitespace(ctx)
 
     return _read_map(ctx, namespace=map_ns)
 
@@ -966,6 +973,49 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
         s.append(char)
 
 
+def _read_fstr(ctx: ReaderContext) -> Union[str, llist.PersistentList]:
+    """Return a UTF-8 encoded string from the input stream."""
+    elems: list[LispReaderForm] = []
+    s: list[str] = []
+    reader = ctx.reader
+
+    _consume_whitespace(ctx)
+
+    while True:
+        char = reader.next_char()
+        if char == "":
+            raise ctx.eof_error("Unexpected EOF in string")
+        if char == "\\":
+            char = reader.next_char()
+            escape_char = _STR_ESCAPE_CHARS.get(char, None)
+            if escape_char:
+                s.append(escape_char)
+                continue
+            if char == "{":
+                s.append(char)
+                continue
+            raise ctx.syntax_error(f"Unknown escape sequence: \\{char}")
+        if char == '"':
+            reader.next_char()
+            elems.append("".join(s))
+            if all(isinstance(elem, str) for elem in elems):
+                return "".join(cast(list[str], elems))
+            else:
+                return llist.list([_STR, *elems])
+        if char == "{":
+            reader.next_char()
+            elems.append("".join(s))
+            s = []
+            expr = _read_next(ctx)
+            elems.append(expr)
+            char = _consume_whitespace(ctx)
+            if char != "}":
+                raise ctx.syntax_error("Expected single expression in f-string")
+            continue
+
+        s.append(char)
+
+
 _BYTES_ESCAPE_CHARS = {
     '"': b'"',
     "\\": b"\\",
@@ -1000,9 +1050,7 @@ def _read_byte_str(ctx: ReaderContext) -> bytes:
     """
     reader = ctx.reader
 
-    char = reader.peek()
-    while whitespace_chars.match(char):
-        char = reader.next_char()
+    char = _consume_whitespace(ctx)
 
     if char != '"':
         raise ctx.syntax_error(f"Expected '\"'; got '{char}' instead")
@@ -1681,8 +1729,11 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     elif ns_name_chars.match(char):
         s = _read_sym(ctx, is_reader_macro_sym=True)
         assert isinstance(s, sym.Symbol)
-        if s.ns is None and s.name == "b":
-            return _read_byte_str(ctx)
+        if s.ns is None:
+            if s.name == "b":
+                return _read_byte_str(ctx)
+            elif s.name == "f":
+                return _read_fstr(ctx)
 
         v = _read_next_consuming_comment(ctx)
 
@@ -1724,10 +1775,7 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
 
 def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
     """Read the next full form from the input stream, consuming any whitespace."""
-    reader = ctx.reader
-    char = reader.peek()
-    while whitespace_chars.match(char):
-        char = reader.next_char()
+    _consume_whitespace(ctx)
     return _read_next(ctx)
 
 
