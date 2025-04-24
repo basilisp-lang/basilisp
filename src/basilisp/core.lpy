@@ -1983,7 +1983,8 @@
   value, or a combination of ``start`` and ``stop`` and optional
   ``step`` values.
 
-  Equivalent to Python's ``array[start:stop:step]`` extended indexing syntax."
+  Equivalent to Python's ``array[start:stop:step]`` extended indexing
+  syntax. Use ``nil`` to omit any of these field."
   [array & stop-or-start-stop-step]
   `(aget ~array (python/slice ~@stop-or-start-stop-step) ))
 
