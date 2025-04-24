@@ -81,25 +81,21 @@ class CapturedIO:
 
 
 @pytest.fixture
-def run_cli(monkeypatch):
+def run_cli(monkeypatch, capsys, cap_lisp_io):
     def _run_cli(args: Sequence[str], input: Optional[str] = None):
+        monkeypatch.setattr("basilisp.main._runtime_is_initialized", False)
         if input is not None:
             monkeypatch.setattr(
                 "sys.stdin", io.TextIOWrapper(io.BytesIO(input.encode("utf-8")))
             )
-        process = subprocess.run(
-            ["basilisp", *args],
-            stdin=io.StringIO(input) if input is not None else None,
-            encoding="utf-8",
-            capture_output=True,
-            check=True,
-        )
-
+        invoke_cli([*args])
+        python_io = capsys.readouterr()
+        lisp_out, lisp_err = cap_lisp_io
         return CapturedIO(
-            out=process.stdout,
-            err=process.stderr,
-            lisp_out=process.stdout,
-            lisp_err=process.stderr,
+            out=python_io.out,
+            err=python_io.err,
+            lisp_out=lisp_out.getvalue(),
+            lisp_err=lisp_err.getvalue(),
         )
 
     return _run_cli
@@ -209,7 +205,7 @@ class TestCompilerFlags:
 
     @pytest.mark.parametrize("val", ["maybe", "not-no", "4"])
     def test_invalid_flag(self, run_cli, val):
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(SystemExit):
             run_cli(["run", "--warn-on-var-indirection", val, "-c", "(+ 1 2)"])
 
 
@@ -360,7 +356,7 @@ cli_run_args_code = "(println (apply + (map int *command-line-args*)))"
 
 class TestRun:
     def test_run_ns_and_code_mutually_exclusive(self, run_cli):
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(SystemExit):
             run_cli(["run", "-c", "-n"])
 
     class TestRunCode:
@@ -555,7 +551,7 @@ class TestRun:
             self, run_cli, namespace_name: str, namespace_file: pathlib.Path
         ):
             namespace_file.write_text("(println (+ 1 2))")
-            with pytest.raises(subprocess.CalledProcessError):
+            with pytest.raises(SystemExit):
                 run_cli(["run", "--in-ns", "otherpackage.core", "-n", namespace_name])
 
         def test_run_namespace(
