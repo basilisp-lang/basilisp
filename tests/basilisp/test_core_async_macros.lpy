@@ -9,7 +9,7 @@
     (asyncio/set-event-loop loop)
     (.run-until-complete loop (apply f args))))
 
-(deftest awith-test
+(deftest with-async-test
   (testing "base case"
     (let [get-val    (contextlib/asynccontextmanager
                       (fn ^:async get-val
@@ -17,11 +17,11 @@
                         (yield :async-val)))
           val-ctxmgr (fn ^:async yield-val
                        []
-                       (awith [v (get-val)]
-                              v))]
+                       (with-async [v (get-val)]
+                         v))]
       (is (= :async-val (async-to-sync val-ctxmgr))))))
 
-(deftest afor-test
+(deftest for-async-test
   (testing "base case"
     (let [get-vals (fn ^:async get-vals
                      []
@@ -30,8 +30,8 @@
           val-loop (fn ^:async val-loop
                      []
                      (let [a   (atom [])
-                           res (afor [v (get-vals)]
-                                     (swap! a conj v)
-                                     v)]
+                           res (for-async [v (get-vals)]
+                                          (swap! a conj v)
+                                          v)]
                        [@a res]))]
       (is (= [[0 1 2 3 4] 4] (async-to-sync val-loop))))))
