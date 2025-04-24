@@ -746,6 +746,91 @@ class TestString:
             read_str_first('"Start of a string')
 
 
+class TestFormatString:
+    def test_must_include_quote(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(r"#f []")
+
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            ("", '#f ""'),
+            ('"', r'#f "\""'),
+            ("\\", r'#f "\\"'),
+            ("\a", r'#f "\a"'),
+            ("\b", r'#f "\b"'),
+            ("\f", r'#f "\f"'),
+            ("\n", r'#f "\n"'),
+            ("\r", r'#f "\r"'),
+            ("\t", r'#f "\t"'),
+            ("\v", r'#f "\v"'),
+            ("Hello,\nmy name is\tChris.", r'#f "Hello,\nmy name is\tChris."'),
+            ("Regular string", '#f "Regular string"'),
+            ("String with 'inner string'", "#f \"String with 'inner string'\""),
+            ('String with "inner string"', r'#f "String with \"inner string\""'),
+        ],
+    )
+    def test_legal_string_is_legal_fstring(self, v: str, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            (
+                llist.l(
+                    reader._STR, "[", kw.keyword("whitespace", ns="surrounded.by"), "]"
+                ),
+                '#f "[{  :surrounded.by/whitespace   }]""',
+            ),
+            (llist.l(reader._STR, "[", None, "]"), '#f "[{nil}]""'),
+            (llist.l(reader._STR, "[", True, "]"), '#f "[{true}]""'),
+            (llist.l(reader._STR, "[", False, "]"), '#f "[{false}]""'),
+            (llist.l(reader._STR, "[", 0, "]"), '#f "[{0}]""'),
+            (llist.l(reader._STR, "[", 0.1, "]"), '#f "[{0.1}]""'),
+            (llist.l(reader._STR, "[", kw.keyword("a"), "]"), '#f "[{:a}]""'),
+            (llist.l(reader._STR, "[", sym.symbol("sym"), "]"), '#f "[{sym}]""'),
+            (
+                llist.l(
+                    reader._STR, "[", llist.l(reader._QUOTE, sym.symbol("sym")), "]"
+                ),
+                '#f "[{\'sym}]""',
+            ),
+            (llist.l(reader._STR, "[", vec.EMPTY, "]"), '#f "[{[]}]""'),
+            (llist.l(reader._STR, "[", vec.v("string"), "]"), '#f "[{["string"]}]""'),
+            (llist.l(reader._STR, "[", llist.EMPTY, "]"), '#f "[{()}]""'),
+            (llist.l(reader._STR, "[", llist.l("string"), "]"), '#f "[{("string")}]""'),
+            (llist.l(reader._STR, "[", lset.EMPTY, "]"), '#f "[{#{}}]""'),
+            (llist.l(reader._STR, "[", lset.s("string"), "]"), '#f "[{#{"string"}}]""'),
+            (llist.l(reader._STR, "[", lmap.EMPTY, "]"), '#f "[{{}}]""'),
+            (
+                llist.l(reader._STR, "[", lmap.map({kw.keyword("a"): "string"}), "]"),
+                '#f "[{{:a "string"}}]""',
+            ),
+            ("{}", r'#f "\{}""'),
+            ("{(inc 1)}", r'#f "\{(inc 1)}""'),
+            ("[inner]", '#f "[{"inner"}]""'),
+        ],
+    )
+    def test_legal_fstring(self, v: str, raw: str):
+        assert v == read_str_first(raw)
+
+    def test_only_one_expr_allowed(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(r'#f "one {(+ 1 2) :a} three"')
+
+    def test_invalid_escape(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(r'#f "\q"')
+
+    def test_missing_expression(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('#f "some val {} with no expr"')
+
+    def test_missing_terminating_quote(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('#f "Start of a format string')
+
+
 class TestByteString:
     def test_must_include_quote(self):
         with pytest.raises(reader.SyntaxError):
