@@ -1949,7 +1949,7 @@
   (python/len array))
 
 (defmacro amap
-  "Map ``expr`` over the Python list `array`, returning a new Python list with the
+  "Map ``expr`` over the Python list ``array``, returning a new Python list with the
   result.
 
   This macro initially binds the symbol named by ``ret`` to a clone of ``array``\\. On
@@ -1976,6 +1976,16 @@
        (if (< ~idx len#)
          (recur ~expr (inc ~idx))
          ~ret))))
+
+(defmacro aslice
+  "Get a portion of the Python list ``array`` using a
+  Python :external:py:obj:`slice` instance with a single ``stop``
+  value, or a combination of ``start`` and ``stop`` and optional
+  ``step`` values.
+
+  Equivalent to Python's ``array[start:stop:step]`` extended indexing syntax."
+  [array & stop-or-start-stop-step]
+  `(aget ~array (python/slice ~@stop-or-start-stop-step) ))
 
 (defn ^:inline booleans
   "Dummy cast to a Python list of booleans.

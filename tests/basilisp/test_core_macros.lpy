@@ -385,6 +385,19 @@
   (let [l #py [1 2 3]]
     (is (= 6 (areduce l idx ret 0 (+ ret (aget l idx)))))))
 
+(deftest aslice-test
+  (let [l #py [-3 -2 -1 0 1 2 3]]
+    (is (= #py [-3 -2 -1 0] (aslice l 4)))
+    (is (= #py [-3 -2 -1 0 1 2 3] (aslice l nil)))
+    (is (= #py [-3 -2 -1 0 1] (aslice l -2)))
+    (is (= #py [-1 0] (aslice l 2 4)))
+    (is (= #py [-3 -2 -1 0] (aslice l nil 4)))
+    (is (= #py [1 2 3] (aslice l 4 nil)))
+    (is (= #py [1 2] (aslice l 4 -1)))
+    (is (= #py [-2 0 2] (aslice l 1 6 2)))
+    (is (= #py [3 1 -1] (aslice l 6 1 -2)))
+    (is (= #py [3 1 -1 -3] (aslice l nil nil -2)))))
+
 (defmacro case-with-seq
   []
   `(case :val
