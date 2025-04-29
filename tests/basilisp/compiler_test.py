@@ -3079,8 +3079,10 @@ class TestFunctionDef:
         )
 
         async def get():
+            ret = None
             async for val in awaiter_fn():
-                return val
+                ret = val
+            return ret
 
         assert kw.keyword("async-generator") == async_to_sync(get)
 
