@@ -120,8 +120,16 @@ Given a Basilisp entrypoint function ``main`` (taking no arguments) in the ``pro
 If you were to place this in a module such as ``myproject.main``, you could easily configure a `setuptools entry point <https://setuptools.pypa.io/en/latest/userguide/entry_point.html>`_ (or any analog with another build tool) to point to that script directly, effectively launching you directly to Basilisp code.
 
 For more sophisticated projects which may not have a direct or wrappable entrypoint, you can initialize the Basilisp runtime directly by calling :py:func:`basilisp.main.init` with no arguments.
-This may be a better fit for a project using something like Django, where the entrypoint is dictated by Django.
-In that case, you could use a hook such as Django's ``AppConfig.ready()``.
+A natural placement for this function call would be in the root ``__init__.py`` for a package, where you can freely import and initialize Basilisp.
+
+.. code-block:: python
+
+   import basilisp.main
+
+   basilisp.main.init()
+
+You could also initialize Basilisp in a framework such as Django, where the entrypoint is dictated by the framework.
+For example, you could use a hook such as Django's ``AppConfig.ready()``.
 
 .. code-block:: python
 
