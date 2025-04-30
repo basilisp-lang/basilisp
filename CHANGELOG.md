@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
  * Removed support for Python 3.9 (#1283)
 
+ * Suppress pytest assertion rewrite warning for basilisp when running `basilisp test` (#1252)
+
 ## [v0.4.0]
 ### Added
  * Added support for referring imported Python names as by `from ... import ...` (#1154)
