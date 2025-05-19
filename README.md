@@ -36,7 +36,7 @@ hosted  languages, and compilers.
 
 That said, it is generally stable at this point with reasonably high test
 coverage, linting, and type checking. Work is ongoing to complete the rest of the
-standard the library implementations. I suspect it could be used to build small
+standard library implementations. I suspect it could be used to build small
 applications and tools at this point, though I would not recommend it unless you
 like being an early adopter.
 
