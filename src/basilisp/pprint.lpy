@@ -1,5 +1,388 @@
 (ns basilisp.pprint
-  (:require [basilisp.string :as str]))
+  (:require
+   [basilisp.string :as str]
+   [basilisp.walk :as walk])
+  (:import fractions
+           io
+           os
+           threading))
+
+(declare simple-dispatch code-dispatch write-out)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Dynamic Vars for Configuration ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def ^{:doc     "The base used for printing integer literals and rationals. Default is 10."
+       :dynamic true}
+  *print-base*
+  10)
+
+(def ^{:doc     "The dispatch function used for pretty printing.
+
+                 Default is :lpy:fn:`simple-dispatch`."
+       :dynamic true}
+  *print-pprint-dispatch*
+  nil)
+
+(def ^{:doc     "If bound to ``true``, calls to :lpy:fn:`write` will use pretty printing.
+                 Default is ``false``, but :lpy:fn:`pprint` binds the value to ``true``."
+       :dynamic true}
+  *print-pretty*
+  false)
+
+(def ^{:doc     "The soft upper limit for the length of the right margin. Default is 72."
+       :dynamic true}
+  *print-right-margin*
+  72)
+
+(def ^{:doc     "If ``true``, suppress printing symbol namespaces. This may be useful when
+                 printing macroexpansions.
+
+                 Default is ``nil``."
+       :dynamic true}
+  *print-suppress-namespaces*
+  nil)
+
+;;;;;;;;;;;;;;;;;;;
+;; Private State ;;
+;;;;;;;;;;;;;;;;;;;
+
+(def ^:dynamic *current-level* 0)
+(def ^:dynamic *current-length* nil)
+
+;;;;;;;;;;;;;;;;;;;
+;; Column Writer ;;
+;;;;;;;;;;;;;;;;;;;
+
+(def ^:dynamic ^:private *default-page-width* 72)
+
+(defn ^:private get-column-writer
+  "Return an :external:py:class:`io.TextIOBase` instance which keeps track of the
+  current line and column it has printed.
+
+  The ``max-columns`` input defaults to :lpy:var:`*default-page-width*`. This value
+  is not used by the column writer, but may be introspected by callers.
+
+  The current state can be fetched using :lpy:fn:`basilisp.core/deref`."
+  ([writer]
+   (get-column-writer writer *default-page-width*))
+  ([writer max-columns]
+   (let [lock  (threading/RLock)
+         state (volatile! {:max max-columns :col 0 :line 0 :base writer})]
+     (^:mutable reify
+       basilisp.lang.interfaces/IDeref
+       (deref [self]
+         (with [_ lock]
+               @state))
+
+       ^:abstract
+       ^{:abstract-members #{:flush :write}}
+       io/TextIOBase
+       (write [self s]
+         (with [_ lock]
+               (let [[init final] (.rsplit s os/linesep 1)]
+                 (vswap! state
+                         (fn [{:keys [col line] :as old-state}]
+                           (if final
+                             (let [nlines (count (.splitlines init))]
+                               (-> old-state
+                                   (assoc :col (count final))
+                                   (assoc :line (+ line nlines))))
+                             (assoc old-state :col (count init))))))
+               (.write writer s)))
+
+       (flush [self]
+         (with [_ lock]
+               (.flush writer)))
+
+       (__repr__ [self]
+         (str "<ColumnWriter wrapping " (repr writer) ">"))))))
+
+;;;;;;;;;;;
+;; Types ;;
+;;;;;;;;;;;
+
+(defrecord LogicalBlock [parent prefix suffix indent])
+
+(deftype StartBlock [block start end])
+
+(deftype EndBlock [block start end])
+
+(deftype Blob [data trailing-white-space start end])
+
+(deftype Indent [block relative-to offset start end])
+
+(deftype Newline [block kind start end])
+
+;;;;;;;;;;;;;;;;;;;
+;; Pretty Writer ;;
+;;;;;;;;;;;;;;;;;;;
+
+(defn ^:private buffer-length
+  "Return the length of a given `PrettyWriter` buffer in characters."
+  [buffer]
+  (if-let [buf (seq buffer)]
+    (- (.-end (last buf)) (.-start (first buf)))
+    0))
+
+(defprotocol PrettyWriter
+  (start-block [this prefix suffix])
+  (end-block [this])
+  (pp-newline [this kind]))
+
+(defn get-pretty-writer
+  "Return a pretty writer instance, which is also an :external:py:class:`io.TextIOBase`.
+
+  The current state can be fetched using :lpy:fn:`basilisp.core/deref`."
+  [writer]
+  (let [lock   (threading/RLock)
+        writer (get-column-writer writer)
+        state  (volatile! {:base                 writer
+                           :block                (->LogicalBlock nil nil nil 0)
+                           :buffer               (queue)
+                           :pos                  0
+                           :trailing-white-space nil})]
+    (letfn [;; Private helpers can only be called while the lock is held
+            (tokens-fit? [state tokens]
+              (let [{:keys [base]}    state
+                    {:keys [col max]} @base]
+                (or (nil? max)
+                    (pos? (- max (+ col (buffer-length tokens)))))))
+
+            (write-line [state]
+              (let [{:keys [buffer]} state]
+                (assoc state :buffer
+                       (loop [{:keys [buffer]} state]
+                         nil))))
+
+            (add-to-buffer [state token]
+              (let [{:keys [buffer] :as state} (update state :buffer conj token)]
+                (if (not (tokens-fit? state buffer))
+                  (write-line state)
+                  state)))]
+      (^:mutable reify
+       basilisp.lang.interfaces/IDeref
+       (deref [self]
+              (with [_ lock]
+                    @state))
+
+       ^:abstract
+       ^{:abstract-members #{:flush :write}}
+       io/TextIOBase
+       (write [self s]
+              (with [_ lock]
+                    (if-not (seq (:buffer @state))
+                      (.write writer s)
+                      (do
+                        (vswap! state (fn [{:keys [pos] :as old-state}]
+                                        (let [new-pos (+ pos (count s))
+                                              blob    (Blob s nil pos new-pos)]
+                                          (-> old-state
+                                              (assoc :pos new-pos)
+                                              (add-to-buffer blob)))))))))
+
+       (flush [self]
+              (with [_ lock]
+                    (.flush writer)))
+
+       PrettyWriter
+       (start-block [self prefix suffix]
+                    (with [_ lock]
+                          (vswap! state (fn [{:keys [block base pos] :as old-state}]
+                                          (let [indent    (:col @base)
+                                                new-block (LogicalBlock block
+                                                                        prefix
+                                                                        suffix
+                                                                        indent)
+                                                new-pos     (if prefix
+                                                              (+ pos (count prefix))
+                                                              pos)
+                                                start-block (StartBlock new-block pos new-pos)]
+                                            (-> old-state
+                                                (assoc :block new-block)
+                                                (add-to-buffer start-block)
+                                                (assoc :pos new-pos)))))))
+       (end-block [self]
+                  (with [_ lock]
+                        (vswap! state (fn [{:keys [block pos] :as old-state}]
+                                        (let [suffix      (:suffix block)
+                                              new-pos     (if suffix
+                                                            (+ pos (count suffix))
+                                                            pos)
+                                              end-block (EndBlock block pos new-pos)]
+                                          (-> old-state
+                                              (assoc :block (:parent block))
+                                              (add-to-buffer end-block)))))))
+       (pp-newline [self kind]
+                (with [_ lock]
+                      (vswap! state (fn [{:keys [buffer block pos] :as old-state}]
+                                      (->> (Newline block kind pos pos)
+                                           (add-to-buffer old-state))))))))))
+
+;;;;;;;;;;;;;
+;; Helpers ;;
+;;;;;;;;;;;;;
+
+(defmacro pprint-logical-block
+  [& body]
+  (let [flag-names   #{:prefix :per-line-prefix :suffix}
+        [flags body] (loop [flags {}
+                            body  body]
+                       (if (flag-names (first body))
+                         (recur (assoc flags (first body) (second body))
+                                (nthrest body 2))
+                         [flags body]))]
+    `(with-bindings {#'*current-level* (inc *current-level*)}
+       ~(let [{:keys [prefix suffix]} flags]
+          `(start-block *out* ~prefix ~suffix))
+       ~@body
+       (end-block *out*))))
+
+(defmacro print-length-loop
+  ":lpy:fn:`loop` -like macro which loops at most :lpy:fn:`basilisp.core/*print-length*`
+  times, which is often useful when defining custom pretty-printing functions."
+  [bindings & body]
+  (let [len-sym (gensym "len")
+        body    (walk/postwalk
+                 (fn [form]
+                   (if (and (list? form) (= (first form) 'recur))
+                     (apply list 'recur `(inc ~len-sym) (rest form))
+                     form))
+                 body)]
+    `(loop [~len-sym 0
+            ~@bindings]
+       (if (or (not *print-length*) (< ~len-sym *print-length*))
+         (do ~@body)
+         (.write *out* "...")))))
+
+(defn pprint-newline
+  ""
+  [kind]
+  (when-not (#{:linear :mandatory :miser :fill} kind)
+    (throw
+     (ex-info "Newline must be one of: :linear, :mandatory, :miser, :fill"
+              {:kind kind})))
+  (pp-newline *out* kind))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Simple Dispatch ;;
+;;;;;;;;;;;;;;;;;;;;;
+
+(defmulti simple-dispatch type)
+
+(defmethod simple-dispatch :default
+  [obj]
+  (pr obj))
+
+(defmethod simple-dispatch python/int
+  [obj]
+  (if-let [base (case *print-base*
+                  2  "{0:b}"
+                  8  "{0:o}"
+                  10 "{}"
+                  16 "{0:x}"
+                  nil)]
+    (print (.format base obj))
+    (throw
+     (ex-info "Invalid integral base" {:base *print-base*}))))
+
+;; This `python/bool` override is required because Python `bool` types are also
+;; instances of `python/int`, so they will be caught by the `int` dispatch otherwise.
+(defmethod simple-dispatch python/bool
+  [obj]
+  (pr obj))
+
+(defmethod simple-dispatch fractions/Fraction
+  [obj]
+  (*print-pprint-dispatch* (numerator obj))
+  (print "/")
+  (*print-pprint-dispatch* (denominator obj)))
+
+(defmethod simple-dispatch basilisp.lang.symbol/Symbol
+  [obj]
+  (if *print-suppress-namespaces*
+    (print (name obj))
+    (pr obj)))
+
+(defn ^:private print-simple-coll
+  "Print a non-associative collection with the given prefix and suffix strings."
+  [prefix suffix coll]
+  (pprint-logical-block :prefix prefix :suffix suffix
+                        (print-length-loop [v coll]
+                                           (when (seq v)
+                                             (write-out (first v))
+                                             (when-let [more (seq (rest v))]
+                                               (.write *out* " ")
+                                               (recur more))))))
+
+(defmethod simple-dispatch basilisp.lang.interfaces/ISeq
+  [obj]
+  (print-simple-coll "(" ")" obj))
+
+(defmethod simple-dispatch basilisp.lang.interfaces/IPersistentList
+  [obj]
+  (print-simple-coll "(" ")" obj))
+
+(defmethod simple-dispatch basilisp.lang.interfaces/IPersistentSet
+  [obj]
+  (print-simple-coll "#{" "}" obj))
+
+(defmethod simple-dispatch basilisp.lang.interfaces/IPersistentVector
+  [obj]
+  (print-simple-coll "[" "]" obj))
+
+(defmethod simple-dispatch basilisp.lang.interfaces/IPersistentMap
+  [obj]
+  (pprint-logical-block :prefix "{" :suffix "}"
+                        (print-length-loop [pair obj]
+                                           (when-let [[k v] (seq pair)]
+                                             (write-out k)
+                                             (.write *out* " ")
+                                             (write-out v)
+                                             (when-let [more (seq (rest v))]
+                                               (.write *out* " ")
+                                               (recur more))))))
+
+(alter-var-root #'*print-pprint-dispatch* (constantly simple-dispatch))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Pretty Printing Public API ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn write-out
+  [object]
+  (let [length-reached? (and *current-length*
+                             *print-length*
+                             (>= *current-length* *print-length*))]
+    (if *print-pretty*
+      (if length-reached?
+        (print "...")
+        (do
+          (when-let [l *current-length*]
+            (set! *current-length* (inc l)))
+          (*print-pprint-dispatch* object)))
+      (pr object))))
+
+(defn pprint
+  "Pretty print ``object`` to the given ``writer``.
+
+  If no ``writer`` is given, the value bound to :lpy:var:`basilisp.core/*out*` is
+  used."
+  ([object]
+   (pprint object *out*))
+  ([object writer]
+   (binding [*out*          (get-pretty-writer writer)
+             *print-pretty* true]
+     (write-out object)
+     (newline))))
+
+(defn pp
+  "Print the last thing output to the REPL.
+
+  Equivalent to calling ``(pprint *1)``."
+  []
+  (pprint *1))
 
 (defn print-table
   "Print a collection of maps as a table to the buffer currently bound to

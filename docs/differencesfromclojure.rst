@@ -225,6 +225,7 @@ Basilisp includes ports of some of the standard libraries from Clojure which sho
 * :lpy:ns:`basilisp.data` is a port of ``clojure.data``
 * :lpy:ns:`basilisp.edn` is a port of ``clojure.edn``
 * :lpy:ns:`basilisp.io` is a port of ``clojure.java.io``
+* :lpy:ns:`basilisp.pprint` is a port of ``clojure.pprint`` (excluding support for ``cl-format``)
 * :lpy:ns:`basilisp.set` is a port of ``clojure.set``
 * :lpy:ns:`basilisp.shell` is a port of ``clojure.java.shell``
 * :lpy:ns:`basilisp.stacktrace` is a port of ``clojure.stacktrace``

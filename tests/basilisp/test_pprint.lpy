@@ -3,7 +3,63 @@
    [basilisp.pprint :as pprint]
    [basilisp.string :as str]
    [basilisp.test :refer [deftest are is testing]])
-  (:import os textwrap))
+  (:import io
+           os
+           textwrap))
+
+(deftest column-writer-test
+  (let [write (fn [s]
+                (with [buf (io/StringIO)]
+                      (let [writer (@#'pprint/get-column-writer buf)]
+                        (.write writer s)
+                        (select-keys @writer [:col :line]))) )]
+    (is (= {:line 0 :col 5} (write "hello")))
+    (is (= {:line 1 :col 15} (write "hello\nthere my friend")))
+    (is (= {:line 2 :col 0} (write "hello\nthere my friend\n")))
+    (is (= {:line 0 :col 0} (write "")))))
+
+(deftest pprint-test
+  (testing "scalars"
+    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+      "nil"          nil
+      "true"         true
+      "false"        false
+      "0"            0
+      "-1.0"         -1.0
+      "0.0"          0.0
+      "1.0"          1.0
+      "1"            1
+      "-1"           -1
+      "22/7"         22/7
+      "\"\""         ""
+      "\"a string\"" "a string"
+      ":kw"          :kw
+      ":ns/kw"       :ns/kw
+      ":long.ns/kw"  :long.ns/kw
+      "sym"          'sym
+      "ns/sym"       'ns/sym
+      "long.ns/sym"  'long.ns/sym)))
+
+(deftest pprint-suppress-namespaces-test
+  (testing "no supression"
+    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+      ":kw"         :kw
+      ":ns/kw"      :ns/kw
+      ":long.ns/kw" :long.ns/kw
+      "sym"         'sym
+      "ns/sym"      'ns/sym
+      "long.ns/sym" 'long.ns/sym))
+
+  (testing "with suppression"
+    (are [res expr] (= res (binding [pprint/*print-suppress-namespaces* true]
+                             (str/rtrim
+                              (with-out-str (pprint/pprint expr)))))
+      ":kw"         :kw
+      ":ns/kw"      :ns/kw
+      ":long.ns/kw" :long.ns/kw
+      "sym"         'sym
+      "sym"         'ns/sym
+      "sym"         'long.ns/sym)))
 
 (defn trim-newlines-and-dedent
   [s]
