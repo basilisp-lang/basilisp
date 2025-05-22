@@ -257,7 +257,13 @@
          (.write *out* "...")))))
 
 (defn pprint-newline
-  ""
+  "Emit a newline to the output buffer.
+
+  ``:kind`` must be one of the following:
+  - ``:linear``
+  - ``:mandatory``
+  - ``:miser``
+  - ``:fill``"
   [kind]
   (when-not (#{:linear :mandatory :miser :fill} kind)
     (throw
@@ -314,6 +320,7 @@
                                              (write-out (first v))
                                              (when-let [more (seq (rest v))]
                                                (.write *out* " ")
+                                               (pprint-newline :linear)
                                                (recur more))))))
 
 (defmethod simple-dispatch basilisp.lang.interfaces/ISeq
@@ -340,6 +347,7 @@
                                              (write-out k)
                                              (.write *out* " ")
                                              (write-out v)
+                                             (pprint-newline :linear)
                                              (when-let [more (seq (rest v))]
                                                (.write *out* " ")
                                                (recur more))))))
