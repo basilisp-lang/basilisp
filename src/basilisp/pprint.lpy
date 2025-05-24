@@ -1,4 +1,9 @@
 (ns basilisp.pprint
+  "Basilisp pretty printing functionality.
+
+  References:
+  - Oppen, Derek; \"Prettyprinting\"; October 1980
+  - Waters, Richard; \"XP: A Common Lisp Pretty Printing System\"; March 1989"
   (:require
    [basilisp.string :as str]
    [basilisp.walk :as walk])
@@ -103,7 +108,7 @@
 ;; Types ;;
 ;;;;;;;;;;;
 
-(defrecord LogicalBlock [parent prefix suffix indent])
+(deftype LogicalBlock [parent prefix suffix ^:mutable indent ^:mutable force-nl?])
 
 (deftype StartBlock [block start end])
 
@@ -115,16 +120,88 @@
 
 (deftype Newline [block kind start end])
 
+(defn debug-token
+  [token]
+  (condp instance? token
+    StartBlock [":start" (python/id (.-block token))]
+    EndBlock   [":end" (python/id (.-block token))]
+    Blob       (.-data token)
+    Newline    [(.-kind token) (python/id (.-block token))]))
+
 ;;;;;;;;;;;;;;;;;;;
 ;; Pretty Writer ;;
 ;;;;;;;;;;;;;;;;;;;
 
 (defn ^:private buffer-length
-  "Return the length of a given `PrettyWriter` buffer in characters."
+  "Return the length of a given ``PrettyWriter`` buffer in characters."
   [buffer]
   (if-let [buf (seq buffer)]
     (- (.-end (last buf)) (.-start (first buf)))
     0))
+
+(defn ^:private ancestor?
+  "Return true if ``parent`` is an ancestor logical block of ``child``."
+  [parent child]
+  (loop [child (.-parent child)]
+    (cond
+      (nil? child)              false
+      (identical? parent child) true
+      :else                     (recur (.-parent child)))))
+
+(defn ^:private split-queue-with
+  "Split a queue ``buffer`` until ``(pred elem)`` returns ``true``\\.
+
+  Return a two element vector with the first element being the elements coming
+  before ``(pred elem)`` returned true, and the second element as a queue of all
+  remaining elements."
+  [pred buffer]
+  (loop [before (queue)
+         after  buffer]
+    (if (seq after)
+      (let [e (first after)]
+        (if (not (pred e))
+          (recur (conj before e)
+                 (pop after))
+          [before after]))
+      [before after])))
+
+(def ^:private split-at-newline
+  "Split a queue at the first instance of a ``Newline`` token."
+  (partial split-queue-with #(instance? Newline %)))
+
+(defmacro pdebug
+  [& args]
+  `(do
+     (.write *err* (str ~@args))
+     (.write *err* \newline)))
+
+(defn ^:private get-section
+  "Get the section after a conditional newline, as defined by Waters:
+
+     The section after a conditional newline consists of: all the output up to,
+     but not including, (a) the next conditional newline imediately contained in
+     the same logical block; or if (a) is not applicable, (b) the next newline
+     that is at a lesser level of nesting in logical blocks; or if (b) is not
+     applicable, (c) the end of the output as a whole.
+
+     -- Waters, \"XP: A Common Lisp Pretty Printing System\", March 1989"
+  [buffer]
+  (let [nl    (first buffer)
+        block (.-block nl)
+        _ (pdebug "nl-block=" (python/id (.-block nl)) " " (.-block nl))
+        comparator (fn [token]
+                     (if (instance? Newline token)
+                       (let [is-ancestor? (or #_(identical? (.-block token) block)
+                                              (ancestor? (.-block token) block))]
+                         (pdebug "token=" (debug-token token)
+                                 " maybe-parent=" (python/id (.-block token))
+                                 " is-ancestor?=" is-ancestor?)
+                         is-ancestor?)
+                       false))]
+    #_#(and (instance? Newline %)
+          (ancestor? (.-block %) block))
+    (split-queue-with comparator
+                      (pop buffer))))
 
 (defprotocol PrettyWriter
   (start-block [this prefix suffix])
@@ -138,87 +215,192 @@
   [writer]
   (let [lock   (threading/RLock)
         writer (get-column-writer writer)
-        state  (volatile! {:base                 writer
-                           :block                (->LogicalBlock nil nil nil 0)
+        state  (volatile! {:block                (LogicalBlock nil nil nil 0 false)
                            :buffer               (queue)
                            :pos                  0
                            :trailing-white-space nil})]
     (letfn [;; Private helpers can only be called while the lock is held
-            (tokens-fit? [state tokens]
-              (let [{:keys [base]}    state
-                    {:keys [col max]} @base]
+
+            ;; Return `true` if the given tokens will fit on the current line given
+            ;; the max column width set for the base writer (if one is set).
+            (tokens-fit? [tokens]
+              (let [{:keys [col max]} @writer]
                 (or (nil? max)
                     (pos? (- max (+ col (buffer-length tokens)))))))
 
-            (write-line [state]
-              (let [{:keys [buffer]} state]
-                (assoc state :buffer
-                       (loop [{:keys [buffer]} state]
-                         nil))))
+            ;; Set `force-nl?` on the current logical block to ensure that any
+            ;; remaining `:linear` newlines associated with the block are emitted.
+            (set-block-force-nl! [block]
+              (loop [block block]
+                (when block
+                  (when-not (.-force-nl? block)
+                    (set! (.-force-nl? block) true)
+                    (pdebug "force newline " block))
+                  (recur (.-parent block)))))
 
-            (add-to-buffer [state token]
-              (let [{:keys [buffer] :as state} (update state :buffer conj token)]
-                (if (not (tokens-fit? state buffer))
-                  (write-line state)
-                  state)))]
+            ;; Set the `indent` of the current logical block to match the current
+            ;; column position of the base writer.
+            (set-block-indent! [block prefix]
+              (let [indent (+ (:col @writer) (count prefix))]
+                #_(.write *err* (str "indent: " indent " block: " block))
+                #_(.write *err* \newline)
+                (set! (.-indent block) indent)))
+
+            ;; Return `true` if the given newline type should be emitted.
+            (emit-nl? [token]
+              #_(.write *err* (str token))
+              #_(.write *err* \newline)
+              (condp = (.-kind token)
+                :mandatory true
+                :fill      nil
+                :linear    (let [[section _] (get-section (:buffer @state))
+                                 section-fits? (not (tokens-fit? section))
+                                 should-emit-newline? (or (.-force-nl? (.-block token))
+                                                          (let [[section _] (get-section (:buffer @state))]
+                                                            (not (tokens-fit? section))))]
+                             (pdebug "should-emit-newline?=" should-emit-newline?
+                                     " buffer-length=" (buffer-length section)
+                                     " writer=" @writer
+                                     " not-section-fits?=" section-fits?
+                                     " section=" (map debug-token section)
+                                     " token=" token)
+                             should-emit-newline?)
+                :miser     nil))
+
+            ;; Emit the newline token to the base writer unconditionally.
+            ;; TODO: this is wrong
+            (emit-nl [token]
+              (pdebug "emitting nl=" token)
+              (set-block-force-nl! (.-block token))
+              (let [indent (or (.-indent (.-block token)) 0)]
+                (str os/linesep (.ljust "" indent))))
+
+            ;; Write a sequence of tokens to the base writer.
+            (write-tokens [tokens]
+              (doseq [token tokens]
+                #_(.write *err* (str token))
+                #_(.write *err* \newline)
+                (when-let [s (condp instance? token
+                               Blob       (.-data token)
+                               Newline    (do
+                                            #_(.write *err* (str token))
+                                            #_(.write *err* \newline)
+                                            (when (or (= (.-kind token) :mandatory)
+                                                      (.-force-nl? (.-block token))) #_(emit-nl? token)
+                                              (emit-nl token)))
+                               StartBlock (let [block (.-block token)]
+                                            (when-let [prefix (.-prefix block)]
+                                              (set-block-indent! block prefix)
+                                              prefix))
+                               EndBlock   (.-suffix (.-block token)))]
+                  (.write writer s))))
+
+            ;; Write a single line and possibly emit a trailing conditional newline.
+            (write-line []
+              (let [{:keys [buffer]} @state
+                    [s buf]          (split-at-newline buffer)]
+                #_(pdebug {:buffer (map debug-token buf) :s (map debug-token s)})
+                (when (seq s)
+                  (write-tokens s))
+                (vswap! state #(assoc % :buffer buf))
+                ;; check if buffer still exceeds length; if so, we'll need to emit newlines
+                (when buf
+                  (let [[section remainder] (get-section buf)
+                        _                   (pdebug {:section   (map debug-token section)
+                                                     :remainder (map debug-token remainder)})
+                        maybe-nl            (first buf)
+                        buf                 (if (emit-nl? maybe-nl)
+                                              (do
+                                                (.write writer (emit-nl maybe-nl))
+                                                (next buf))
+                                              buf)]
+                    (if-not (tokens-fit? buf)
+                      (do
+                        (pdebug "writing section " (map debug-token section))
+                        (write-tokens section)
+                        (vswap! state #(assoc % :buffer remainder)))
+                      (vswap! state #(assoc % :bufer buf)))))))
+
+            ;; Write tokens from the buffer to the base writer as long as the tokens
+            ;; in the buffer won't fit on the current line.
+            (write-lines []
+              (loop [{:keys [buffer]} @state]
+                (if-not (tokens-fit? buffer)
+                  (write-line)
+                  (recur @state))))
+
+            ;; Add a token to the buffer and flush the buffer to the base writer if
+            ;; the tokens do not fit on the base line.
+            (add-to-buffer [token]
+              (let [{:keys [buffer]} (vswap! state #(update % :buffer conj token))]
+                (when-not (tokens-fit? buffer)
+                  (write-lines))))
+
+            ;; Update the current position in the state based on the given value,
+            ;; returning a vector of the starting position and ending position.
+            ;;
+            ;; If the value is a string, the position will be incremented by the
+            ;; length of the string. Otherwise, the position will be unchanged.
+            (update-pos [v]
+              (let [start-pos (:pos @state)]
+                (when (string? v)
+                  (vswap! state #(update % :pos + (count v))))
+                [start-pos (:pos @state)]))]
+
       (^:mutable reify
        basilisp.lang.interfaces/IDeref
        (deref [self]
-              (with [_ lock]
-                    @state))
+         (with [_ lock]
+           @state))
 
        ^:abstract
        ^{:abstract-members #{:flush :write}}
        io/TextIOBase
        (write [self s]
-              (with [_ lock]
-                    (if-not (seq (:buffer @state))
-                      (.write writer s)
-                      (do
-                        (vswap! state (fn [{:keys [pos] :as old-state}]
-                                        (let [new-pos (+ pos (count s))
-                                              blob    (Blob s nil pos new-pos)]
-                                          (-> old-state
-                                              (assoc :pos new-pos)
-                                              (add-to-buffer blob)))))))))
+         (with [_ lock]
+           (if-not (seq (:buffer @state))
+             (.write writer s)
+             (do
+               (let [[old-pos new-pos] (update-pos s)
+                     blob              (Blob s nil old-pos new-pos)]
+                 (add-to-buffer blob))))
+           (count s)))
 
        (flush [self]
-              (with [_ lock]
-                    (.flush writer)))
+         (with [_ lock]
+               (when-let [buf (:buffer @state)]
+             (write-tokens buf))
+           (.flush writer)))
 
        PrettyWriter
        (start-block [self prefix suffix]
-                    (with [_ lock]
-                          (vswap! state (fn [{:keys [block base pos] :as old-state}]
-                                          (let [indent    (:col @base)
-                                                new-block (LogicalBlock block
-                                                                        prefix
-                                                                        suffix
-                                                                        indent)
-                                                new-pos     (if prefix
-                                                              (+ pos (count prefix))
-                                                              pos)
-                                                start-block (StartBlock new-block pos new-pos)]
-                                            (-> old-state
-                                                (assoc :block new-block)
-                                                (add-to-buffer start-block)
-                                                (assoc :pos new-pos)))))))
+         (with [_ lock]
+               (let [current-block     (:block @state)
+                     new-block         (LogicalBlock current-block prefix suffix 0 false)
+                     [old-pos new-pos] (update-pos prefix)
+                     start-block       (StartBlock new-block old-pos new-pos)]
+                 (vswap! state #(-> %
+                                    (assoc :block new-block)
+                                    (assoc :pos new-pos)))
+                 (add-to-buffer start-block)))
+         nil)
+
        (end-block [self]
-                  (with [_ lock]
-                        (vswap! state (fn [{:keys [block pos] :as old-state}]
-                                        (let [suffix      (:suffix block)
-                                              new-pos     (if suffix
-                                                            (+ pos (count suffix))
-                                                            pos)
-                                              end-block (EndBlock block pos new-pos)]
-                                          (-> old-state
-                                              (assoc :block (:parent block))
-                                              (add-to-buffer end-block)))))))
+         (with [_ lock]
+               (let [{:keys [block pos]} @state
+                     suffix              (.-suffix block)
+                     [old-pos new-pos]   (update-pos suffix)
+                     end-block           (EndBlock block pos new-pos)]
+                 (vswap! state #(assoc % :block (.-parent block)))
+                 (add-to-buffer end-block)))
+         nil)
+
        (pp-newline [self kind]
-                (with [_ lock]
-                      (vswap! state (fn [{:keys [buffer block pos] :as old-state}]
-                                      (->> (Newline block kind pos pos)
-                                           (add-to-buffer old-state))))))))))
+         (with [_ lock]
+               (let [{:keys [block pos]} @state
+                     nl                  (Newline block kind pos pos)]
+                 (add-to-buffer nl)))
+         nil)))))
 
 ;;;;;;;;;;;;;
 ;; Helpers ;;
@@ -342,15 +524,16 @@
 (defmethod simple-dispatch basilisp.lang.interfaces/IPersistentMap
   [obj]
   (pprint-logical-block :prefix "{" :suffix "}"
-                        (print-length-loop [pair obj]
-                                           (when-let [[k v] (seq pair)]
-                                             (write-out k)
-                                             (.write *out* " ")
-                                             (write-out v)
-                                             (pprint-newline :linear)
-                                             (when-let [more (seq (rest v))]
+                        (print-length-loop [m obj]
+                                           (when (seq m)
+                                             (let [[k v] (first m)]
+                                               (write-out k)
                                                (.write *out* " ")
-                                               (recur more))))))
+                                               (write-out v)
+                                               (pprint-newline :linear)
+                                               (when-let [more (seq (rest m))]
+                                                 (.write *out* " ")
+                                                 (recur more)))))))
 
 (alter-var-root #'*print-pprint-dispatch* (constantly simple-dispatch))
 
