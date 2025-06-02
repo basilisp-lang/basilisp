@@ -38,7 +38,130 @@
       ":long.ns/kw"  :long.ns/kw
       "sym"          'sym
       "ns/sym"       'ns/sym
-      "long.ns/sym"  'long.ns/sym)))
+      "long.ns/sym"  'long.ns/sym))
+
+  (testing "collections"
+    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+      "{}"     {}
+      "{:a 1}" {:a 1}
+
+      "()"     '()
+      "(:a)"   '(:a)
+      "(:a 1)" '(:a 1)
+
+      "#queue ()"     (queue)
+      "#queue (:a)"   (queue [:a])
+      "#queue (:a 1)" (queue [:a 1])
+
+      "(:a)"   (seq [:a])
+      "(:a 1)" (seq [:a 1])
+
+      "[]"     []
+      "[:a]"   [:a]
+      "[:a 1]" [:a 1]
+
+      "#{}"   #{}
+      "#{:a}" #{:a}))
+
+  (testing "python collections"
+    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+      "#py {}"     (python/dict)
+      "#py {:a 1}" (python/dict {:a 1})
+
+      "#py ()"     (python/tuple)
+      "#py (:a)"   (python/tuple [:a])
+      "#py (:a 1)" (python/tuple [:a 1])
+
+      "#py []"     (python/list)
+      "#py [:a]"   (python/list [:a])
+      "#py [:a 1]" (python/list [:a 1])
+
+      "#py #{}"   (python/set)
+      "#py #{:a}" (python/set [:a])))
+
+  (testing "large collections"
+    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+      "[(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19) 
+ (21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39) 
+ :a 
+ :b 
+ :c 
+ (41 
+  42 
+  43 
+  44 
+  45 
+  46 
+  47 
+  48 
+  49 
+  50 
+  51 
+  52 
+  53 
+  54 
+  55 
+  56 
+  57 
+  58 
+  59 
+  60 
+  61 
+  62 
+  63 
+  64 
+  65 
+  66 
+  67 
+  68 
+  69 
+  70 
+  71 
+  72 
+  73 
+  74 
+  75 
+  76 
+  77 
+  78 
+  79) 
+ (81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99)]"
+      (vector (range 20) (range 21 40) :a :b :c (range 41 80) (range 81 100))))
+
+  (testing "printing meta"
+    (are [res expr] (= res (str/rtrim
+                            (binding [*print-meta* true]
+                              (with-out-str (pprint/pprint expr)))))
+      "[]"                []
+      "^{:a 1} []"        ^{:a 1} []
+      "^{:a true} [:a 1]" ^:a [:a 1]
+
+      "()"            '()
+      "^{:a 1} ()"    '^{:a 1} ()
+      "^{:a true} ()" '^:a     ()
+
+      "{}"                {}
+      "^{:b 2} {:a 1}"    ^{:b 2} {:a 1}
+      "^{:b true} {:a 1}" ^:b {:a 1}
+
+      "#{}"              #{}
+      "^{:a 1} #{:a}"    ^{:a 1} #{:a}
+      "^{:a true} #{:a}" ^:a #{:a})))
+
+(deftest print-length-test
+  (are [res plen expr] (= res (str/rtrim
+                               (binding [*print-length* plen]
+                                 (with-out-str
+                                   (pprint/pprint expr)))))
+    "(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 ...)" 20 (range 50)
+    "((0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ ...)"
+    5
+    (repeat 10 (range 10))))
 
 (deftest pprint-suppress-namespaces-test
   (testing "no supression"
