@@ -79,9 +79,9 @@ Basilisp source files should always have a ``.lpy`` extension.
    ├── src
    │   └── myproject
    │       ├── core.lpy
-   │       └── pkg
-   │           └── subns.lpy
-   │           └── pkg.lpy
+   │       ├── pkg
+   │       │   └── subns.lpy
+   │       └── pkg.lpy
    └── tests
        └── __init__.py
        └── myproject
