@@ -812,7 +812,7 @@ def _read_map(
             k = process_key(k)
             try:
                 if k in d:
-                    raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")  # type: ignore[str-bytes-safe]
+                    raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
             except TypeError as e:
                 raise ctx.syntax_error("Map keys must be hashable") from e
             else:
@@ -1622,10 +1622,7 @@ def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
     reader_cond = _read_reader_conditional_preserving(ctx, is_splicing)
     if ctx.should_process_reader_cond and not reader_cond.is_splicing:
         form = _select_reader_conditional_branch(ctx, reader_cond)
-        return cast(
-            LispReaderForm,
-            COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form,
-        )
+        return COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form
     else:
         return reader_cond
 
