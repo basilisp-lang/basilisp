@@ -16,7 +16,6 @@
 ;; TODO:
 ;;  - miser and fill newlines
 ;;  - indent controls
-;;  - cycle detection
 
 (declare simple-dispatch code-dispatch write-out)
 
@@ -637,6 +636,8 @@
 ;; Pretty Printing Public API ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(def ^:private ^:dynamic *context* #{})
+
 (defn write-out
   [object]
   (let [length-reached? (and *current-length*
@@ -648,7 +649,13 @@
         (do
           (when-let [l *current-length*]
             (set! *current-length* (inc l)))
-          (*print-pprint-dispatch* object)))
+          (let [obj-id (python/id object)]
+            (if (contains? *context* obj-id)
+              (print (.format "<Recursion on {} with id={}>"
+                              (.-__name__ (class object))
+                              (python/hex obj-id)))
+              (binding [*context* (conj *context* obj-id)]
+                (*print-pprint-dispatch* object))))))
       (pr object))))
 
 (defn pprint
