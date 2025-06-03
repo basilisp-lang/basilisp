@@ -568,6 +568,20 @@
   [obj]
   (print-map "#py {" "}" (.items obj)))
 
+(defmethod simple-dispatch basilisp.lang.interfaces/IDeref
+  [obj]
+  (let [classname (.-__name__ (.-__class__ obj))
+        mem-addr  (python/hex (python/id obj))
+        prefix    (str "#<" classname "@" mem-addr ": ")
+        contents  (cond
+                    (and (future? obj)
+                         (not (future-done? obj))) :pending
+                    (and (instance? basilisp.lang.interfaces/IPending obj)
+                         (not (realized? obj)))    :not-delivered
+                    :else                          @obj)]
+    (pprint-logical-block :prefix prefix :suffix ">"
+                          (write-out contents))))
+
 (alter-var-root #'*print-pprint-dispatch* (constantly simple-dispatch))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

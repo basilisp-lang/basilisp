@@ -148,7 +148,41 @@
       "^{:a 1} #{:a}"    ^{:a 1} #{:a}
       "^{:a true} #{:a}" ^:a #{:a})))
 
-(deftest print-length-test
+(defn ^:private match-ideref
+  [v]
+  (let [s (with-out-str (pprint/pprint v))]
+    (drop 1 (re-matches #"#<(\w+)@0x[0-9a-f]+: ([^>]+)>\r?\n" s))))
+
+(deftest pprint-ideref-test
+  (testing "delay"
+    (let [d (delay :delayed)]
+      (is (= ["Delay" ":not-delivered"] (match-ideref d)))
+      @d
+      (is (= ["Delay" ":delayed"] (match-ideref d)))))
+
+  (testing "future"
+    (let [p (promise)
+          f (future
+              @p
+              1)]
+      (is (= ["Future" ":pending"] (match-ideref f)))
+      (deliver p :anything)
+      @f
+      (is (= ["Future" "1"] (match-ideref f)))))
+
+  (testing "promise"
+    (let [p (promise)]
+      (is (= ["Promise" ":not-delivered"] (match-ideref p)))
+      (deliver p :delivered)
+      (is (= ["Promise" ":delivered"] (match-ideref p)))))
+
+  (testing "volatile"
+    (let [v (volatile! nil)]
+      (is (= ["Volatile" "nil"] (match-ideref v)))
+      (vreset! v :not-nil)
+      (is (= ["Volatile" ":not-nil"] (match-ideref v))))))
+
+(deftest pprint-print-length-test
   (are [res plen expr] (= res (str/rtrim
                                (binding [*print-length* plen]
                                  (with-out-str
