@@ -104,15 +104,47 @@ It is also possible to refer all module members into the namespace using ``:refe
 Referencing Module Members
 --------------------------
 
-Once a Python module is imported into the current Namespace, it is trivial to reference module members directly.
-References to Python module members appear identical to qualified Basilisp Namespace references.
-Class constructors or other callables in the module can be called directly as a standard Basilisp function call.
-Static members and class members can be referenced by adding the class name to the (potentially) qualified symbol namespace, separated by a single ``.``.
+Once a Python module is imported into the current Namespace, it is trivial to reference things (if a bit unintuitive for Class members if you're used to Clojure syntax; but more on that later) within the module.
+
+References to Python module top-level members are as expected, with the namespace at the front, followed by a ``/``, and then the name of the member:
+
+.. code-block:: python
+
+    # src/boo.py
+    global_var = "boo"
+
+    def module_method():
+        ...
+
+    class BooClass:
+        class_var = "BooClass class variable!"
+        ...
+
+        @classmethod
+        def some_class_method(cls):
+            return f"hello from {cls}!"
 
 .. code-block:: clojure
 
-    (import datetime)
-    (datetime.datetime/now)  ;;=> #inst "2020-03-30T08:56:57.176809"
+    (import src.boo)
+
+    src.boo/global-var  ;; => "boo"
+    src.boo/BooClass    ;; => <class 'test.BooClass'>
+
+    ;; top-level callables within the module can be called as you would a standard Basilisp function call
+    (src.boo/module-method)
+    (src.boo/BooClass)
+
+For referencing members within classes, Basilisp expects that you tack on the class name with a leading ``.`` to the (potentially) qualified namespace symbol:
+
+.. code-block:: clojure
+
+    (import src.boo)
+
+    (src.boo.BooClass/class-var)     ;; => "BooClass class variable!"
+    (src.boo.BooClass/class-method)  ;; => "hello from <class 'src.test.BooClass'>!"
+
+Notice that for these cases the class (name) effectively becomes a namespace of its own, even if it is not defined in a separate file. This is unlike Clojure.
 
 .. _accessing_object_methods_and_props:
 
