@@ -141,8 +141,8 @@ For referencing members within classes, Basilisp expects that you tack on the cl
 
     (import src.boo)
 
-    (src.boo.BooClass/class-var)     ;; => "BooClass class variable!"
-    (src.boo.BooClass/class-method)  ;; => "hello from <class 'src.test.BooClass'>!"
+    (src.boo.BooClass/class-var)          ;; => "BooClass class variable!"
+    (src.boo.BooClass/some-class-method)  ;; => "hello from <class 'src.test.BooClass'>!"
 
 Notice that for these cases the class (name) effectively becomes a namespace of its own, even if it is not defined in a separate file. This is unlike Clojure.
 
