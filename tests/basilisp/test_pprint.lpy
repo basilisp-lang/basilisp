@@ -153,6 +153,8 @@
   (let [s (with-out-str (pprint/pprint v))]
     (drop 1 (re-matches #"#<(\w+)@0x[0-9a-f]+: ([^>]+)>\r?\n" s))))
 
+(def ^:private ideref-value :var)
+
 (deftest pprint-ideref-test
   (testing "delay"
     (let [d (delay :delayed)]
@@ -175,6 +177,9 @@
       (is (= ["Promise" ":not-delivered"] (match-ideref p)))
       (deliver p :delivered)
       (is (= ["Promise" ":delivered"] (match-ideref p)))))
+
+  (testing "var"
+    (is (= ["Var" ":var"] (match-ideref ideref-value))))
 
   (testing "volatile"
     (let [v (volatile! nil)]

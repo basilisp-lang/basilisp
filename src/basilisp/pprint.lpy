@@ -17,6 +17,7 @@
 ;;  - miser and fill newlines
 ;;  - indent controls
 ;;  - arbitrary base printing for integers
+;;  - cycle detection
 
 (declare simple-dispatch code-dispatch write-out)
 
@@ -290,7 +291,7 @@
                    (write-tokens s))
                  (vswap! state #(assoc % :buffer buf))
                  ;; check if buffer still exceeds length; if so, we'll need to emit newlines
-                 (when buf
+                 (when (seq buf)
                    (let [[section remainder] (get-section buf)
                          ;;_                   (pdebug {:section   (map debug-token section)
                          ;;                             :remainder (map debug-token remainder)})
