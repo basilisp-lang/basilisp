@@ -7,14 +7,14 @@ from typing import Callable, Optional, TypeVar
 import attr
 from typing_extensions import ParamSpec
 
-from basilisp.lang.interfaces import IBlockingDeref
+from basilisp.lang.interfaces import IBlockingDeref, IPending
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
 
 @attr.frozen(eq=True, repr=False)
-class Future(IBlockingDeref[T]):
+class Future(IBlockingDeref[T], IPending):
     _future: "_Future[T]"
 
     def __repr__(self):  # pragma: no cover

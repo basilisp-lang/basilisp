@@ -3,7 +3,7 @@ from typing import Callable, Generic, Optional, TypeVar
 import attr
 
 from basilisp.lang import atom as atom
-from basilisp.lang.interfaces import IDeref
+from basilisp.lang.interfaces import IDeref, IPending
 
 T = TypeVar("T")
 
@@ -15,7 +15,7 @@ class _DelayState(Generic[T]):
     computed: bool = False
 
 
-class Delay(IDeref[T]):
+class Delay(IDeref[T], IPending):
     __slots__ = ("_state",)
 
     def __init__(self, f: Callable[[], T]) -> None:

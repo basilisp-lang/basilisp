@@ -1,12 +1,12 @@
 import threading
 from typing import Optional, TypeVar
 
-from basilisp.lang.interfaces import IBlockingDeref
+from basilisp.lang.interfaces import IBlockingDeref, IPending
 
 T = TypeVar("T")
 
 
-class Promise(IBlockingDeref[T]):
+class Promise(IBlockingDeref[T], IPending):
     __slots__ = ("_condition", "_is_delivered", "_value")
 
     def __init__(self) -> None:

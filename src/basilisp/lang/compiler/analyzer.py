@@ -1031,12 +1031,10 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     # where we directly set the Var meta for the running Basilisp instance
     # this causes problems since we'll end up getting something like
     # `(quote ([] [v]))` rather than simply `([] [v])`.
-    arglists_meta = def_meta.val_at(ARGLISTS_KW)  # type: ignore
+    arglists_meta = def_meta.val_at(ARGLISTS_KW)
     if isinstance(arglists_meta, llist.PersistentList):
         assert arglists_meta.first == SpecialForm.QUOTE
-        var_meta = def_meta.update(  # type: ignore
-            {ARGLISTS_KW: runtime.nth(arglists_meta, 1)}
-        )
+        var_meta = def_meta.update({ARGLISTS_KW: runtime.nth(arglists_meta, 1)})
     else:
         var_meta = def_meta
 
@@ -1055,7 +1053,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     var = Var.intern_unbound(
         ns_sym,
         bare_name,
-        dynamic=def_meta.val_at(SYM_DYNAMIC_META_KEY, False),  # type: ignore
+        dynamic=def_meta.val_at(SYM_DYNAMIC_META_KEY, False),
         meta=var_meta,
     )
 
@@ -1076,7 +1074,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
                     "generated inline function"
                 )
                 var.alter_meta(lambda m: m.assoc(SYM_INLINE_META_KW, init.inline_fn))  # type: ignore[misc]
-                def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)  # type: ignore[union-attr]
+                def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)
 
             if tag_ast is not None and any(
                 arity.tag is not None for arity in init.arities
@@ -1113,7 +1111,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     #       some-name
     #       "some value")
     meta_ast = _analyze_form(
-        def_meta.update(  # type: ignore
+        def_meta.update(
             {
                 NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
                 NS_KW: llist.l(

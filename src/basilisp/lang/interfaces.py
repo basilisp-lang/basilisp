@@ -308,6 +308,22 @@ class ILookup(Generic[K, V], ABC):
         raise NotImplementedError()
 
 
+class IPending(ABC):
+    """``IPending`` types are types which may represent deferred computations such
+    as a future or promise.
+
+    .. seealso::
+
+       :lpy:fn:`realized?`, :lpy:fn:`delay`, :lpy:fn:`future`, :lpy:fn:`promise`"""
+
+    __slots__ = ()
+
+    @property
+    @abstractmethod
+    def is_realized(self) -> bool:
+        raise NotImplementedError()
+
+
 class IPersistentCollection(ISeqable[T]):
     """``IPersistentCollection`` types support both fetching empty variants of an
     existing persistent collection and creating a new collection with additional
