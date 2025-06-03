@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for f-strings (#922)
  * Added the `aslice` macro to facilitate the use of Python style `array[start:stop:step]` slicing in Basilisp (#1248)
  * Added the `IPending` interface which is implemented by delays, futures, and promises (#1260)
+ * Added the `basilisp.pprint` namespace (#513)
 
 ### Changed
  * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
