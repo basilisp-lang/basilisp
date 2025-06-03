@@ -132,23 +132,23 @@
   (__repr__ [self]
     (str [(python/id self) (python/repr parent) prefix suffix indent force-nl?])))
 
-(deftype StartBlock [block start end])
+(deftype StartBlock [block start end]
+  (__repr__ [self]
+    (str [:start (python/id block)])))
 
-(deftype EndBlock [block start end])
+(deftype EndBlock [block start end]
+  (__repr__ [self]
+    (str [:end (python/id block)])))
 
-(deftype Blob [data start end])
+(deftype Blob [data start end]
+  (__repr__ [self]
+    data))
 
 (deftype Indent [block relative-to offset start end])
 
-(deftype Newline [block kind start end])
-
-(defn debug-token
-  [token]
-  (condp instance? token
-    StartBlock [":start" (python/id (.-block token))]
-    EndBlock   [":end" (python/id (.-block token))]
-    Blob       (.-data token)
-    Newline    [(.-kind token) (python/id (.-block token))]))
+(deftype Newline [block kind start end]
+  (__repr__ [self]
+    (str [kind (python/id block)])))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Pretty Writer ;;
@@ -293,15 +293,15 @@
              (write-line []
                (let [{:keys [buffer]} @state
                      [s buf]          (split-at-newline buffer)]
-                 #_(pdebug {:buffer (map debug-token buf) :s (map debug-token s)})
+                 #_(pdebug {:buffer (map repr buf) :s (map repr s)})
                  (when (seq s)
                    (write-tokens s))
                  (vswap! state #(assoc % :buffer buf))
                  ;; check if buffer still exceeds length; if so, we'll need to emit newlines
                  (when (seq buf)
                    (let [[section remainder] (get-section buf)
-                         ;;_                   (pdebug {:section   (map debug-token section)
-                         ;;                             :remainder (map debug-token remainder)})
+                         ;;_                   (pdebug {:section   (map repr section)
+                         ;;                             :remainder (map repr remainder)})
                          maybe-nl            (first buf)
                          buf                 (if (emit-nl? maybe-nl section)
                                                (do
@@ -310,7 +310,7 @@
                                                buf)]
                      (if-not (tokens-fit? buf)
                        (do
-                         #_(pdebug "writing section " (map debug-token section))
+                         #_(pdebug "writing section " (map repr section))
                          (write-tokens section)
                          (vswap! state #(assoc % :buffer remainder)))
                        (vswap! state #(assoc % :buffer buf)))))))
