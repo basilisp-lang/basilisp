@@ -148,6 +148,32 @@
       "^{:a 1} #{:a}"    ^{:a 1} #{:a}
       "^{:a true} #{:a}" ^:a #{:a})))
 
+(deftest pprint-base-and-radix-test
+  (are [res base expr] (= res (str/rtrim
+                               (binding [pprint/*print-radix* true
+                                         pprint/*print-base*  base]
+                                 (with-out-str
+                                   (pprint/pprint expr)))))
+    "0"  10 0
+    "1"  10 1
+    "-1" 10 -1
+
+    "#b0"  2 0
+    "#b1"  2 1
+    "#b10" 2 2
+
+    "#o0"  8 0
+    "#o1"  8 1
+    "#o14" 8 12
+
+    "#x0"  16 0
+    "#x1"  16 1
+    "#x1b" 16 27
+
+    "#18r0"  18 0
+    "#18r1"  18 1
+    "#18r27" 18 43))
+
 (defn ^:private match-ideref
   [v]
   (let [s (with-out-str (pprint/pprint v))]
@@ -179,7 +205,7 @@
       (is (= ["Promise" ":delivered"] (match-ideref p)))))
 
   (testing "var"
-    (is (= ["Var" ":var"] (match-ideref ideref-value))))
+    (is (= ["Var" ":var"] (match-ideref #'ideref-value))))
 
   (testing "volatile"
     (let [v (volatile! nil)]

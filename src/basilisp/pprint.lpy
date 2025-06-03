@@ -16,7 +16,6 @@
 ;; TODO:
 ;;  - miser and fill newlines
 ;;  - indent controls
-;;  - arbitrary base printing for integers
 ;;  - cycle detection
 
 (declare simple-dispatch code-dispatch write-out)
@@ -41,6 +40,14 @@
                  Default is ``false``, but :lpy:fn:`pprint` binds the value to ``true``."
        :dynamic true}
   *print-pretty*
+  false)
+
+(def ^{:doc     "If bound to ``true``, integers and rationals will be printed with a radix
+                 prefix. For bases 2, 8, and 16 the prefix will be ``#b``, ``#o`` and ``#x``
+                 respectively. All other bases will be specified as ``#XXr`` where ``XX`` is
+                 the decimal value of :lpy:var:`*print-base*`."
+       :dynamic true}
+  *print-radix*
   false)
 
 (def ^{:doc     "The soft upper limit for the length of the right margin. Default is 72."
@@ -447,6 +454,54 @@
 ;; Simple Dispatch ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
+(defn ^:private base-chr
+  "Return the appropriate character for an integer offset from the starting
+  character of the alphabet.
+
+  Uses ``0`` to ``9``, all lowercase Latin characters, and continues into
+  UTF-8."
+  [v]
+  (python/chr
+   (if (< v 10)
+     (+ (python/ord "0") v)
+     (+ (python/ord "a") (- v 10)))))
+
+(defn ^:private int->base
+  "Convert integer ``n`` to a string of the given ``base``."
+  [n base]
+  (if (zero? n)
+    "0"
+    (loop [v n
+           c []]
+      (if (pos? v)
+        (recur (operator/floordiv v base)
+               (conj c (base-chr (mod v base))))
+        (.join "" (rseq c))))))
+
+(defn ^:private format-int
+  "Format an integer value ``n`` subject to the rules of both :lpy:var:`*print-base*`
+  and :lpy:var:`*print-radix*`."
+  [n]
+  (let [base         *print-base*
+        radix-prefix (if *print-radix*
+                       (case base
+                         2  "#b"
+                         8  "#o"
+                         16 "#x"
+                         10 ""
+                         (.format "#{}r" base))
+                       "")
+        format-str   (case base
+                       2  "{0:b}"
+                       8  "{0:o}"
+                       10 "{}"
+                       16 "{0:x}"
+                       nil)]
+    (str radix-prefix
+         (if format-str
+           (.format format-str n)
+           (int->base n base)))))
+
 (defmulti simple-dispatch type)
 
 (defmethod simple-dispatch :default
@@ -455,15 +510,7 @@
 
 (defmethod simple-dispatch python/int
   [obj]
-  (if-let [base (case *print-base*
-                  2  "{0:b}"
-                  8  "{0:o}"
-                  10 "{}"
-                  16 "{0:x}"
-                  nil)]
-    (print (.format base obj))
-    (throw
-     (ex-info "Invalid integral base" {:base *print-base*}))))
+  (.write *out* (format-int obj)))
 
 ;; This `python/bool` override is required because Python `bool` types are also
 ;; instances of `python/int`, so they will be caught by the `int` dispatch otherwise.
@@ -473,9 +520,10 @@
 
 (defmethod simple-dispatch fractions/Fraction
   [obj]
-  (*print-pprint-dispatch* (numerator obj))
-  (.write *out* "/")
-  (*print-pprint-dispatch* (denominator obj)))
+  (.write *out*
+          (str (format-int (numerator obj))
+               "/"
+               (format-int (denominator obj)))))
 
 (defmethod simple-dispatch basilisp.lang.symbol/Symbol
   [obj]
