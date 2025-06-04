@@ -636,9 +636,23 @@
 ;; Pretty Printing Public API ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def ^:private ^:dynamic *context* #{})
+;; Calls to `write-out` will add object IDs (per `python/id`) to the `*recursion-context*`
+;; and check that context on recursive calls, allowing for cycle detection in pretty
+;; printed output.
+(def ^:private ^:dynamic *recursion-context* #{})
 
 (defn write-out
+  "Write ``object`` to :lpy:fn:`basilisp.core/*out*`, respecting the current bindings
+  of the pretty printing control variables.
+
+  ``*out*`` should be a pretty writer (as returned by :lpy:fn:`get-pretty-writer`).
+
+  This function is intended to be called from within pretty print dispatch functions
+  which already have pretty print control variables correctly set up.
+
+  .. note::
+
+     This function performs cycle detection on input values."
   [object]
   (let [length-reached? (and *current-length*
                              *print-length*
@@ -650,11 +664,11 @@
           (when-let [l *current-length*]
             (set! *current-length* (inc l)))
           (let [obj-id (python/id object)]
-            (if (contains? *context* obj-id)
+            (if (contains? *recursion-context* obj-id)
               (print (.format "<Recursion on {} with id={}>"
                               (.-__name__ (class object))
                               (python/hex obj-id)))
-              (binding [*context* (conj *context* obj-id)]
+              (binding [*recursion-context* (conj *recursion-context* obj-id)]
                 (*print-pprint-dispatch* object))))))
       (pr object))))
 
