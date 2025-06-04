@@ -238,6 +238,14 @@
     5
     (repeat 10 (range 10))))
 
+(deftest pprint-recursion-check
+  (let [a (atom [])
+        b (atom {:a a})]
+    (swap! a conj b)
+    (let [s  (with-out-str
+               (pprint/pprint a))]
+      (is (not (nil? (re-find #"<Recursion on Atom with id=0x[0-9a-f]+>" s)))))))
+
 (deftest pprint-suppress-namespaces-test
   (testing "no supression"
     (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
