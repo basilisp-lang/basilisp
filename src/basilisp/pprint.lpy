@@ -15,7 +15,6 @@
 
 ;; TODO:
 ;;  - miser and fill newlines
-;;  - indent controls
 
 (declare simple-dispatch code-dispatch write-out)
 
@@ -127,7 +126,9 @@
 ;; Types ;;
 ;;;;;;;;;;;
 
-(deftype LogicalBlock [parent prefix per-line-prefix suffix ^:mutable indent ^:mutable force-nl?]
+;; `indent` may be changed later by an indent token, whereas `start-col` is fixed at
+;; the point the start block token is encountered in the stream.
+(deftype LogicalBlock [parent prefix per-line-prefix suffix ^:mutable indent ^:mutable start-col ^:mutable force-nl?]
   (__repr__ [self]
     (str [(python/id self) (python/repr parent) prefix suffix indent force-nl?])))
 
@@ -143,7 +144,9 @@
   (__repr__ [self]
     data))
 
-(deftype Indent [block relative-to offset start end])
+(deftype Indent [block relative-to offset start end]
+  (__repr__ [self]
+    (str [(python/id block) relative-to offset])))
 
 (deftype Newline [block kind start end]
   (__repr__ [self]
@@ -217,6 +220,7 @@
 (defprotocol PrettyWriter
   (start-block [this prefix per-line-prefix suffix])
   (end-block [this])
+  (pp-indent [this relative-to offset])
   (pp-newline [this kind]))
 
 (defn get-pretty-writer
@@ -228,7 +232,7 @@
   ([writer max-columns]
    (let [lock   (threading/RLock)
          writer (get-column-writer writer max-columns)
-         state  (volatile! {:block  (LogicalBlock nil nil nil nil 0 false)
+         state  (volatile! {:block  (LogicalBlock nil nil nil nil 0 0 false)
                             :buffer (queue)
                             :pos    0})]
      (letfn [;; Private helpers can only be called while the lock is held
@@ -249,11 +253,12 @@
                      (set! (.-force-nl? block) true)
                      (recur (.-parent block))))))
 
-             ;; Set the `indent` of the current logical block to match the current
-             ;; column position of the base writer.
-             (set-block-indent! [block prefix]
+             ;; Set the `indent` and `start-col` of the current logical block to match
+             ;; the current column position of the base writer.
+             (set-block-cols! [block prefix]
                (let [indent (+ (:col @writer) (count prefix))]
-                 (set! (.-indent block) indent)))
+                 (set! (.-indent block) indent)
+                 (set! (.-start-col block) indent)))
 
              ;; Return `true` if the given newline type should be emitted.
              (emit-nl? [token section]
@@ -281,10 +286,17 @@
                                 Newline    (when (or (= (.-kind token) :mandatory)
                                                      (.-force-nl? (.-block token)))
                                              (gen-nl token))
-                                StartBlock (let [block (.-block token)]
-                                             (when-let [prefix (.-prefix block)]
-                                               (set-block-indent! block prefix)
-                                               prefix))
+                                Indent     (let [block  (.-block token)
+                                                 indent (+ (.-offset token)
+                                                           (case (.-relative-to token)
+                                                             :block   (.-start-col block)
+                                                             :current (:col @writer)))]
+                                             (set! (.-indent block) indent)
+                                             nil)
+                                StartBlock (let [block  (.-block token)
+                                                 prefix (.-prefix block)]
+                                             (set-block-cols! block (or prefix ""))
+                                             prefix)
                                 EndBlock   (.-suffix (.-block token)))]
                    (.write writer s))))
 
@@ -370,7 +382,7 @@
         (start-block [self prefix per-line-prefix suffix]
                      (with [_ lock]
                            (let [current-block     (:block @state)
-                                 new-block         (LogicalBlock current-block prefix per-line-prefix suffix 0 false)
+                                 new-block         (LogicalBlock current-block prefix per-line-prefix suffix 0 0 false)
                                  [old-pos new-pos] (update-pos prefix)
                                  start-block       (StartBlock new-block old-pos new-pos)]
                              (vswap! state #(-> %
@@ -387,6 +399,13 @@
                                end-block           (EndBlock block pos new-pos)]
                            (vswap! state #(assoc % :block (.-parent block)))
                            (add-to-buffer end-block)))
+                   nil)
+
+        (pp-indent [self relative-to offset]
+                   (with [_ lock]
+                         (let [{:keys [block pos]} @state
+                               indent              (Indent block relative-to offset pos pos)]
+                           (add-to-buffer indent)))
                    nil)
 
         (pp-newline [self kind]
@@ -435,6 +454,22 @@
        (if (or (not *print-length*) (< ~len-sym *print-length*))
          (do ~@body)
          (.write *out* "...")))))
+
+(defn pprint-indent
+  "Configure the indent of `offset` characters relative to an anchor at this point
+  in the pretty print output.
+
+  ``relative-to`` must be one of the following keywords:
+  - ``:current``, meaning that the indent offset is relative to the current column
+    when the indent token is encountered
+  - ``:block``, meaning that the indent offset is relative to the starting column of
+    the current logical block"
+  [relative-to offset]
+  (when-not (#{:block :current} relative-to)
+    (throw
+     (ex-info "relative-to must be one of: :block, :current"
+              {:relative-to relative-to})))
+  (pp-indent *out* relative-to offset))
 
 (defn pprint-newline
   "Emit a newline to the output buffer.
@@ -631,6 +666,8 @@
                          (not (realized? obj)))    :not-delivered
                     :else                          @obj)]
     (pprint-logical-block :prefix prefix :suffix ">"
+                          (pprint-indent :block (- (- (count prefix) 2)))
+                          (pprint-newline :linear)
                           (write-out contents))))
 
 (alter-var-root #'*print-pprint-dispatch* (constantly simple-dispatch))
