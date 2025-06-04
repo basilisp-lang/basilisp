@@ -213,6 +213,16 @@
       (vreset! v :not-nil)
       (is (= ["Volatile" ":not-nil"] (match-ideref v))))))
 
+(deftest pprint-print-level-test
+  (are [res plen expr] (= res (str/rtrim
+                               (binding [*print-level* plen]
+                                 (with-out-str
+                                   (pprint/pprint expr)))))
+    "#"                0 []
+    "[#]"              1 [[]]
+    "[[#]]"            2 [[[]]]
+    "[[:a :b :c] [#]]" 2 [[:a :b :c] [[]]]))
+
 (deftest pprint-print-length-test
   (are [res plen expr] (= res (str/rtrim
                                (binding [*print-length* plen]

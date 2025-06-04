@@ -410,12 +410,14 @@
                          (recur (assoc flags (first body) (second body))
                                 (nthrest body 2))
                          [flags body]))]
-    `(with-bindings {#'*current-level*  (inc *current-level*)
-                     #'*current-length* 0}
-       ~(let [{:keys [prefix per-line-prefix suffix]} flags]
-          `(start-block *out* ~prefix ~per-line-prefix ~suffix))
-       ~@body
-       (end-block *out*))))
+    `(if (and *print-level* (>= *current-level* *print-level*))
+       (.write *out* "#")
+       (with-bindings {#'*current-level*  (inc *current-level*)
+                       #'*current-length* 0}
+         ~(let [{:keys [prefix per-line-prefix suffix]} flags]
+            `(start-block *out* ~prefix ~per-line-prefix ~suffix))
+         ~@body
+         (end-block *out*)))))
 
 (defmacro print-length-loop
   ":lpy:fn:`loop` -like macro which loops at most :lpy:fn:`basilisp.core/*print-length*`
@@ -437,9 +439,10 @@
 (defn pprint-newline
   "Emit a newline to the output buffer.
 
-  ``:kind`` must be one of the following:
-  - ``:linear``
-  - ``:mandatory``
+  ``kind`` must be one of the following keywords:
+  - ``:linear``, which will be emitted as newlines only if the the logical block
+    doesn't fit on one line
+  - ``:mandatory``, which the pretty writer will emit in all cases
   - ``:miser``
   - ``:fill``"
   [kind]
