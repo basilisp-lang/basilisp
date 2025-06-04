@@ -131,7 +131,7 @@ References to Python module top-level members are as expected, with the namespac
     src.boo/global-var  ;; => "boo"
     src.boo/BooClass    ;; => <class 'test.BooClass'>
 
-    ;; top-level callables within the module can be called as you would a standard Basilisp function call
+    ;; callables within the module can be called as you would a standard Basilisp function
     (src.boo/module-method)
     (src.boo/BooClass)
 
@@ -141,10 +141,12 @@ For referencing members within classes, Basilisp expects that you tack on the cl
 
     (import src.boo)
 
-    (src.boo.BooClass/class-var)          ;; => "BooClass class variable!"
+    src.boo.BooClass/class-var            ;; => "BooClass class variable!"
     (src.boo.BooClass/some-class-method)  ;; => "hello from <class 'src.test.BooClass'>!"
 
 Notice that for these cases the class (name) effectively becomes a namespace of its own, even if it is not defined in a separate file. This is unlike Clojure.
+
+If it helps, you can think of Basilisp's style of referencing as "Python-style", but with the last ``.`` replaced by a ``/``.
 
 .. _accessing_object_methods_and_props:
 
