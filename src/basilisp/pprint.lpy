@@ -14,7 +14,7 @@
            threading))
 
 ;; TODO:
-;;  - miser and fill newlines
+;;  - fill newlines
 
 (declare simple-dispatch code-dispatch write-out)
 
@@ -26,6 +26,16 @@
        :dynamic true}
   *print-base*
   10)
+
+(def ^{:doc     "The text column number to start using miser style.
+
+                 Not all dispatch functions support using a miser style, so the effect
+                 of this value depends on the value of :lpy:var:`*print-pprint-dispatch*`.
+
+                 Default is 40. May be set to ``nil`` to disable."
+       :dynamic true}
+  *print-miser-width*
+  40)
 
 (def ^{:doc     "The dispatch function used for pretty printing.
 
@@ -260,15 +270,24 @@
                  (set! (.-indent block) indent)
                  (set! (.-start-col block) indent)))
 
+             ;; Return `true` if a `:linear` newline type should be emitted.
+             (emit-linear-nl? [token section]
+               (or (.-force-nl? (.-block token))
+                   (not (tokens-fit? section))))
+
              ;; Return `true` if the given newline type should be emitted.
              (emit-nl? [token section]
                (condp = (.-kind token)
                  :mandatory true
-                 :linear    (or (.-force-nl? (.-block token))
-                                (not (tokens-fit? section)))
+                 :linear    (emit-linear-nl? token section)
+                 :miser     (let [miser-width *print-miser-width*
+                                  max-col     (:max @writer)]
+                              (and miser-width
+                                   max-col
+                                   (>= (.-start-col (.-block token)) (- max miser-width))
+                                   (emit-linear-nl? token section)))
                  ;; TODO: figure out how to handle these newline types
-                 :fill      nil
-                 :miser     nil))
+                 :fill      nil))
 
              ;; Generate the newline and subsequent indent from a newline token token.
              (gen-nl [token]
@@ -703,23 +722,22 @@
 
      This function performs cycle detection on input values."
   [object]
-  (let [length-reached? (and *current-length*
-                             *print-length*
-                             (>= *current-length* *print-length*))]
-    (if *print-pretty*
-      (if length-reached?
-        (print "...")
-        (do
-          (when-let [l *current-length*]
-            (set! *current-length* (inc l)))
-          (let [obj-id (python/id object)]
-            (if (contains? *recursion-context* obj-id)
-              (print (.format "<Recursion on {} with id={}>"
-                              (.-__name__ (class object))
-                              (python/hex obj-id)))
-              (binding [*recursion-context* (conj *recursion-context* obj-id)]
-                (*print-pprint-dispatch* object))))))
-      (pr object))))
+  (if *print-pretty*
+    (if (and *current-length*
+             *print-length*
+             (>= *current-length* *print-length*))
+      (print "...")
+      (do
+        (when-let [l *current-length*]
+          (set! *current-length* (inc l)))
+        (let [obj-id (python/id object)]
+          (if (contains? *recursion-context* obj-id)
+            (print (.format "<Recursion on {} with id={}>"
+                            (.-__name__ (class object))
+                            (python/hex obj-id)))
+            (binding [*recursion-context* (conj *recursion-context* obj-id)]
+              (*print-pprint-dispatch* object))))))
+    (pr object)))
 
 (defn pprint
   "Pretty print ``object`` to the given ``writer``.
