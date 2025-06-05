@@ -128,6 +128,12 @@
  (81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99)]"
       (vector (range 20) (range 21 40) :a :b :c (range 41 80) (range 81 100))))
 
+  (testing "printing collections with long elements"
+    (is (= "[\"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc\"]\n"
+           (with-out-str
+             (pprint/pprint
+              ["abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc"])))))
+
   (testing "printing meta"
     (are [res expr] (= res (str/rtrim
                             (binding [*print-meta* true]
@@ -179,7 +185,8 @@
   (let [s (with-out-str (pprint/pprint v))]
     (drop 1 (re-matches #"#<(\w+)@0x[0-9a-f]+: ([^>]+)>\r?\n" s))))
 
-(def ^:private ideref-value :var)
+(deftest pprint-var-test
+  (is (= "#'basilisp.core/map\n" (with-out-str (pprint/pprint #'map)))))
 
 (deftest pprint-ideref-test
   (testing "delay"
@@ -203,9 +210,6 @@
       (is (= ["Promise" ":not-delivered"] (match-ideref p)))
       (deliver p :delivered)
       (is (= ["Promise" ":delivered"] (match-ideref p)))))
-
-  (testing "var"
-    (is (= ["Var" ":var"] (match-ideref #'ideref-value))))
 
   (testing "volatile"
     (let [v (volatile! nil)]

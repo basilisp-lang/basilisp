@@ -206,15 +206,9 @@
   [buffer]
   (let [nl    (first buffer)
         block (.-block nl)
-        ;;_ (pdebug "nl-block=" (python/id (.-block nl)) " " (.-block nl))
         comparator (fn [token]
-                     (if (instance? Newline token)
-                       (let [is-ancestor? (ancestor? (.-block token) block)]
-                         #_(pdebug "token=" [(.-kind token) (.-block token)]
-                                 " block=" block
-                                 " is-ancestor?=" is-ancestor?)
-                         is-ancestor?)
-                       false))]
+                     (and (instance? Newline token)
+                          (ancestor? (.-block token) block)))]
     (split-queue-with comparator (pop buffer))))
 
 (defprotocol PrettyWriter
@@ -300,19 +294,16 @@
                                 EndBlock   (.-suffix (.-block token)))]
                    (.write writer s))))
 
-             ;; Write a single line and possibly emit a trailing conditional newline.
+             ;; Write a single line and possibly emit a conditional newline.
              (write-line []
                (let [{:keys [buffer]} @state
                      [s buf]          (split-at-newline buffer)]
-                 #_(pdebug {:buffer (map repr buf) :s (map repr s)})
                  (when (seq s)
                    (write-tokens s))
                  (vswap! state #(assoc % :buffer buf))
                  ;; check if buffer still exceeds length; if so, we'll need to emit newlines
                  (when (seq buf)
                    (let [[section remainder] (get-section buf)
-                         ;;_                   (pdebug {:section   (map repr section)
-                         ;;                             :remainder (map repr remainder)})
                          maybe-nl            (first buf)
                          buf                 (if (emit-nl? maybe-nl section)
                                                (do
@@ -321,7 +312,6 @@
                                                buf)]
                      (if-not (tokens-fit? buf)
                        (do
-                         #_(pdebug "writing section " (map repr section))
                          (write-tokens section)
                          (vswap! state #(assoc % :buffer remainder)))
                        (vswap! state #(assoc % :buffer buf)))))))
@@ -653,6 +643,11 @@
 (defmethod simple-dispatch python/dict
   [obj]
   (print-map "#py {" "}" (.items obj)))
+
+;; Disambiguate `Var` from `IDeref`
+(defmethod simple-dispatch basilisp.lang.runtime/Var
+  [obj]
+  (pr obj))
 
 (defmethod simple-dispatch basilisp.lang.interfaces/IDeref
   [obj]
