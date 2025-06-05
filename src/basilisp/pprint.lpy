@@ -53,6 +53,12 @@
   *print-right-margin*
   72)
 
+(def ^{:doc     "If bound to ``true``, associative collections will be printed in sorted
+                 order by their keys. Default is ``false``."
+       :dynamic true}
+  *print-sort-keys*
+  false)
+
 (def ^{:doc     "If ``true``, suppress printing symbol namespaces. This may be useful when
                  printing macroexpansions.
 
@@ -573,17 +579,25 @@
 (defn ^:private print-map
   "Print an associative collection."
   [prefix suffix obj]
-  (pprint-logical-block :prefix prefix :suffix suffix
-                        (print-length-loop [m obj]
-                                           (when (seq m)
-                                             (let [[k v] (first m)]
-                                               (write-out k)
-                                               (.write *out* " ")
-                                               (write-out v)
-                                               (pprint-newline :linear)
-                                               (when-let [more (seq (rest m))]
-                                                 (.write *out* " ")
-                                                 (recur more)))))))
+  (let [coll (if *print-sort-keys*
+               (sort-by key obj)
+               obj)]
+    (pprint-logical-block :prefix prefix :suffix suffix
+                          (print-length-loop [m coll]
+                                             (when (seq m)
+                                               (let [[k v] (first m)]
+                                                 (pprint-logical-block
+                                                  (write-out k)
+                                                  (.write *out* " ")
+                                                  (pprint-newline :linear)
+                                                  ;; set the current length such that we won't print
+                                                  ;; only a key without it's corresponding value
+                                                  (binding [*current-length* (dec *current-length*)]
+                                                    (write-out v)))
+                                                 (when-let [more (seq (rest m))]
+                                                   (.write *out* " ")
+                                                   (pprint-newline :linear)
+                                                   (recur more))))))))
 
 (defn ^:private print-meta
   "Print the metadata associated with an object if it has any metadata and if

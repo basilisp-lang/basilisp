@@ -154,6 +154,34 @@
       "^{:a 1} #{:a}"    ^{:a 1} #{:a}
       "^{:a true} #{:a}" ^:a #{:a})))
 
+(deftest pprint-print-associative-test
+  (let [long-map (into {} (map #(vector (keyword (python/chr %1)) %2)
+                               (range (python/ord "a") (python/ord "z"))
+                               (range)))]
+    (are [res len expr] (= res (str/rtrim
+                                (binding [pprint/*print-sort-keys* true
+                                          *print-length*           len]
+                                  (with-out-str
+                                    (pprint/pprint expr)))))
+      "{...}"      0  long-map
+      "{:a 0 ...}" 1  long-map
+      "{:a 0 
+ :b 1 
+ :c 2 
+ :d 3 
+ :e 4 
+ :f 5 
+ :g 6 
+ :h 7 
+ :i 8 
+ :j 9 
+ :k 10 
+ :l 11 
+ :m 12 
+ :n 13 
+ :o 14 
+ ...}"     15 long-map)))
+
 (deftest pprint-base-and-radix-test
   (are [res base expr] (= res (str/rtrim
                                (binding [pprint/*print-radix* true
