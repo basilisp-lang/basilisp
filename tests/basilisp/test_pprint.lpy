@@ -283,6 +283,41 @@
    28 
    29)"] (match-ideref v))))))
 
+(defmulti miser-dispatch type)
+
+(defmethod miser-dispatch :default
+  [o]
+  (pr o))
+
+(defmethod miser-dispatch basilisp.lang.interfaces/IPersistentVector
+  [o]
+  (pprint/pprint-logical-block :prefix "[" :suffix "]"
+    (pprint/print-length-loop [binding o]
+      (when (seq binding)
+        (pprint/pprint-logical-block
+         (pprint/write-out (first binding))
+         (when (next binding)
+           (.write *out* " ")
+           (pprint/pprint-newline :miser)
+           (pprint/write-out (second binding))))
+        (when-let [remaining (next (rest binding))]
+          (.write *out* " ")
+          (pprint/pprint-newline :linear)
+          (recur remaining))))))
+
+(deftest pprint-miser-test
+  (binding [pprint/*print-pprint-dispatch* miser-dispatch]
+    (are [res margin] (= res (str/rtrim
+                              (binding [pprint/*print-right-margin* margin]
+                                (with-out-str
+                                  (pprint/pprint [:abcdefghijklmnop [:abcdefghijklmn :a]])))))
+      "[:abcdefghijklmnop 
+ [:abcdefghijklmn 
+  :a]]" 20
+      "[:abcdefghijklmnop 
+ [:abcdefghijklmn :a]]" 25
+      "[:abcdefghijklmnop [:abcdefghijklmn :a]]" 50)))
+
 (deftest pprint-print-level-test
   (are [res plen expr] (= res (str/rtrim
                                (binding [*print-level* plen]

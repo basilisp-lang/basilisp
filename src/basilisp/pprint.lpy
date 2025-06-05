@@ -162,7 +162,7 @@
 
 (deftype Indent [block relative-to offset start end]
   (__repr__ [self]
-    (str [(python/id block) relative-to offset])))
+    (str [:indent (python/id block) relative-to offset])))
 
 (deftype Newline [block kind start end]
   (__repr__ [self]
@@ -284,7 +284,7 @@
                                   max-col     (:max @writer)]
                               (and miser-width
                                    max-col
-                                   (>= (.-start-col (.-block token)) (- max miser-width))
+                                   (>= (.-start-col (.-block token)) (- max-col miser-width))
                                    (emit-linear-nl? token section)))
                  ;; TODO: figure out how to handle these newline types
                  :fill      nil))
