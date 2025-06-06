@@ -85,12 +85,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.9', '3.10']
+        version: ['3.10', '3.11']
         include:
-          - version: '3.9'
-            tox-env: pypy39
           - version: '3.10'
             tox-env: pypy310
+          - version: '3.11'
+            tox-env: pypy311
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

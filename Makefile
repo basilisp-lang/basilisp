@@ -68,6 +68,7 @@ clean:
 pypy-shell:
 	@docker run -it \
 		--mount src=`pwd`,target=/usr/src/app,type=bind \
+		--mount src="${HOME}/.local/share/basilisp",target="/root/.local/share/basilisp",type=bind \
 		--workdir /usr/src/app \
-		pypy:3.10-7.3-slim-buster \
+		pypy:3.10-7.3-slim \
 		/bin/sh -c 'pip install -e . && basilisp repl'
