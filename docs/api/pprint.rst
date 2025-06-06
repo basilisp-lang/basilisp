@@ -8,3 +8,4 @@ basilisp.pprint
 .. autonamespace:: basilisp.pprint
    :members:
    :undoc-members:
+   :exclude-members: LogicalBlock, StartBlock, EndBlock, Blob, Newline, Indent, *current-length*, *current-level*

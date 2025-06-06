@@ -1,8 +1,58 @@
 (ns basilisp.pprint
-  "Basilisp pretty printing functionality.
+  "Basilisp pretty printer
 
-  References:
-  - Tom Faulhaber; `clojure.pprint`
+  Pretty Printing
+  ---------------
+
+  Pretty printing built-in data structures is as easy as a call to :lpy:fn:`pprint`.
+
+  .. code-block::
+
+     (require '[basilisp.pprint :as pprint])
+     (pprint/pprint (range 30))
+
+  The output can be configured using a number of different control variables, which
+  are expressed as dynamic Vars.
+
+  - :lpy:fn:`*print-base*`
+  - :lpy:fn:`*print-miser-width*`
+  - :lpy:fn:`*print-pprint-dispatch*`
+  - :lpy:fn:`*print-radix*`
+  - :lpy:fn:`*print-right-margin*`
+  - :lpy:fn:`*print-sort-keys*`
+  - :lpy:fn:`*print-suppress-namespaces*`
+
+  You can pretty print the last result from the REPL using the :lpy:fn:`pp` convenience
+  macro.
+
+  As an alternative, the :lpy:fn:`write` API enables a more ergonomic API for
+  configuring the printer using keyword arguments rather than dynamic Vars.
+
+  .. code-block::
+
+     (pprint/write (ns-interns 'basilisp.pprint) :sort-keys true)
+     ;; {*current-length* #'basilisp.pprint/*current-length*
+     ;;  ...
+     ;;  write-out #'basilisp.pprint/write-out}
+
+  Custom Pretty Print Dispatch Function
+  -------------------------------------
+
+  TBD
+
+  Unimplemented Features
+  ----------------------
+
+  The following features from ``clojure.pprint`` are not currently implemented:
+
+  - ``:fill`` newlines
+  - ``code-dispatch`` for printing code
+  - ``cl-format``
+
+  References
+  ----------
+
+  - Tom Faulhaber et al.; ``clojure.pprint``
   - Oppen, Derek; \"Prettyprinting\"; October 1980
   - Waters, Richard; \"XP: A Common Lisp Pretty Printing System\"; March 1989"
   (:require
@@ -11,12 +61,10 @@
   (:import fractions
            io
            os
+           platform
            threading))
 
-;; TODO:
-;;  - fill newlines
-
-(declare simple-dispatch code-dispatch write-out)
+(declare simple-dispatch write-out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Dynamic Vars for Configuration ;;
@@ -64,7 +112,9 @@
   72)
 
 (def ^{:doc     "If bound to ``true``, associative collections will be printed in sorted
-                 order by their keys. Default is ``false``."
+                 order by their keys.
+
+                 Default is ``false``."
        :dynamic true}
   *print-sort-keys*
   false)
@@ -113,27 +163,27 @@
        basilisp.lang.interfaces/IDeref
        (deref [self]
          (with [_ lock]
-               @state))
+           @state))
 
        ^:abstract
        ^{:abstract-members #{:flush :write}}
        io/TextIOBase
        (write [self s]
          (with [_ lock]
-               (let [[init final] (.rsplit s os/linesep 1)]
-                 (vswap! state
-                         (fn [{:keys [col line] :as old-state}]
-                           (if final
-                             (let [nlines (count (.splitlines init))]
-                               (-> old-state
-                                   (assoc :col (count final))
-                                   (assoc :line (+ line nlines))))
-                             (update old-state :col + (count init))))))
+           (let [[init final] (.rsplit s os/linesep 1)]
+             (vswap! state
+                     (fn [{:keys [col line] :as old-state}]
+                       (if final
+                         (let [nlines (count (.splitlines init))]
+                           (-> old-state
+                               (assoc :col (count final))
+                               (assoc :line (+ line nlines))))
+                         (update old-state :col + (count init))))))
                (.write writer s)))
 
        (flush [self]
          (with [_ lock]
-               (.flush writer)))
+           (.flush writer)))
 
        (__repr__ [self]
          (str "<ColumnWriter wrapping " (repr writer) ">"))))))
@@ -144,27 +194,27 @@
 
 ;; `indent` may be changed later by an indent token, whereas `start-col` is fixed at
 ;; the point the start block token is encountered in the stream.
-(deftype LogicalBlock [parent prefix per-line-prefix suffix ^:mutable indent ^:mutable start-col ^:mutable force-nl?]
+(deftype ^:private LogicalBlock [parent prefix per-line-prefix suffix ^:mutable indent ^:mutable start-col ^:mutable force-nl?]
   (__repr__ [self]
     (str [(python/id self) (python/repr parent) prefix suffix indent force-nl?])))
 
-(deftype StartBlock [block start end]
+(deftype ^:private StartBlock [block start end]
   (__repr__ [self]
     (str [:start (python/id block)])))
 
-(deftype EndBlock [block start end]
+(deftype ^:private EndBlock [block start end]
   (__repr__ [self]
     (str [:end (python/id block)])))
 
-(deftype Blob [data start end]
+(deftype ^:private Blob [data start end]
   (__repr__ [self]
     data))
 
-(deftype Indent [block relative-to offset start end]
+(deftype ^:private Indent [block relative-to offset start end]
   (__repr__ [self]
     (str [:indent (python/id block) relative-to offset])))
 
-(deftype Newline [block kind start end]
+(deftype ^:private Newline [block kind start end]
   (__repr__ [self]
     (str [kind (python/id block)])))
 
@@ -228,15 +278,23 @@
     (split-queue-with comparator (pop buffer))))
 
 (defprotocol PrettyWriter
+  "Protocol defining a writer type for pretty printing with the XP algorithm."
   (start-block [this prefix per-line-prefix suffix])
   (end-block [this])
   (pp-indent [this relative-to offset])
   (pp-newline [this kind]))
 
 (defn get-pretty-writer
-  "Return a pretty writer instance, which is also an :external:py:class:`io.TextIOBase`.
+  "Return a pretty writer instance which satisfies :lpy:proto:`PrettyWriter` and which
+  is also an :external:py:class:`io.TextIOBase`.
 
-  The current state can be fetched using :lpy:fn:`basilisp.core/deref`."
+  The current state can be fetched using :lpy:fn:`basilisp.core/deref`.
+
+  .. warning:
+
+     When using the pretty writer returned by ``get-pretty-writer`` on PyPy, be sure to
+     call ``(.flush ...)`` on the writer before returning, otherwise the buffer may not
+     be flushed until a later time."
   ([writer]
    (get-pretty-writer writer *print-right-margin*))
   ([writer max-columns]
@@ -371,64 +429,65 @@
        (^:mutable reify
         basilisp.lang.interfaces/IDeref
         (deref [self]
-               (with [_ lock]
-                     @state))
+          (with [_ lock]
+                @state))
 
         ^:abstract
         ^{:abstract-members #{:flush :write}}
         io/TextIOBase
         (write [self s]
-               (with [_ lock]
-                     (if-not (seq (:buffer @state))
-                       (.write writer s)
-                       (do
-                         (let [[old-pos new-pos] (update-pos s)
-                               blob              (Blob s old-pos new-pos)]
-                           (add-to-buffer blob))))
-                     (count s)))
+          (with [_ lock]
+                (if-not (seq (:buffer @state))
+                  (.write writer s)
+                  (do
+                    (let [[old-pos new-pos] (update-pos s)
+                          blob              (Blob s old-pos new-pos)]
+                      (add-to-buffer blob))))
+                (count s)))
 
         (flush [self]
-               (with [_ lock]
-                     (when-let [buf (:buffer @state)]
-                       (write-tokens buf))
-                     (.flush writer)))
+          (with [_ lock]
+                (when-let [buf (:buffer @state)]
+                  (write-tokens buf)
+                  (vswap! state #(assoc % :buffer (queue))))
+                (.flush writer)))
 
         PrettyWriter
         (start-block [self prefix per-line-prefix suffix]
-                     (with [_ lock]
-                           (let [current-block     (:block @state)
-                                 new-block         (LogicalBlock current-block prefix per-line-prefix suffix 0 0 false)
-                                 [old-pos new-pos] (update-pos prefix)
-                                 start-block       (StartBlock new-block old-pos new-pos)]
-                             (vswap! state #(-> %
-                                                (assoc :block new-block)
-                                                (assoc :pos new-pos)))
-                             (add-to-buffer start-block)))
-                     nil)
+          (with [_ lock]
+                (let [current-block     (:block @state)
+                      new-block         (LogicalBlock current-block prefix per-line-prefix suffix 0 0 false)
+                      [old-pos new-pos] (update-pos prefix)
+                      start-block       (StartBlock new-block old-pos new-pos)]
+                  (vswap! state #(-> %
+                                     (assoc :block new-block)
+                                     (assoc :pos new-pos)))
+                  (add-to-buffer start-block)))
+          nil)
 
         (end-block [self]
-                   (with [_ lock]
-                         (let [{:keys [block pos]} @state
-                               suffix              (.-suffix block)
-                               [old-pos new-pos]   (update-pos suffix)
-                               end-block           (EndBlock block pos new-pos)]
-                           (vswap! state #(assoc % :block (.-parent block)))
-                           (add-to-buffer end-block)))
-                   nil)
+          (with [_ lock]
+                (let [{:keys [block pos]} @state
+                      suffix              (.-suffix block)
+                      [old-pos new-pos]   (update-pos suffix)
+                      end-block           (EndBlock block pos new-pos)]
+                  (vswap! state #(assoc % :block (.-parent block)))
+                  (add-to-buffer end-block)))
+          nil)
 
         (pp-indent [self relative-to offset]
-                   (with [_ lock]
-                         (let [{:keys [block pos]} @state
-                               indent              (Indent block relative-to offset pos pos)]
-                           (add-to-buffer indent)))
-                   nil)
+          (with [_ lock]
+                (let [{:keys [block pos]} @state
+                      indent              (Indent block relative-to offset pos pos)]
+                  (add-to-buffer indent)))
+          nil)
 
         (pp-newline [self kind]
-                    (with [_ lock]
-                          (let [{:keys [block pos]} @state
-                                nl                  (Newline block kind pos pos)]
-                            (add-to-buffer nl)))
-                    nil))))))
+          (with [_ lock]
+                (let [{:keys [block pos]} @state
+                      nl                  (Newline block kind pos pos)]
+                  (add-to-buffer nl)))
+          nil))))))
 
 ;;;;;;;;;;;;;
 ;; Helpers ;;
@@ -471,10 +530,11 @@
          (.write *out* "...")))))
 
 (defn pprint-indent
-  "Configure the indent of `offset` characters relative to an anchor at this point
+  "Configure the indent of ``offset`` characters relative to an anchor at this point
   in the pretty print output.
 
   ``relative-to`` must be one of the following keywords:
+
   - ``:current``, meaning that the indent offset is relative to the current column
     when the indent token is encountered
   - ``:block``, meaning that the indent offset is relative to the starting column of
@@ -490,17 +550,34 @@
   "Emit a newline to the output buffer.
 
   ``kind`` must be one of the following keywords:
+
   - ``:linear``, which will be emitted as newlines only if the the logical block
     doesn't fit on one line
   - ``:mandatory``, which the pretty writer will emit in all cases
-  - ``:miser``
-  - ``:fill``"
+  - ``:miser``, which will emit a newline whenever the output column is in the
+    miser region, as configured by :lpy:var:`*print-miser-width*`"
   [kind]
-  (when-not (#{:linear :mandatory :miser :fill} kind)
+  (when-not (#{:linear :mandatory :miser} kind)
     (throw
-     (ex-info "Newline must be one of: :linear, :mandatory, :miser, :fill"
+     (ex-info "Newline must be one of: :linear, :mandatory, :miser"
               {:kind kind})))
   (pp-newline *out* kind))
+
+(defmacro ^:private with-pretty-writer
+  "Flush the pretty printer on PyPy before exiting.
+
+  The writer returned from :lpy:fn:`get-pretty-writer` does not seem to flush
+  correctly when a newline is encountered on PyPy, so this just forces a flush
+  after printing to ensure the full output is written."
+  [bindings & body]
+  (let [[binding writer] bindings]
+    `(let [~binding (get-pretty-writer ~writer)]
+       ~(if (not= "PyPy" (platform/python-implementation))
+          `(do ~@body)
+          `(try
+             ~@body
+             (finally
+               (.flush ~binding)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Simple Dispatch ;;
@@ -587,13 +664,13 @@
   "Print a non-associative collection with the given prefix and suffix strings."
   [prefix suffix coll]
   (pprint-logical-block :prefix prefix :suffix suffix
-                        (print-length-loop [v coll]
-                                           (when (seq v)
-                                             (write-out (first v))
-                                             (when-let [more (seq (rest v))]
-                                               (.write *out* " ")
-                                               (pprint-newline :linear)
-                                               (recur more))))))
+    (print-length-loop [v coll]
+      (when (seq v)
+        (write-out (first v))
+        (when-let [more (seq (rest v))]
+          (.write *out* " ")
+          (pprint-newline :linear)
+          (recur more))))))
 
 (defn ^:private print-map
   "Print an associative collection."
@@ -602,21 +679,21 @@
                (sort-by key obj)
                obj)]
     (pprint-logical-block :prefix prefix :suffix suffix
-                          (print-length-loop [m coll]
-                                             (when (seq m)
-                                               (let [[k v] (first m)]
-                                                 (pprint-logical-block
-                                                  (write-out k)
-                                                  (.write *out* " ")
-                                                  (pprint-newline :linear)
-                                                  ;; set the current length such that we won't print
-                                                  ;; only a key without it's corresponding value
-                                                  (binding [*current-length* (dec *current-length*)]
-                                                    (write-out v)))
-                                                 (when-let [more (seq (rest m))]
-                                                   (.write *out* " ")
-                                                   (pprint-newline :linear)
-                                                   (recur more))))))))
+      (print-length-loop [m coll]
+        (when (seq m)
+          (let [[k v] (first m)]
+            (pprint-logical-block
+             (write-out k)
+             (.write *out* " ")
+             (pprint-newline :linear)
+             ;; set the current length such that we won't print
+             ;; only a key without it's corresponding value
+             (binding [*current-length* (dec *current-length*)]
+               (write-out v)))
+            (when-let [more (seq (rest m))]
+              (.write *out* " ")
+              (pprint-newline :linear)
+              (recur more))))))))
 
 (defn ^:private print-meta
   "Print the metadata associated with an object if it has any metadata and if
@@ -702,15 +779,30 @@
                          (not (realized? obj)))    :not-delivered
                     :else                          @obj)]
     (pprint-logical-block :prefix prefix :suffix ">"
-                          (pprint-indent :block (- (- (count prefix) 2)))
-                          (pprint-newline :linear)
-                          (write-out contents))))
+      (pprint-indent :block (- (- (count prefix) 2)))
+      (pprint-newline :linear)
+      (write-out contents))))
 
 (alter-var-root #'*print-pprint-dispatch* (constantly simple-dispatch))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Pretty Printing Public API ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn set-pprint-dispatch
+  "Set the root value of :lpy:fn:`*print-pprint-dispatch*` to ``function``.
+
+  By default, the root value is :lpy:var:`simple-dispatch`."
+  [function]
+  (alter-var-root #'*print-pprint-dispatch* (constantly function))
+  nil)
+
+(defmacro with-pprint-dispatch
+  "Convenience macro for setting the :lpy:var:`*print-pprint-dispatch*` while executing
+  the body."
+  [function & body]
+  `(binding [*print-pprint-dispatch* ~function]
+     ~@body))
 
 ;; Calls to `write-out` will add object IDs (per `python/id`) to the `*recursion-context*`
 ;; and check that context on recursive calls, allowing for cycle detection in pretty
@@ -748,17 +840,59 @@
     (pr object)))
 
 (defn pprint
-  "Pretty print ``object`` to the given ``writer``.
+  "Pretty print ``object`` to the ``writer`` subject to the bindings of the pretty
+  printing control variables.
 
   If no ``writer`` is given, the value bound to :lpy:var:`basilisp.core/*out*` is
   used."
   ([object]
    (pprint object *out*))
   ([object writer]
-   (binding [*out*          (get-pretty-writer writer)
-             *print-pretty* true]
-     (write-out object)
-     (newline))))
+   (with-pretty-writer [writer writer]
+     (binding [*out*          writer
+               *print-pretty* true]
+       (write-out object)
+       (newline)))))
+
+(def ^:private write-control-map
+  {:base                #'*print-base*
+   :dispatch            #'*print-pprint-dispatch*
+   :length              #'*print-length*
+   :level               #'*print-level*
+   :miser-width         #'*print-miser-width*
+   :pretty              #'*print-pretty*
+   :radix               #'*print-radix*
+   :right-margin        #'*print-right-margin*
+   :sort-keys           #'*print-sort-keys*
+   :suppress-namespaces #'*print-suppress-namespaces*})
+
+(defn write
+  "Pretty print ``object`` as by :lpy:fn:`pprint`, but options may be specified
+  as keyword arguments rather than dynamic Vars.
+
+  The supported keyword arguments are listed below with their corresponding dynamic
+  Var:
+
+  - ``:base`` corresponds to :lpy:var:`*print-base*`
+  - ``:dispatch`` corresponds to :lpy:var:`*print-pprint-dispach*`
+  - ``:length`` corresponds to :lpy:var:`basilisp.core/*print-length*`
+  - ``:level`` corresponds to :lpy:var:`basilisp.core/*print-level*`
+  - ``:pretty`` corresponds to :lpy:var:`*print-pretty*`
+  - ``:radix`` corresponds to :lpy:var:`*print-radix*`
+  - ``:miser-width`` corresponds to :lpy:var:`*print-miser-width*`
+  - ``:right-margin`` corresponds to :lpy:var:`*print-right-margin*`
+  - ``:sort-keys`` corresponds to :lpy:var:`*print-sort-keys`
+  - ``:stream`` corresponds to the ``writer`` argument of :lpy:fn:`pprint`
+  - ``:suppress-namespaces`` corresponds to :lpy:var:`*print-suppress-namespaces*`"
+  [object & {:as opts}]
+  (let [opts-bindings (into {}
+                            (comp (map (fn [[k v]]
+                                         (when-let [vvar (get write-control-map k)]
+                                           [vvar v])))
+                                  (filter identity))
+                            opts)
+        writer        (get opts :stream *out*)]
+    (with-bindings* opts-bindings pprint object writer)))
 
 (defn pp
   "Print the last thing output to the REPL.
