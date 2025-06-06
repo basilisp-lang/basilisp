@@ -216,6 +216,14 @@
 (deftest pprint-var-test
   (is (= "#'basilisp.core/map\n" (with-out-str (pprint/pprint #'map)))))
 
+(defrecord Point [x y z])
+
+(deftest pprint-record-test
+  (is (= "#Point{:x 1 :y 2 :z 3}\n"
+         (with-out-str
+           (binding [pprint/*print-sort-keys* true]
+             (pprint/pprint (->Point 1 2 3)))))))
+
 (deftest pprint-ideref-test
   (testing "delay"
     (let [d (delay :delayed)]

@@ -673,6 +673,14 @@
   (print-meta obj)
   (print-map "{" "}" obj))
 
+(defmethod simple-dispatch basilisp.lang.interfaces/IRecord
+  [obj]
+  (print-meta obj)
+  (let [prefix (str "#" (.-__qualname__ (python/type obj)) "{")]
+    (print-map prefix "}" (into {} obj))))
+
+(prefer-method simple-dispatch basilisp.lang.interfaces/IRecord basilisp.lang.interfaces/IPersistentMap)
+
 (defmethod simple-dispatch python/dict
   [obj]
   (print-map "#py {" "}" (.items obj)))
