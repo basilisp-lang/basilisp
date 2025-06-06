@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Optimised mainstream seq-consuming functions by coercing their inputs into `seq` upfront (#1234)
  * Renamed `awith` and `afor` to `with-async` and `for-async` for improved clarity (#1248)
  * `basilisp.main.init` will only initialize the runtime environment on the first invocation (#1242)
- * Updated support for PyPy to 3.9 and 3.10 (#????)
+ * Updated support for PyPy to 3.9 and 3.10 (#1265)
 
 ### Fixed
  * Fix a bug where protocols with methods with leading hyphens in the could not be defined (#1230)
