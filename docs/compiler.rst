@@ -40,7 +40,6 @@ The following settings enable and disable warnings from the Basilisp compiler du
   * Environment Variable: ``BASILISP_WARN_ON_ARITY_MISMATCH``
   * Default: ``true``
 
-
 * ``warn-on-shadowed-name`` - if ``true``, emit warnings if a local name is shadowed by another local name
 
   * Environment Variable: ``BASILISP_WARN_ON_SHADOWED_NAME``
