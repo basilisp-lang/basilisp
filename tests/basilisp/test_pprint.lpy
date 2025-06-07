@@ -10,7 +10,7 @@
 (defn trim-and-replace-newlines
   [s]
   (-> (str/trim s)
-      (str/replace "\n" os/linesep)))
+      (str/replace "\r\n" "\n")))
 
 (deftest column-writer-test
   (let [write (fn [s]

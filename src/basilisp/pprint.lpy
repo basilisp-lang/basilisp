@@ -16,6 +16,7 @@
 
   - :lpy:fn:`*print-base*`
   - :lpy:fn:`*print-miser-width*`
+  - :lpy:fn:`*print-pretty*`
   - :lpy:fn:`*print-pprint-dispatch*`
   - :lpy:fn:`*print-radix*`
   - :lpy:fn:`*print-right-margin*`
