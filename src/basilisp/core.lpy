@@ -2589,7 +2589,7 @@
   ([]
    (iterate inc 0))
   ([end]
-   (lazy-seq (cons 0 (range 1 end))))
+   (range 0 end))
   ([start end]
    (lazy-seq
     (when (< start end)

@@ -14,7 +14,9 @@
 ;; Dynamic Vars for Configuration ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def ^{:doc     "The base used for printing integer literals and rationals. Default is 10."
+(def ^{:doc     "The base used for printing integer literals and rationals.
+
+                 Default is 10."
        :dynamic true}
   *print-base*
   10)
@@ -37,6 +39,7 @@
   nil)
 
 (def ^{:doc     "If bound to ``true``, calls to :lpy:fn:`write` will use pretty printing.
+
                  Default is ``false``, but :lpy:fn:`pprint` binds the value to ``true``."
        :dynamic true}
   *print-pretty*
@@ -45,12 +48,16 @@
 (def ^{:doc     "If bound to ``true``, integers and rationals will be printed with a radix
                  prefix. For bases 2, 8, and 16 the prefix will be ``#b``, ``#o`` and ``#x``
                  respectively. All other bases will be specified as ``#XXr`` where ``XX`` is
-                 the decimal value of :lpy:var:`*print-base*`."
+                 the decimal value of :lpy:var:`*print-base*`.
+
+                 Default is ``false``."
        :dynamic true}
   *print-radix*
   false)
 
-(def ^{:doc     "The soft upper limit for the length of the right margin. Default is 72."
+(def ^{:doc     "The soft upper limit for the length of the right margin.
+
+                 Default is 72."
        :dynamic true}
   *print-right-margin*
   72)
@@ -222,7 +229,15 @@
     (split-queue-with comparator (pop buffer))))
 
 (defprotocol PrettyWriter
-  "Protocol defining a writer type for pretty printing with the XP algorithm."
+  "Protocol defining a writer type for pretty printing with the XP algorithm.
+
+  Callers should generally not be calling ``PrettyWriter`` protocol methods directly,
+  but should instead call the other helper functions and macros directly.
+
+  .. seealso::
+
+     :lpy:fn:`pprint-logical-block`, :lpy:fn:`print-length-loop`,
+     :lpy:fn:`pprint-newline`, :lpy:fn:`pprint-indent`"
   (start-block [this prefix per-line-prefix suffix])
   (end-block [this])
   (pp-indent [this relative-to offset])
@@ -287,9 +302,7 @@
                               (and miser-width
                                    max-col
                                    (>= (.-start-col (.-block token)) (- max-col miser-width))
-                                   (emit-linear-nl? token section)))
-                 ;; TODO: figure out how to handle these newline types
-                 :fill      nil))
+                                   (emit-linear-nl? token section)))))
 
              ;; Generate the newline and subsequent indent from a newline token token.
              (gen-nl [token]
