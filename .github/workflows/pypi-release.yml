@@ -9,6 +9,7 @@ concurrency:
 
 jobs:
   build:
+    name: Build the distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,10 +28,40 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  release:
+  github-release:
     runs-on: ubuntu-latest
     environment:
       name: release
+    name: >-
+      Sign the Python distribution with Sigstore and upload them to GitHub Release
+    needs:
+      - build
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        path: dist/
+    - name: Sign the dists with Sigstore
+      uses: sigstore/gh-action-sigstore-python@v3.0.0
+      with:
+        inputs: >-
+          ./dist/*.tar.gz
+          ./dist/*.whl
+    - name: Upload artifact signatures to GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: gh release upload "$GITHUB_REF_NAME" dist/** --repo "$GITHUB_REPOSITORY"
+
+  pypi-release:
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    name: Release to PyPI
     needs:
       - build
     permissions:
