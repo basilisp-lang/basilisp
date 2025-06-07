@@ -7,6 +7,11 @@
            os
            textwrap))
 
+(defn trim-and-replace-newlines
+  [s]
+  (-> (str/trim s)
+      (str/replace "\n" os/linesep)))
+
 (deftest column-writer-test
   (let [write (fn [s]
                 (with [buf (io/StringIO)]
@@ -14,13 +19,15 @@
                         (.write writer s)
                         (select-keys @writer [:col :line]))) )]
     (is (= {:line 0 :col 5} (write "hello")))
-    (is (= {:line 1 :col 15} (write "hello\nthere my friend")))
-    (is (= {:line 2 :col 0} (write "hello\nthere my friend\n")))
+    (is (= {:line 1 :col 15} (write (str "hello" os/linesep "there my friend"))))
+    (is (= {:line 2 :col 0} (write (str "hello" os/linesep "there my friend" os/linesep))))
     (is (= {:line 0 :col 0} (write "")))))
 
 (deftest pprint-test
   (testing "scalars"
-    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
       "nil"          nil
       "true"         true
       "false"        false
@@ -41,7 +48,9 @@
       "long.ns/sym"  'long.ns/sym))
 
   (testing "collections"
-    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
       "{}"     {}
       "{:a 1}" {:a 1}
 
@@ -64,7 +73,9 @@
       "#{:a}" #{:a}))
 
   (testing "python collections"
-    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
       "#py {}"     (python/dict)
       "#py {:a 1}" (python/dict {:a 1})
 
@@ -80,7 +91,9 @@
       "#py #{:a}" (python/set [:a])))
 
   (testing "large collections"
-    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
       "[(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19) 
  (21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39) 
  :a 
@@ -135,7 +148,7 @@
               ["abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc"])))))
 
   (testing "printing meta"
-    (are [res expr] (= res (str/rtrim
+    (are [res expr] (= res (trim-and-replace-newlines
                             (binding [*print-meta* true]
                               (with-out-str (pprint/pprint expr)))))
       "[]"                []
@@ -158,7 +171,7 @@
   (let [long-map (into {} (map #(vector (keyword (python/chr %1)) %2)
                                (range (python/ord "a") (python/ord "z"))
                                (range)))]
-    (are [res len expr] (= res (str/rtrim
+    (are [res len expr] (= res (trim-and-replace-newlines
                                 (binding [pprint/*print-sort-keys* true
                                           *print-length*           len]
                                   (with-out-str
@@ -183,7 +196,7 @@
  ...}"     15 long-map)))
 
 (deftest pprint-base-and-radix-test
-  (are [res base expr] (= res (str/rtrim
+  (are [res base expr] (= res (trim-and-replace-newlines
                                (binding [pprint/*print-radix* true
                                          pprint/*print-base*  base]
                                  (with-out-str
@@ -208,21 +221,25 @@
     "#18r1"  18 1
     "#18r27" 18 43))
 
-(defn ^:private match-ideref
-  [v]
-  (let [s (with-out-str (pprint/pprint v))]
-    (drop 1 (re-matches #"#<(\w+)@0x[0-9a-f]+: ([^>]+)>\r?\n" s))))
-
 (deftest pprint-var-test
-  (is (= "#'basilisp.core/map\n" (with-out-str (pprint/pprint #'map)))))
+  (is (= "#'basilisp.core/map"
+         (str/rtrim
+          (with-out-str
+            (pprint/pprint #'map))))))
 
 (defrecord Point [x y z])
 
 (deftest pprint-record-test
-  (is (= "#Point{:x 1 :y 2 :z 3}\n"
-         (with-out-str
-           (binding [pprint/*print-sort-keys* true]
-             (pprint/pprint (->Point 1 2 3)))))))
+  (is (= "#Point{:x 1 :y 2 :z 3}"
+         (str/rtrim
+          (with-out-str
+            (binding [pprint/*print-sort-keys* true]
+              (pprint/pprint (->Point 1 2 3))))))))
+
+(defn ^:private match-ideref
+  [v]
+  (let [s (trim-and-replace-newlines (with-out-str (pprint/pprint v)))]
+    (drop 1 (re-matches #"#<(\w+)@0x[0-9a-f]+: ([^>]+)>" s))))
 
 (deftest pprint-ideref-test
   (testing "delay"
@@ -315,7 +332,7 @@
 
 (deftest pprint-miser-test
   (binding [pprint/*print-pprint-dispatch* miser-dispatch]
-    (are [res margin] (= res (str/rtrim
+    (are [res margin] (= res (trim-and-replace-newlines
                               (binding [pprint/*print-right-margin* margin]
                                 (with-out-str
                                   (pprint/pprint [:abcdefghijklmnop [:abcdefghijklmn :a]])))))
@@ -327,7 +344,7 @@
       "[:abcdefghijklmnop [:abcdefghijklmn :a]]" 50)))
 
 (deftest pprint-print-level-test
-  (are [res plen expr] (= res (str/rtrim
+  (are [res plen expr] (= res (trim-and-replace-newlines
                                (binding [*print-level* plen]
                                  (with-out-str
                                    (pprint/pprint expr)))))
@@ -337,7 +354,7 @@
     "[[:a :b :c] [#]]" 2 [[:a :b :c] [[]]]))
 
 (deftest pprint-print-length-test
-  (are [res plen expr] (= res (str/rtrim
+  (are [res plen expr] (= res (trim-and-replace-newlines
                                (binding [*print-length* plen]
                                  (with-out-str
                                    (pprint/pprint expr)))))
