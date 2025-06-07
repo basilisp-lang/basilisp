@@ -2,7 +2,7 @@ name: Release to Test PyPI
 
 on:
   push:
-    branches: [ main, "feature/publish-artifacts-to-release" ]
+    branches: [ main ]
 
 concurrency:
   group: test-pypi-release
