@@ -142,7 +142,7 @@
       (vector (range 20) (range 21 40) :a :b :c (range 41 80) (range 81 100))))
 
   (testing "printing collections with long elements"
-    (is (= "[\"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc\"]\n"
+    (is (= (str "[\"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc\"]" os/linesep)
            (with-out-str
              (pprint/pprint
               ["abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc"])))))
