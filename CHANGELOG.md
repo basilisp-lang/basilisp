@@ -13,9 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for f-strings (#922)
  * Added the `aslice` macro to facilitate the use of Python style `array[start:stop:step]` slicing in Basilisp (#1248)
  * Added the `IPending` interface which is implemented by delays, futures, and promises (#1260)
+ * Added the `basilisp.pprint` namespace (#513)
 
 ### Changed
- * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to expliciltly handle them (#1192)
+ * Removed implicit support for single-use iterables in sequences, and introduced `iterator-seq` to explicitly handle them (#1192)
  * `basilisp.core/str` now delegates to the builtin Python `str` in all cases except for customizing the string output for builtin Python types (#1237)
  * Optimised mainstream seq-consuming functions by coercing their inputs into `seq` upfront (#1234)
  * Renamed `awith` and `afor` to `with-async` and `for-async` for improved clarity (#1248)
@@ -23,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Updated support for PyPy to 3.9 and 3.10 (#1265)
 
 ### Fixed
- * Fix a bug where protocols with methods with leading hyphens in the could not be defined (#1230)
+ * Fix a bug where protocols with methods with leading hyphens in method names could not be defined (#1230)
  * Fix a bug where attempting to `:refer` a non-existent Var from another namespace would throw an unhelpful exception (#1231)
+ * Fixed a bug where `(range 0)` would return `(0)` rather than than `()` as expected (#1258)
 
 ## [v0.3.8]
 ### Added

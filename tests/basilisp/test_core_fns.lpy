@@ -808,6 +808,7 @@
     (is (= '(0 1 2 3 4) (take 5 (range)))))
 
   (testing "1-arity"
+    (is (= '() (range 0)))
     (is (= '(0 1 2) (take 5 (range 3))))
     (is (= '(0 1 2) (range 3)))
     (is (= '(0 1 2 3 4) (take 5 (range 10)))))

@@ -3,7 +3,399 @@
    [basilisp.pprint :as pprint]
    [basilisp.string :as str]
    [basilisp.test :refer [deftest are is testing]])
-  (:import os textwrap))
+  (:import io
+           os
+           textwrap))
+
+(defn trim-and-replace-newlines
+  [s]
+  (-> (str/trim s)
+      (str/replace "\r\n" "\n")))
+
+(deftest column-writer-test
+  (let [write (fn [s]
+                (with [buf (io/StringIO)]
+                      (let [writer (@#'pprint/get-column-writer buf)]
+                        (.write writer s)
+                        (select-keys @writer [:col :line]))) )]
+    (is (= {:line 0 :col 5} (write "hello")))
+    (is (= {:line 1 :col 15} (write (str "hello" os/linesep "there my friend"))))
+    (is (= {:line 2 :col 0} (write (str "hello" os/linesep "there my friend" os/linesep))))
+    (is (= {:line 0 :col 0} (write "")))))
+
+(deftest pprint-test
+  (testing "scalars"
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
+      "nil"          nil
+      "true"         true
+      "false"        false
+      "0"            0
+      "-1.0"         -1.0
+      "0.0"          0.0
+      "1.0"          1.0
+      "1"            1
+      "-1"           -1
+      "22/7"         22/7
+      "\"\""         ""
+      "\"a string\"" "a string"
+      ":kw"          :kw
+      ":ns/kw"       :ns/kw
+      ":long.ns/kw"  :long.ns/kw
+      "sym"          'sym
+      "ns/sym"       'ns/sym
+      "long.ns/sym"  'long.ns/sym))
+
+  (testing "collections"
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
+      "{}"     {}
+      "{:a 1}" {:a 1}
+
+      "()"     '()
+      "(:a)"   '(:a)
+      "(:a 1)" '(:a 1)
+
+      "#queue ()"     (queue)
+      "#queue (:a)"   (queue [:a])
+      "#queue (:a 1)" (queue [:a 1])
+
+      "(:a)"   (seq [:a])
+      "(:a 1)" (seq [:a 1])
+
+      "[]"     []
+      "[:a]"   [:a]
+      "[:a 1]" [:a 1]
+
+      "#{}"   #{}
+      "#{:a}" #{:a}))
+
+  (testing "python collections"
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
+      "#py {}"     (python/dict)
+      "#py {:a 1}" (python/dict {:a 1})
+
+      "#py ()"     (python/tuple)
+      "#py (:a)"   (python/tuple [:a])
+      "#py (:a 1)" (python/tuple [:a 1])
+
+      "#py []"     (python/list)
+      "#py [:a]"   (python/list [:a])
+      "#py [:a 1]" (python/list [:a 1])
+
+      "#py #{}"   (python/set)
+      "#py #{:a}" (python/set [:a])))
+
+  (testing "large collections"
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (with-out-str
+                              (pprint/pprint expr))))
+      "[(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19) 
+ (21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39) 
+ :a 
+ :b 
+ :c 
+ (41 
+  42 
+  43 
+  44 
+  45 
+  46 
+  47 
+  48 
+  49 
+  50 
+  51 
+  52 
+  53 
+  54 
+  55 
+  56 
+  57 
+  58 
+  59 
+  60 
+  61 
+  62 
+  63 
+  64 
+  65 
+  66 
+  67 
+  68 
+  69 
+  70 
+  71 
+  72 
+  73 
+  74 
+  75 
+  76 
+  77 
+  78 
+  79) 
+ (81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99)]"
+      (vector (range 20) (range 21 40) :a :b :c (range 41 80) (range 81 100))))
+
+  (testing "printing collections with long elements"
+    (is (= (str "[\"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc\"]" os/linesep)
+           (with-out-str
+             (pprint/pprint
+              ["abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc"])))))
+
+  (testing "printing meta"
+    (are [res expr] (= res (trim-and-replace-newlines
+                            (binding [*print-meta* true]
+                              (with-out-str (pprint/pprint expr)))))
+      "[]"                []
+      "^{:a 1} []"        ^{:a 1} []
+      "^{:a true} [:a 1]" ^:a [:a 1]
+
+      "()"            '()
+      "^{:a 1} ()"    '^{:a 1} ()
+      "^{:a true} ()" '^:a     ()
+
+      "{}"                {}
+      "^{:b 2} {:a 1}"    ^{:b 2} {:a 1}
+      "^{:b true} {:a 1}" ^:b {:a 1}
+
+      "#{}"              #{}
+      "^{:a 1} #{:a}"    ^{:a 1} #{:a}
+      "^{:a true} #{:a}" ^:a #{:a})))
+
+(deftest pprint-print-associative-test
+  (let [long-map (into {} (map #(vector (keyword (python/chr %1)) %2)
+                               (range (python/ord "a") (python/ord "z"))
+                               (range)))]
+    (are [res len expr] (= res (trim-and-replace-newlines
+                                (binding [pprint/*print-sort-keys* true
+                                          *print-length*           len]
+                                  (with-out-str
+                                    (pprint/pprint expr)))))
+      "{...}"      0  long-map
+      "{:a 0 ...}" 1  long-map
+      "{:a 0 
+ :b 1 
+ :c 2 
+ :d 3 
+ :e 4 
+ :f 5 
+ :g 6 
+ :h 7 
+ :i 8 
+ :j 9 
+ :k 10 
+ :l 11 
+ :m 12 
+ :n 13 
+ :o 14 
+ ...}"     15 long-map)))
+
+(deftest pprint-base-and-radix-test
+  (are [res base expr] (= res (trim-and-replace-newlines
+                               (binding [pprint/*print-radix* true
+                                         pprint/*print-base*  base]
+                                 (with-out-str
+                                   (pprint/pprint expr)))))
+    "0"  10 0
+    "1"  10 1
+    "-1" 10 -1
+
+    "#b0"  2 0
+    "#b1"  2 1
+    "#b10" 2 2
+
+    "#o0"  8 0
+    "#o1"  8 1
+    "#o14" 8 12
+
+    "#x0"  16 0
+    "#x1"  16 1
+    "#x1b" 16 27
+
+    "#18r0"  18 0
+    "#18r1"  18 1
+    "#18r27" 18 43))
+
+(deftest pprint-var-test
+  (is (= "#'basilisp.core/map"
+         (str/rtrim
+          (with-out-str
+            (pprint/pprint #'map))))))
+
+(defrecord Point [x y z])
+
+(deftest pprint-record-test
+  (is (= "#Point{:x 1 :y 2 :z 3}"
+         (str/rtrim
+          (with-out-str
+            (binding [pprint/*print-sort-keys* true]
+              (pprint/pprint (->Point 1 2 3))))))))
+
+(defn ^:private match-ideref
+  [v]
+  (let [s (trim-and-replace-newlines (with-out-str (pprint/pprint v)))]
+    (drop 1 (re-matches #"#<(\w+)@0x[0-9a-f]+: ([^>]+)>" s))))
+
+(deftest pprint-ideref-test
+  (testing "delay"
+    (let [d (delay :delayed)]
+      (is (= ["Delay" ":not-delivered"] (match-ideref d)))
+      @d
+      (is (= ["Delay" ":delayed"] (match-ideref d)))))
+
+  (testing "future"
+    (let [p (promise)
+          f (future
+              @p
+              1)]
+      (is (= ["Future" ":pending"] (match-ideref f)))
+      (deliver p :anything)
+      @f
+      (is (= ["Future" "1"] (match-ideref f)))))
+
+  (testing "promise"
+    (let [p (promise)]
+      (is (= ["Promise" ":not-delivered"] (match-ideref p)))
+      (deliver p :delivered)
+      (is (= ["Promise" ":delivered"] (match-ideref p)))))
+
+  (testing "volatile"
+    (let [v (volatile! nil)]
+      (is (= ["Volatile" "nil"] (match-ideref v)))
+      (vreset! v :not-nil)
+      (is (= ["Volatile" ":not-nil"] (match-ideref v)))))
+
+  (testing "long values"
+    (let [v (volatile! (range 5))]
+      (is (= ["Volatile" "(0 1 2 3 4)"] (match-ideref v)))
+      (vreset! v (range 25))
+      (is (= ["Volatile" "\n  (0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24)"] (match-ideref v)))
+      (vreset! v (range 30))
+      (is (= ["Volatile" "
+  (0 
+   1 
+   2 
+   3 
+   4 
+   5 
+   6 
+   7 
+   8 
+   9 
+   10 
+   11 
+   12 
+   13 
+   14 
+   15 
+   16 
+   17 
+   18 
+   19 
+   20 
+   21 
+   22 
+   23 
+   24 
+   25 
+   26 
+   27 
+   28 
+   29)"] (match-ideref v))))))
+
+(defmulti miser-dispatch type)
+
+(defmethod miser-dispatch :default
+  [o]
+  (pr o))
+
+(defmethod miser-dispatch basilisp.lang.interfaces/IPersistentVector
+  [o]
+  (pprint/pprint-logical-block :prefix "[" :suffix "]"
+    (pprint/print-length-loop [binding o]
+      (when (seq binding)
+        (pprint/pprint-logical-block
+         (pprint/write-out (first binding))
+         (when (next binding)
+           (.write *out* " ")
+           (pprint/pprint-newline :miser)
+           (pprint/write-out (second binding))))
+        (when-let [remaining (next (rest binding))]
+          (.write *out* " ")
+          (pprint/pprint-newline :linear)
+          (recur remaining))))))
+
+(deftest pprint-miser-test
+  (binding [pprint/*print-pprint-dispatch* miser-dispatch]
+    (are [res margin] (= res (trim-and-replace-newlines
+                              (binding [pprint/*print-right-margin* margin]
+                                (with-out-str
+                                  (pprint/pprint [:abcdefghijklmnop [:abcdefghijklmn :a]])))))
+      "[:abcdefghijklmnop 
+ [:abcdefghijklmn 
+  :a]]" 20
+      "[:abcdefghijklmnop 
+ [:abcdefghijklmn :a]]" 25
+      "[:abcdefghijklmnop [:abcdefghijklmn :a]]" 50)))
+
+(deftest pprint-print-level-test
+  (are [res plen expr] (= res (trim-and-replace-newlines
+                               (binding [*print-level* plen]
+                                 (with-out-str
+                                   (pprint/pprint expr)))))
+    "#"                0 []
+    "[#]"              1 [[]]
+    "[[#]]"            2 [[[]]]
+    "[[:a :b :c] [#]]" 2 [[:a :b :c] [[]]]))
+
+(deftest pprint-print-length-test
+  (are [res plen expr] (= res (trim-and-replace-newlines
+                               (binding [*print-length* plen]
+                                 (with-out-str
+                                   (pprint/pprint expr)))))
+    "(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 ...)" 20 (range 50)
+    "((0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ (0 1 2 3 4 ...) 
+ ...)"
+    5
+    (repeat 10 (range 10))))
+
+(deftest pprint-recursion-check
+  (let [a (atom [])
+        b (atom {:a a})]
+    (swap! a conj b)
+    (let [s  (with-out-str
+               (pprint/pprint a))]
+      (is (not (nil? (re-find #"<Recursion on Atom with id=0x[0-9a-f]+>" s)))))))
+
+(deftest pprint-suppress-namespaces-test
+  (testing "no supression"
+    (are [res expr] (= res (str/rtrim (with-out-str (pprint/pprint expr))))
+      ":kw"         :kw
+      ":ns/kw"      :ns/kw
+      ":long.ns/kw" :long.ns/kw
+      "sym"         'sym
+      "ns/sym"      'ns/sym
+      "long.ns/sym" 'long.ns/sym))
+
+  (testing "with suppression"
+    (are [res expr] (= res (binding [pprint/*print-suppress-namespaces* true]
+                             (str/rtrim
+                              (with-out-str (pprint/pprint expr)))))
+      ":kw"         :kw
+      ":ns/kw"      :ns/kw
+      ":long.ns/kw" :long.ns/kw
+      "sym"         'sym
+      "sym"         'ns/sym
+      "sym"         'long.ns/sym)))
 
 (defn trim-newlines-and-dedent
   [s]

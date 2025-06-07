@@ -22,7 +22,7 @@ In day-to-day usage, you will not typically need to use these interfaces, but th
    .. automethod:: _lrepr
    .. automethod:: lrepr
 
-.. lpy:currentns::  basilisp.core
+.. lpy:currentns:: basilisp.core
 
 .. automodule:: basilisp.lang.interfaces
    :members:
