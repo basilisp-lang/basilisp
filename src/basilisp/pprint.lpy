@@ -236,8 +236,8 @@
 
   .. seealso::
 
-     :lpy:fn:`pprint-logical-block`, :lpy:fn:`print-length-loop`,
-     :lpy:fn:`pprint-newline`, :lpy:fn:`pprint-indent`"
+     :ref:`pretty_printing_concepts`, :lpy:fn:`pprint-logical-block`,
+     :lpy:fn:`print-length-loop`, :lpy:fn:`pprint-newline`, :lpy:fn:`pprint-indent`"
   (start-block [this prefix per-line-prefix suffix])
   (end-block [this])
   (pp-indent [this relative-to offset])
