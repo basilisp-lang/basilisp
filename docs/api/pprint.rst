@@ -104,7 +104,7 @@ The following features from ``clojure.pprint`` are not currently implemented:
 References
 ----------
 
-- Tom Faulhaber et al.; ``clojure.pprint``
+- Tom Faulhaber et al.; ``clojure.pprint`` (`API <https://clojure.github.io/clojure/clojure.pprint-api.html>`_, `Documentation <https://clojure.github.io/clojure/doc/clojure/pprint/PrettyPrinting.html>`_)
 - Oppen, Derek; \"Prettyprinting\"; October 1980
 - Waters, Richard; \"XP: A Common Lisp Pretty Printing System\"; March 1989
 
