@@ -1,0 +1,49 @@
+name: Release to Test PyPI
+
+on:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: test-pypi-release
+
+jobs:
+  build:
+    name: Build the distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ vars.PYTHON_VERSION }}
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Build Basilisp distributions
+        run: poetry build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist/
+          if-no-files-found: error
+
+  test-pypi-release:
+    runs-on: ubuntu-latest
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/p/basilisp
+    name: Release to Test PyPI
+    needs:
+      - build
+    permissions:
+      id-token: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.12.4
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
