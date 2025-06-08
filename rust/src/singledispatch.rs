@@ -1,84 +1,23 @@
+use crate::utils::mro::{compose_mro, get_obj_mro};
 use crate::utils::typeref::PyTypeReference;
+use crate::utils::typing::TypingModule;
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError};
-use pyo3::prelude::{PyAnyMethods, PyTupleMethods};
-use pyo3::sync::GILOnceCell;
+use pyo3::prelude::*;
+
+use crate::utils::builtins::Builtins;
 use pyo3::types::{PyDict, PyTuple, PyType};
-use pyo3::{
-    pyclass, pyfunction, pymethods, Bound, IntoPy, Py, PyAny, PyObject, PyResult, Python,
-    ToPyObject,
-};
+use pyo3::{pyclass, pyfunction, pymethods, Bound, IntoPyObjectExt, Py, PyAny, PyObject, PyResult, Python};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-static PY_OBJECT_TYPE: GILOnceCell<PyObject> = GILOnceCell::new();
-
-fn get_py_object_type(py: Python) -> &PyObject {
-    PY_OBJECT_TYPE.get_or_init(py, || {
-        py.import_bound("builtins")
-            .unwrap()
-            .getattr("object")
-            .unwrap()
-            .to_object(py)
-    })
-}
-
 fn get_abc_cache_token(py: Python) -> Bound<'_, PyAny> {
-    py.import_bound("abc")
+    py.import("abc")
         .unwrap()
         .getattr("get_cache_token")
         .unwrap()
         .call0()
         .unwrap()
-}
-
-struct TypingModule {
-    get_origin: PyObject,
-    get_args: PyObject,
-    union_types: Vec<PyTypeReference>,
-}
-
-static TYPING_MODULE: GILOnceCell<TypingModule> = GILOnceCell::new();
-
-impl TypingModule {
-    fn new(py: Python) -> Self {
-        let typing_module = py.import_bound("typing").unwrap();
-        let types_module = py.import_bound("types").unwrap();
-        let mut union_types = Vec::with_capacity(2);
-        union_types.extend([
-            PyTypeReference::new(typing_module.getattr("Union").unwrap().to_object(py)),
-            PyTypeReference::new(types_module.getattr("UnionType").unwrap().to_object(py)),
-        ]);
-
-        TypingModule {
-            get_args: typing_module.getattr("get_args").unwrap().to_object(py),
-            get_origin: typing_module.getattr("get_origin").unwrap().to_object(py),
-            union_types,
-        }
-    }
-
-    fn cached(py: Python) -> &Self {
-        TYPING_MODULE.get_or_init(py, || TypingModule::new(py))
-    }
-
-    fn get_args(&self, py: Python, cls: &Bound<'_, PyAny>) -> PyResult<Py<PyTuple>> {
-        match self.get_args.call1(py, PyTuple::new_bound(py, [cls])) {
-            Ok(maybe_args) => match maybe_args.downcast_bound::<PyTuple>(py) {
-                Ok(args) => Ok(args.clone().unbind().clone_ref(py)),
-                Err(_) => Err(PyTypeError::new_err("Expected tuple return value")),
-            },
-            Err(e) => Err(e),
-        }
-    }
-
-    fn get_origin(&self, py: Python, cls: &Bound<'_, PyAny>) -> PyResult<PyObject> {
-        self.get_origin.call1(py, PyTuple::new_bound(py, [cls]))
-    }
-
-    fn is_union_type(&self, py: Python, cls: &Bound<'_, PyAny>) -> bool {
-        let origin_type_reference = PyTypeReference::new(cls.into_py(py));
-        self.union_types.contains(&origin_type_reference)
-    }
 }
 
 fn valid_dispatch_types(py: Python, cls: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyType>>> {
@@ -131,27 +70,46 @@ struct SingleDispatchState {
 }
 
 impl SingleDispatchState {
-    fn find_impl(&mut self, py: Python) -> PyResult<PyObject> {
-        let py_object_type = get_py_object_type(py);
-        let default_handler = self
-            .registry
-            .get(&PyTypeReference::new(py_object_type.clone_ref(py)));
-        assert!(default_handler.is_some());
-        Ok(default_handler.unwrap().clone_ref(py))
+    fn find_impl(&mut self, py: Python, cls: Bound<'_, PyAny>) -> PyResult<PyObject> {
+        let cls_mro = get_obj_mro(&cls.clone()).unwrap();
+        let mro = compose_mro(py, cls.clone(), self.registry.keys())?;
+        let mut mro_match: Option<PyTypeReference> = None;
+        for typ in mro.iter() {
+            if self.registry.contains_key(typ) {
+                mro_match = Some(typ.clone_ref(py));
+            }
+
+            if mro_match.is_some() {
+                let m = &mro_match.unwrap().clone_ref(py);
+                if self.registry.contains_key(typ)
+                    && !cls_mro.contains(typ)
+                    && !cls_mro.contains(m)
+                    && Builtins::cached(py).issubclass(py, m.wrapped().bind(py), typ.wrapped().bind(py)).is_ok_and(|res| res) {
+                    return Err(PyRuntimeError::new_err(format!("Ambiguous dispatch: {m} or {typ}")))
+                }
+                mro_match = Some(m.clone_ref(py));
+                break;
+            }
+        }
+        match mro_match {
+            Some(_) => match self.registry.get(&mro_match.unwrap()) {
+                Some(&ref it) => Ok(it.clone_ref(py)),
+                None => Ok(py.None()),
+            },
+            None => Ok(py.None()),
+        }
     }
 
     fn get_or_find_impl(&mut self, py: Python, cls: Bound<'_, PyAny>) -> PyResult<PyObject> {
-        let type_reference = PyTypeReference::new(cls.unbind());
+        let free_cls = cls.unbind();
+        let type_reference = PyTypeReference::new(free_cls.clone_ref(py));
 
         match self.cache.get(&type_reference) {
             Some(handler) => Ok(handler.clone_ref(py)),
             None => {
                 let handler_for_cls = match self.registry.get(&type_reference) {
                     Some(handler) => handler.clone_ref(py),
-                    None => match self.find_impl(py) {
-                        Ok(handler) => handler,
-                        Err(_) => return Err(PyRuntimeError::new_err("Something bad happened!")),
-                    },
+                    None => self.find_impl(py, free_cls.bind(py).clone())?,
                 };
                 self.cache
                     .insert(type_reference, handler_for_cls.clone_ref(py));
@@ -191,7 +149,7 @@ impl SingleDispatch {
                     }
                 } else {
                     state.registry.insert(
-                        PyTypeReference::new(cls.into_py(py)),
+                        PyTypeReference::new(cls.into_pyobject(py)?.unbind()),
                         unbound_func.clone_ref(py),
                     );
                 }
@@ -227,7 +185,7 @@ impl SingleDispatch {
     #[new]
     fn __new__<'py>(py: Python, func: Bound<'py, PyAny>) -> Self {
         let mut registry = HashMap::new();
-        let py_object_type = get_py_object_type(py).clone_ref(py);
+        let py_object_type = Builtins::cached(py).object_type.clone_ref(py);
         let f = func.unbind();
         registry.insert(PyTypeReference::new(py_object_type), f);
 
@@ -255,7 +213,7 @@ impl SingleDispatch {
                 all_args.extend(args);
 
                 match self.dispatch(py, cls) {
-                    Ok(handler) => handler.call_bound(py, PyTuple::new_bound(py, all_args), kwargs),
+                    Ok(handler) => handler.call(py, PyTuple::new(py, all_args)?, kwargs),
                     Err(_) => panic!("no handler for singledispatch"),
                 }
             }
@@ -297,9 +255,10 @@ impl SingleDispatch {
         if is_valid_dispatch_type(py, &cls) {
             match func {
                 Some(actual_func) => singledispatch.register_cls(py, cls, actual_func),
-                None => Ok(
-                    PartialSingleDispatchRegistration::__new__(slf.clone_ref(py), cls).into_py(py),
-                ),
+                None => match PartialSingleDispatchRegistration::__new__(slf.clone_ref(py), cls).into_pyobject(py) {
+                    Ok(v) => Ok(v.into_py_any(py)?),
+                    Err(_) => Err(PyRuntimeError::new_err(""))
+                }
             }
         } else {
             match func {
