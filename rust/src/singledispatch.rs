@@ -7,7 +7,9 @@ use pyo3::prelude::*;
 
 use crate::utils::builtins::Builtins;
 use pyo3::types::{PyDict, PyTuple, PyType};
-use pyo3::{pyclass, pyfunction, pymethods, Bound, IntoPyObjectExt, Py, PyAny, PyObject, PyResult, Python};
+use pyo3::{
+    pyclass, pyfunction, pymethods, Bound, IntoPyObjectExt, Py, PyAny, PyObject, PyResult, Python,
+};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -84,8 +86,13 @@ impl SingleDispatchState {
                 if self.registry.contains_key(typ)
                     && !cls_mro.contains(typ)
                     && !cls_mro.contains(m)
-                    && Builtins::cached(py).issubclass(py, m.wrapped().bind(py), typ.wrapped().bind(py)).is_ok_and(|res| res) {
-                    return Err(PyRuntimeError::new_err(format!("Ambiguous dispatch: {m} or {typ}")))
+                    && Builtins::cached(py)
+                        .issubclass(py, m.wrapped().bind(py), typ.wrapped().bind(py))
+                        .is_ok_and(|res| res)
+                {
+                    return Err(PyRuntimeError::new_err(format!(
+                        "Ambiguous dispatch: {m} or {typ}"
+                    )));
                 }
                 mro_match = Some(m.clone_ref(py));
                 break;
@@ -255,10 +262,12 @@ impl SingleDispatch {
         if is_valid_dispatch_type(py, &cls) {
             match func {
                 Some(actual_func) => singledispatch.register_cls(py, cls, actual_func),
-                None => match PartialSingleDispatchRegistration::__new__(slf.clone_ref(py), cls).into_pyobject(py) {
+                None => match PartialSingleDispatchRegistration::__new__(slf.clone_ref(py), cls)
+                    .into_pyobject(py)
+                {
                     Ok(v) => Ok(v.into_py_any(py)?),
-                    Err(_) => Err(PyRuntimeError::new_err(""))
-                }
+                    Err(_) => Err(PyRuntimeError::new_err("")),
+                },
             }
         } else {
             match func {

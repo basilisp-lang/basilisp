@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use pyo3::{PyObject, Python};
+use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 pub struct PyTypeReference {

@@ -48,6 +48,9 @@ pub(crate) fn compose_mro(
             })
         })
         .collect();
-    let mro: Vec<_> = eligible_types.iter().map(|&tref| tref.clone_ref(py)).collect();
+    let mro: Vec<_> = eligible_types
+        .iter()
+        .map(|&tref| tref.clone_ref(py))
+        .collect();
     Ok(mro)
 }

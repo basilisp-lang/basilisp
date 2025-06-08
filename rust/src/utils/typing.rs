@@ -20,15 +20,39 @@ impl TypingModule {
         let types_module = py.import("types").unwrap();
         let mut union_types = Vec::with_capacity(2);
         union_types.extend([
-            PyTypeReference::new(typing_module.getattr("Union").unwrap().into_py_any(py).unwrap()),
-            PyTypeReference::new(types_module.getattr("UnionType").unwrap().into_py_any(py).unwrap()),
+            PyTypeReference::new(
+                typing_module
+                    .getattr("Union")
+                    .unwrap()
+                    .into_py_any(py)
+                    .unwrap(),
+            ),
+            PyTypeReference::new(
+                types_module
+                    .getattr("UnionType")
+                    .unwrap()
+                    .into_py_any(py)
+                    .unwrap(),
+            ),
         ]);
 
         TypingModule {
-            get_args: typing_module.getattr("get_args").unwrap().into_py_any(py).unwrap(),
-            get_origin: typing_module.getattr("get_origin").unwrap().into_py_any(py).unwrap(),
+            get_args: typing_module
+                .getattr("get_args")
+                .unwrap()
+                .into_py_any(py)
+                .unwrap(),
+            get_origin: typing_module
+                .getattr("get_origin")
+                .unwrap()
+                .into_py_any(py)
+                .unwrap(),
             generic_alias_type: PyTypeReference::new(
-                types_module.getattr("GenericAlias").unwrap().into_py_any(py).unwrap(),
+                types_module
+                    .getattr("GenericAlias")
+                    .unwrap()
+                    .into_py_any(py)
+                    .unwrap(),
             ),
             union_types,
         }

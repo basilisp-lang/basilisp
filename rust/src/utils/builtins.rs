@@ -14,8 +14,16 @@ impl Builtins {
     fn new(py: Python) -> Self {
         let builtins_module = py.import("builtins").unwrap();
         Builtins {
-            object_type: builtins_module.getattr("object").unwrap().into_py_any(py).unwrap(),
-            issubclass_func: builtins_module.getattr("issubclass").unwrap().into_py_any(py).unwrap(),
+            object_type: builtins_module
+                .getattr("object")
+                .unwrap()
+                .into_py_any(py)
+                .unwrap(),
+            issubclass_func: builtins_module
+                .getattr("issubclass")
+                .unwrap()
+                .into_py_any(py)
+                .unwrap(),
         }
     }
 
