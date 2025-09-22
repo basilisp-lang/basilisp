@@ -188,7 +188,7 @@ def map_lrepr(  # pylint: disable=too-many-locals
     else:
         items = list(entry_reprs())
 
-    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
+    seq_lrepr = ", ".join(items + trailer)
 
     ns_prefix = ("#:" + ns_name_shared) if ns_name_shared else ""
     if kwargs["print_meta"] and meta:
