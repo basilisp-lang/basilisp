@@ -751,7 +751,7 @@ def test(
         # isn't needed, we ignore it.
         extra = [
             "-W",
-            "ignore:Module already imported so cannot be rewritten:pytest.PytestAssertRewriteWarning",
+            "ignore:Module already imported so cannot be rewritten; basilisp:pytest.PytestAssertRewriteWarning",
         ] + extra
 
         sys.exit(pytest.main(args=list(extra)))
