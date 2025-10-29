@@ -603,7 +603,7 @@ Splicing reader conditionals may only appear within other collection literal for
 Python Version Reader Features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Basilisp includes a specialized set of reader features based on the major version of Python (e.g. 3.8, 3.9, etc.).
+Basilisp includes a specialized set of reader features based on the major version of Python (e.g. 3.10, 3.11, etc.).
 Because the API of Python's standard library changes significantly between versions, it can be challenging to support multiple versions at once.
 In classical Python, users are forced to use conditional gates either at the top level of a module to define different function versions, or perhaps gate the logic within a function or class.
 Both options incur some level of runtime cost.

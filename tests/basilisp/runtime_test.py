@@ -30,23 +30,6 @@ def test_is_supported_python_version():
 @pytest.mark.parametrize(
     "feature",
     {
-        (3, 9): frozenset(
-            map(
-                kw.keyword,
-                [
-                    "lpy39",
-                    "default",
-                    "lpy",
-                    "lpy39-",
-                    "lpy39+",
-                    "lpy310-",
-                    "lpy311-",
-                    "lpy312-",
-                    "lpy313-",
-                    platform.system().lower(),
-                ],
-            )
-        ),
         (3, 10): frozenset(
             map(
                 kw.keyword,
@@ -59,7 +42,7 @@ def test_is_supported_python_version():
                     "lpy311-",
                     "lpy310+",
                     "lpy310-",
-                    "lpy39+",
+                    "lpy314-",
                     platform.system().lower(),
                 ],
             )
@@ -76,7 +59,7 @@ def test_is_supported_python_version():
                     "lpy312-",
                     "lpy311-",
                     "lpy310+",
-                    "lpy39+",
+                    "lpy314-",
                     platform.system().lower(),
                 ],
             )
@@ -92,7 +75,7 @@ def test_is_supported_python_version():
                     "lpy312+",
                     "lpy313-",
                     "lpy312-",
-                    "lpy39+",
+                    "lpy314-",
                     platform.system().lower(),
                 ],
             )
@@ -109,7 +92,24 @@ def test_is_supported_python_version():
                     "lpy313+",
                     "lpy313-",
                     "lpy310+",
-                    "lpy39+",
+                    "lpy314-",
+                    platform.system().lower(),
+                ],
+            )
+        ),
+        (3, 14): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy314",
+                    "default",
+                    "lpy",
+                    "lpy310+",
+                    "lpy311+",
+                    "lpy312+",
+                    "lpy313+",
+                    "lpy314-",
+                    "lpy314+",
                     platform.system().lower(),
                 ],
             )
