@@ -82,7 +82,7 @@ class CapturedIO:
 
 @pytest.fixture
 def run_cli(monkeypatch, capsys, cap_lisp_io):
-    def _run_cli(args: Sequence[str], input: Optional[str] = None):
+    def _run_cli(args: Sequence[str], input: str | None = None):
         monkeypatch.setattr("basilisp.main._runtime_is_initialized", False)
         if input is not None:
             monkeypatch.setattr(

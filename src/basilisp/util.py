@@ -1,11 +1,12 @@
 import contextlib
 import time
 from collections.abc import Iterable, Sequence
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar
+from collections.abc import Callable
 
 
 @contextlib.contextmanager
-def timed(f: Optional[Callable[[int], None]] = None):
+def timed(f: Callable[[int], None] | None = None):
     """Time the execution of code in the with-block, calling the function
     f (if it is given) with the resulting time in nanoseconds."""
     start = time.perf_counter()
@@ -23,7 +24,7 @@ U = TypeVar("U")
 class Maybe(Generic[T]):
     __slots__ = ("_inner",)
 
-    def __init__(self, inner: Optional[T]) -> None:
+    def __init__(self, inner: T | None) -> None:
         self._inner = inner
 
     def __eq__(self, other):
@@ -58,7 +59,7 @@ class Maybe(Generic[T]):
         return Maybe(f(self._inner))
 
     @property
-    def value(self) -> Optional[T]:
+    def value(self) -> T | None:
         return self._inner
 
     @property

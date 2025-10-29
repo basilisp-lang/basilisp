@@ -23,10 +23,11 @@ from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
 from re import Pattern
-from typing import Any, Callable, Optional, TypeVar, Union, cast
+from typing import Any, Optional, TypeVar, Union, cast
+from collections.abc import Callable
 
 import attr
-from typing_extensions import Literal
+from typing import Literal
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -233,7 +234,7 @@ class SymbolTable:
             self._table[s] = SymbolTableEntry(binding, warn_if_unused=warn_if_unused)
         return self
 
-    def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
+    def find_symbol(self, s: sym.Symbol) -> SymbolTableEntry | None:
         if s in self._table:
             return self._table[s]
         if self._parent is None:
@@ -345,8 +346,8 @@ class AnalyzerContext:
 
     def __init__(
         self,
-        filename: Optional[str] = None,
-        opts: Optional[CompilerOpts] = None,
+        filename: str | None = None,
+        opts: CompilerOpts | None = None,
         should_macroexpand: bool = True,
         allow_unresolved_symbols: bool = False,
     ) -> None:
@@ -441,7 +442,7 @@ class AnalyzerContext:
         return self._should_macroexpand
 
     @property
-    def func_ctx(self) -> Optional[FunctionContext]:
+    def func_ctx(self) -> FunctionContext | None:
         """Return the current function or method context of the current node, if one.
         Return None otherwise.
 
@@ -479,7 +480,7 @@ class AnalyzerContext:
         self._func_ctx.pop()
 
     @property
-    def recur_point(self) -> Optional[RecurPoint]:
+    def recur_point(self) -> RecurPoint | None:
         """Return the current recur point which applies to the current node, if there
         is one."""
         try:
@@ -509,7 +510,7 @@ class AnalyzerContext:
         warn_on_shadowed_name: bool = True,
         warn_on_shadowed_var: bool = True,
         warn_if_unused: bool = True,
-        symbol_table: Optional[SymbolTable] = None,
+        symbol_table: SymbolTable | None = None,
     ):
         """Add a new symbol to the symbol table.
 
@@ -624,7 +625,7 @@ class AnalyzerContext:
         parent node."""
         return self._syntax_pos[-1]
 
-    def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None) -> NodeEnv:
+    def get_node_env(self, pos: NodeSyntacticPosition | None = None) -> NodeEnv:
         """Return the current Node environment.
 
         If a syntax position is given, it will be included in the environment.
@@ -636,8 +637,8 @@ class AnalyzerContext:
     def AnalyzerException(
         self,
         msg: str,
-        form: Union[LispForm, None, ISeq] = None,
-        lisp_ast: Optional[Node] = None,
+        form: LispForm | None | ISeq = None,
+        lisp_ast: Node | None = None,
     ) -> CompilerException:
         """Return a CompilerException annotated with the current filename and
         :analyzer compiler phase set. The remaining keyword arguments are passed
@@ -664,7 +665,7 @@ def _bool_meta_getter(meta_kw: kw.Keyword, default: bool = False) -> BoolMetaGet
     """Return a function which checks an object with metadata for a boolean
     value by meta_kw."""
 
-    def has_meta_prop(o: Union[IMeta, Var]) -> bool:
+    def has_meta_prop(o: IMeta | Var) -> bool:
         return bool(
             Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).or_else_get(default)
         )
@@ -676,7 +677,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
     """Return a function which checks an object with metadata for a value by
     meta_kw."""
 
-    def get_meta_prop(o: Union[IMeta, Var]) -> Any:
+    def get_meta_prop(o: IMeta | Var) -> Any:
         return Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).value
 
     return get_meta_prop
@@ -703,7 +704,7 @@ T_node = TypeVar("T_node", bound=Node)
 LispAnalyzer = Callable[[T_form, AnalyzerContext], T_node]
 
 
-def _loc(form: T_form) -> Optional[tuple[int, int, int, int]]:
+def _loc(form: T_form) -> tuple[int, int, int, int] | None:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
     # Technically, IMeta is sufficient for fetching `form.meta` but the
@@ -740,7 +741,7 @@ def _with_loc(f: LispAnalyzer[T_form, T_node]) -> LispAnalyzer[T_form, T_node]:
     return _analyze_form
 
 
-def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentMap]:
+def _clean_meta(meta: lmap.PersistentMap | None) -> lmap.PersistentMap | None:
     """Remove reader metadata from the form's meta map."""
     if meta is None:
         return None
@@ -755,7 +756,7 @@ def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentM
 
 
 def _body_ast(
-    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+    form: llist.PersistentList | ISeq, ctx: AnalyzerContext
 ) -> tuple[Iterable[Node], Node]:
     """Analyze the form and produce a body of statement nodes and a single
     return expression node.
@@ -845,7 +846,7 @@ def _call_args_ast(
         return args, kwargs
 
 
-def _tag_ast(form: Optional[LispForm], ctx: AnalyzerContext) -> Optional[Node]:
+def _tag_ast(form: LispForm | None, ctx: AnalyzerContext) -> Node | None:
     if form is None:
         return None
     return _analyze_form(form, ctx)
@@ -893,7 +894,7 @@ def _with_meta(gen_node: LispAnalyzer[T_form, T_node]) -> LispAnalyzer[T_form, T
 
 
 @functools.singledispatch
-def _analyze_form(form: Union[ReaderForm, ISeq], ctx: AnalyzerContext):
+def _analyze_form(form: ReaderForm | ISeq, ctx: AnalyzerContext):
     raise ctx.AnalyzerException(f"Unexpected form type {type(form)}", form=form)  # type: ignore[arg-type]
 
 
@@ -929,7 +930,7 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
 def __should_warn_on_redef(
     current_ns: runtime.Namespace,
     defsym: sym.Symbol,
-    def_meta: Optional[lmap.PersistentMap],
+    def_meta: lmap.PersistentMap | None,
 ) -> bool:
     """Return True if the compiler should emit a warning about this name being redefined."""
     if def_meta is not None and def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False):
@@ -967,7 +968,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
 
     tag_ast = _tag_ast(_tag_meta(name), ctx)
 
-    init_idx: Optional[int]
+    init_idx: int | None
     children: vec.PersistentVector[kw.Keyword]
     if nelems == 2:
         init_idx = None
@@ -1205,11 +1206,11 @@ def __deftype_method_param_bindings(
 
 
 def __deftype_classmethod(  # pylint: disable=too-many-locals
-    form: Union[llist.PersistentList, ISeq],
+    form: llist.PersistentList | ISeq,
     ctx: AnalyzerContext,
     method_name: str,
     args: vec.PersistentVector,
-    kwarg_support: Optional[KeywordArgSupport] = None,
+    kwarg_support: KeywordArgSupport | None = None,
 ) -> DefTypeClassMethod:
     """Emit a node for a :classmethod member of a `deftype*` form."""
     with (
@@ -1265,12 +1266,12 @@ def __deftype_classmethod(  # pylint: disable=too-many-locals
 
 
 def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-locals
-    form: Union[llist.PersistentList, ISeq],
+    form: llist.PersistentList | ISeq,
     ctx: AnalyzerContext,
     method_name: str,
     args: vec.PersistentVector,
     special_form: sym.Symbol,
-    kwarg_support: Optional[KeywordArgSupport] = None,
+    kwarg_support: KeywordArgSupport | None = None,
 ) -> DefTypeMethodArity:
     """Emit a node for a method member of a `deftype*` or `reify*` form."""
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
@@ -1329,7 +1330,7 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
 
 
 def __deftype_or_reify_property(
-    form: Union[llist.PersistentList, ISeq],
+    form: llist.PersistentList | ISeq,
     ctx: AnalyzerContext,
     method_name: str,
     args: vec.PersistentVector,
@@ -1394,11 +1395,11 @@ def __deftype_or_reify_property(
 
 
 def __deftype_staticmethod(
-    form: Union[llist.PersistentList, ISeq],
+    form: llist.PersistentList | ISeq,
     ctx: AnalyzerContext,
     method_name: str,
     args: vec.PersistentVector,
-    kwarg_support: Optional[KeywordArgSupport] = None,
+    kwarg_support: KeywordArgSupport | None = None,
 ) -> DefTypeStaticMethod:
     """Emit a node for a :staticmethod member of a `deftype*` form."""
     with (
@@ -1432,10 +1433,10 @@ def __deftype_staticmethod(
 
 
 def __deftype_or_reify_prop_or_method_arity(
-    form: Union[llist.PersistentList, ISeq],
+    form: llist.PersistentList | ISeq,
     ctx: AnalyzerContext,
     special_form: sym.Symbol,
-) -> Union[DefTypeMethodArity, DefTypePythonMember]:
+) -> DefTypeMethodArity | DefTypePythonMember:
     """Emit either a `deftype*` or `reify*` property node or an arity of a `deftype*`
     or `reify*` method.
 
@@ -1514,7 +1515,7 @@ def __deftype_or_reify_prop_or_method_arity(
 
 
 def __deftype_or_reify_method_node_from_arities(
-    form: Union[llist.PersistentList, ISeq],
+    form: llist.PersistentList | ISeq,
     ctx: AnalyzerContext,
     arities: list[DefTypeMethodArity],
     special_form: sym.Symbol,
@@ -1524,7 +1525,7 @@ def __deftype_or_reify_method_node_from_arities(
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
     fixed_arities: MutableSet[int] = set()
-    fixed_arity_for_variadic: Optional[int] = None
+    fixed_arity_for_variadic: int | None = None
     num_variadic = 0
     for arity in arities:
         if arity.is_variadic:
@@ -2043,7 +2044,7 @@ def _do_ast(form: ISeq, ctx: AnalyzerContext) -> Do:
 def __fn_method_ast(  # pylint: disable=too-many-locals
     form: ISeq,
     ctx: AnalyzerContext,
-    fnname: Optional[sym.Symbol] = None,
+    fnname: sym.Symbol | None = None,
     is_async: bool = False,
 ) -> FnArity:
     with ctx.new_symbol_table("fn-method", is_context_boundary=True):
@@ -2135,7 +2136,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
             return method
 
 
-def __fn_kwargs_support(ctx: AnalyzerContext, o: IMeta) -> Optional[KeywordArgSupport]:
+def __fn_kwargs_support(ctx: AnalyzerContext, o: IMeta) -> KeywordArgSupport | None:
     if o.meta is None:
         return None
 
@@ -2169,11 +2170,11 @@ def __unquote_args_sym(f: sym.Symbol, args: frozenset[sym.Symbol]):
 
 def _inline_fn_ast(
     ctx: AnalyzerContext,
-    form: Union[llist.PersistentList, ISeq],
-    name: Optional[Binding],
+    form: llist.PersistentList | ISeq,
+    name: Binding | None,
     arities: vec.PersistentVector[FnArity],
     num_variadic: int,
-) -> Optional[Fn]:
+) -> Fn | None:
     if not ctx.should_generate_auto_inlines:
         return None
 
@@ -2221,7 +2222,7 @@ def _inline_fn_ast(
 
 @_with_meta
 def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
-    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+    form: llist.PersistentList | ISeq, ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN
 
@@ -2236,7 +2237,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
                 form=form,
             ) from e
 
-        name_node: Optional[Binding]
+        name_node: Binding | None
         inline: InlineMeta
         if isinstance(name, sym.Symbol):
             name_node = Binding(
@@ -2304,7 +2305,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
             )
 
         fixed_arities: MutableSet[int] = set()
-        fixed_arity_for_variadic: Optional[int] = None
+        fixed_arity_for_variadic: int | None = None
         num_variadic = 0
         for arity in arities:
             if arity.is_variadic:
@@ -2431,7 +2432,7 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
         )
 
 
-def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> Union[HostCall, HostField]:
+def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> HostCall | HostField:
     assert form.first == SpecialForm.INTEROP_CALL
     nelems = count(form)
     assert nelems >= 3
@@ -2699,8 +2700,8 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
 
 
 def __handle_macroexpanded_ast(
-    original: Union[llist.PersistentList, ISeq],
-    expanded: Union[ReaderForm, ISeq],
+    original: llist.PersistentList | ISeq,
+    expanded: ReaderForm | ISeq,
     ctx: AnalyzerContext,
 ) -> Node:
     """Prepare the Lisp AST from macroexpanded and inlined code."""
@@ -2723,10 +2724,10 @@ def __handle_macroexpanded_ast(
 
 
 def _do_warn_on_arity_mismatch(
-    fn: VarRef, form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+    fn: VarRef, form: llist.PersistentList | ISeq, ctx: AnalyzerContext
 ) -> None:
     if ctx.warn_on_arity_mismatch and getattr(fn.var.value, "_basilisp_fn", False):
-        arities: Optional[tuple[Union[int, kw.Keyword]]] = getattr(
+        arities: tuple[int | kw.Keyword] | None = getattr(
             fn.var.value, "arities", None
         )
         if arities is not None:
@@ -2756,7 +2757,7 @@ def _do_warn_on_arity_mismatch(
                 )
 
 
-def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
+def _invoke_ast(form: llist.PersistentList | ISeq, ctx: AnalyzerContext) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(form.first, ctx)
 
@@ -3368,7 +3369,7 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
 
     try_exprs = []
     catches = []
-    finally_: Optional[Do] = None
+    finally_: Do | None = None
     for expr in form.rest:
         if isinstance(expr, (llist.PersistentList, ISeq)):
             if expr.first == SpecialForm.CATCH:
@@ -3575,7 +3576,7 @@ def __resolve_namespaced_symbol_in_ns(
     ctx: AnalyzerContext,
     which_ns: runtime.Namespace,
     form: sym.Symbol,
-) -> Optional[Union[MaybeHostForm, VarRef]]:
+) -> MaybeHostForm | VarRef | None:
     """Resolve the symbol `form` in the context of the Namespace `which_ns`. If
     `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
     imports, import aliases, or namespace aliases, then attempt to match the
@@ -3656,7 +3657,7 @@ def __resolve_namespaced_symbol_in_ns(
 
 def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
+) -> Const | HostField | MaybeClass | MaybeHostForm | VarRef:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
     # Support Clojure 1.12 qualified method names
     #
@@ -3789,7 +3790,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
 
 def __resolve_bare_symbol(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, HostField, MaybeClass, VarRef]:
+) -> Const | HostField | MaybeClass | VarRef:
     """Resolve a non-namespaced symbol into a Python name or a local Basilisp Var."""
     assert form.ns is None
 
@@ -3858,7 +3859,7 @@ def __resolve_bare_symbol(
 
 def _resolve_sym(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
+) -> Const | HostField | MaybeClass | MaybeHostForm | VarRef:
     """Resolve a Basilisp symbol as a Var or Python name."""
     # Support special class-name syntax to instantiate new classes
     #   (Classname. *args)
@@ -3885,7 +3886,7 @@ def _resolve_sym(
 @_with_loc
 def _symbol_node(
     form: sym.Symbol, ctx: AnalyzerContext
-) -> Union[Const, HostField, Local, MaybeClass, MaybeHostForm, VarRef]:
+) -> Const | HostField | Local | MaybeClass | MaybeHostForm | VarRef:
     if ctx.is_quoted:
         return _const_node(form, ctx)
 
@@ -3905,7 +3906,7 @@ def _symbol_node(
 
 @_analyze_form.register(dict)
 @_with_loc
-def _py_dict_node(form: dict, ctx: AnalyzerContext) -> Union[Const, PyDict]:
+def _py_dict_node(form: dict, ctx: AnalyzerContext) -> Const | PyDict:
     if ctx.is_quoted:
         return _const_node(form, ctx)
 
@@ -3924,7 +3925,7 @@ def _py_dict_node(form: dict, ctx: AnalyzerContext) -> Union[Const, PyDict]:
 
 @_analyze_form.register(list)
 @_with_loc
-def _py_list_node(form: list, ctx: AnalyzerContext) -> Union[Const, PyList]:
+def _py_list_node(form: list, ctx: AnalyzerContext) -> Const | PyList:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return PyList(
@@ -3936,7 +3937,7 @@ def _py_list_node(form: list, ctx: AnalyzerContext) -> Union[Const, PyList]:
 
 @_analyze_form.register(set)
 @_with_loc
-def _py_set_node(form: set, ctx: AnalyzerContext) -> Union[Const, PySet]:
+def _py_set_node(form: set, ctx: AnalyzerContext) -> Const | PySet:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return PySet(
@@ -3948,7 +3949,7 @@ def _py_set_node(form: set, ctx: AnalyzerContext) -> Union[Const, PySet]:
 
 @_analyze_form.register(tuple)
 @_with_loc
-def _py_tuple_node(form: tuple, ctx: AnalyzerContext) -> Union[Const, PyTuple]:
+def _py_tuple_node(form: tuple, ctx: AnalyzerContext) -> Const | PyTuple:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return PyTuple(
@@ -3977,7 +3978,7 @@ def _map_node(form: lmap.PersistentMap, ctx: AnalyzerContext) -> MapNode:
 @_with_loc
 def _map_node_or_quoted(
     form: lmap.PersistentMap, ctx: AnalyzerContext
-) -> Union[Const, MapNode]:
+) -> Const | MapNode:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return _map_node(form, ctx)
@@ -3996,7 +3997,7 @@ def _queue_node(form: lqueue.PersistentQueue, ctx: AnalyzerContext) -> QueueNode
 @_with_loc
 def _queue_node_or_quoted(
     form: lqueue.PersistentQueue, ctx: AnalyzerContext
-) -> Union[Const, QueueNode]:
+) -> Const | QueueNode:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return _queue_node(form, ctx)
@@ -4015,7 +4016,7 @@ def _set_node(form: lset.PersistentSet, ctx: AnalyzerContext) -> SetNode:
 @_with_loc
 def _set_node_or_quoted(
     form: lset.PersistentSet, ctx: AnalyzerContext
-) -> Union[Const, SetNode]:
+) -> Const | SetNode:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return _set_node(form, ctx)
@@ -4034,7 +4035,7 @@ def _vector_node(form: vec.PersistentVector, ctx: AnalyzerContext) -> VectorNode
 @_with_loc
 def _vector_node_or_quoted(
     form: vec.PersistentVector, ctx: AnalyzerContext
-) -> Union[Const, VectorNode]:
+) -> Const | VectorNode:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return _vector_node(form, ctx)

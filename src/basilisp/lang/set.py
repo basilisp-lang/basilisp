@@ -75,13 +75,13 @@ class PersistentSet(
 
     __slots__ = ("_inner", "_meta")
 
-    def __init__(self, m: "_Map[T, T]", meta: Optional[IPersistentMap] = None) -> None:
+    def __init__(self, m: "_Map[T, T]", meta: IPersistentMap | None = None) -> None:
         self._inner = m
         self._meta = meta
 
     @classmethod
     def from_iterable(
-        cls, members: Optional[Iterable[T]], meta: Optional[IPersistentMap] = None
+        cls, members: Iterable[T] | None, meta: IPersistentMap | None = None
     ) -> "PersistentSet":
         return PersistentSet(_Map((m, m) for m in (members or ())), meta=meta)
 
@@ -145,10 +145,10 @@ class PersistentSet(
         return e
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentSet[T]":
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentSet[T]":
         return set(self._inner, meta=meta)
 
     def cons(self, *elems: T) -> "PersistentSet[T]":  # type: ignore[return]
@@ -169,7 +169,7 @@ class PersistentSet(
     def empty(self) -> "PersistentSet":
         return EMPTY.with_meta(self._meta)
 
-    def seq(self) -> Optional[ISeq[T]]:
+    def seq(self) -> ISeq[T] | None:
         if len(self._inner) == 0:
             return None
         return sequence(self)
@@ -182,12 +182,12 @@ EMPTY = PersistentSet.from_iterable(())
 
 
 def set(  # pylint:disable=redefined-builtin
-    members: Iterable[T], meta: Optional[IPersistentMap] = None
+    members: Iterable[T], meta: IPersistentMap | None = None
 ) -> PersistentSet[T]:
     """Creates a new set."""
     return PersistentSet.from_iterable(members, meta=meta)
 
 
-def s(*members: T, meta: Optional[IPersistentMap] = None) -> PersistentSet[T]:
+def s(*members: T, meta: IPersistentMap | None = None) -> PersistentSet[T]:
     """Creates a new set from members."""
     return PersistentSet.from_iterable(members, meta=meta)

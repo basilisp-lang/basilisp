@@ -11,15 +11,15 @@ try:
 except ImportError:  # pragma: no cover
 
     def _format_source(
-        s: str, disable_color: Optional[bool] = None  # pylint: disable=unused-argument
+        s: str, disable_color: bool | None = None  # pylint: disable=unused-argument
     ) -> str:
         return f"{s}{os.linesep}"
 
 else:
 
     def _get_formatter_name(
-        disable_color: Optional[bool] = None,
-    ) -> Optional[str]:  # pragma: no cover
+        disable_color: bool | None = None,
+    ) -> str | None:  # pragma: no cover
         """Get the Pygments formatter name for formatting the source code by
         inspecting various environment variables set by terminals.
 
@@ -37,7 +37,7 @@ else:
             return "terminal"
 
     def _format_source(
-        s: str, disable_color: Optional[bool] = None
+        s: str, disable_color: bool | None = None
     ) -> str:  # pragma: no cover
         """Format source code for terminal output.
 
@@ -56,10 +56,10 @@ else:
 def format_source_context(  # pylint: disable=too-many-arguments,too-many-locals
     filename: str,
     line: int,
-    end_line: Optional[int] = None,
+    end_line: int | None = None,
     num_context_lines: int = 5,
     show_cause_marker: bool = True,
-    disable_color: Optional[bool] = None,
+    disable_color: bool | None = None,
 ) -> list[str]:
     """Format source code context with line numbers and identifiers for the affected
     line(s).
@@ -71,7 +71,7 @@ def format_source_context(  # pylint: disable=too-many-arguments,too-many-locals
     lines = []
 
     if not filename.startswith("<") and not filename.endswith(">"):
-        cause_range: Optional[range]
+        cause_range: range | None
         if not show_cause_marker:
             cause_range = None
         elif end_line is not None and end_line != line:

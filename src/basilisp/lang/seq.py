@@ -1,7 +1,8 @@
 import functools
 import threading
 from collections.abc import Iterable
-from typing import Callable, Optional, TypeVar, overload
+from typing import Optional, TypeVar, overload
+from collections.abc import Callable
 
 from basilisp.lang.interfaces import (
     IPersistentMap,
@@ -18,7 +19,7 @@ T = TypeVar("T")
 class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     __slots__ = ("_meta",)
 
-    def __init__(self, meta: Optional[IPersistentMap] = None):
+    def __init__(self, meta: IPersistentMap | None = None):
         self._meta = meta
 
     def __repr__(self):
@@ -27,14 +28,14 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     def __bool__(self):
         return True
 
-    def seq(self) -> Optional[ISeq[T]]:
+    def seq(self) -> ISeq[T] | None:
         return None
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "_EmptySequence[T]":
+    def with_meta(self, meta: IPersistentMap | None) -> "_EmptySequence[T]":
         return _EmptySequence(meta=meta)
 
     @property
@@ -42,7 +43,7 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
         return True
 
     @property
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         return None
 
     @property
@@ -68,8 +69,8 @@ class Cons(ISeq[T], ISequential, IWithMeta):
     def __init__(
         self,
         first: T,
-        seq: Optional[ISeq[T]] = None,
-        meta: Optional[IPersistentMap] = None,
+        seq: ISeq[T] | None = None,
+        meta: IPersistentMap | None = None,
     ) -> None:
         self._first = first
         self._rest = Maybe(seq).or_else_get(EMPTY)
@@ -80,7 +81,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
         return False
 
     @property
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         return self._first
 
     @property
@@ -97,10 +98,10 @@ class Cons(ISeq[T], ISequential, IWithMeta):
         return EMPTY
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":
+    def with_meta(self, meta: IPersistentMap | None) -> "Cons[T]":
         return Cons(self._first, seq=self._rest, meta=meta)
 
 
@@ -119,22 +120,22 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     def __init__(
         self,
-        gen: Optional[LazySeqGenerator],
-        seq: Optional[ISeq[T]] = None,
+        gen: LazySeqGenerator | None,
+        seq: ISeq[T] | None = None,
         *,
-        meta: Optional[IPersistentMap] = None,
+        meta: IPersistentMap | None = None,
     ) -> None:
-        self._gen: Optional[LazySeqGenerator] = gen
-        self._obj: Optional[ISeq[T]] = None
-        self._seq: Optional[ISeq[T]] = seq
+        self._gen: LazySeqGenerator | None = gen
+        self._obj: ISeq[T] | None = None
+        self._seq: ISeq[T] | None = seq
         self._lock = threading.RLock()
         self._meta = meta
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "LazySeq[T]":
+    def with_meta(self, meta: IPersistentMap | None) -> "LazySeq[T]":
         return LazySeq(None, seq=self.seq(), meta=meta)
 
     # LazySeqs have a fairly complex inner state, in spite of the simple interface.
@@ -146,7 +147,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
     # LazySeq objects before calling `(seq ...)` on the result, which is cached in the
     # _seq attribute.
 
-    def _compute_seq(self) -> Optional[ISeq[T]]:
+    def _compute_seq(self) -> ISeq[T] | None:
         if self._gen is not None:
             # This local caching of the generator function and clearing of self._gen
             # is absolutely critical for supporting co-recursive lazy sequences.
@@ -168,7 +169,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
             self._obj = gen()
         return self._obj if self._obj is not None else self._seq
 
-    def seq(self) -> Optional[ISeq[T]]:
+    def seq(self) -> ISeq[T] | None:
         with self._lock:
             self._compute_seq()
             if self._obj is not None:
@@ -192,7 +193,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return self.seq() is None
 
     @property
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         if self.is_empty:
             return None
         return self.seq().first  # type: ignore[union-attr]
@@ -253,7 +254,7 @@ def _seq_or_nil(s: None) -> None: ...
 
 
 @overload
-def _seq_or_nil(s: ISeq) -> Optional[ISeq]: ...
+def _seq_or_nil(s: ISeq) -> ISeq | None: ...
 
 
 def _seq_or_nil(s):
@@ -264,7 +265,7 @@ def _seq_or_nil(s):
 
 
 @functools.singledispatch
-def to_seq(o) -> Optional[ISeq]:
+def to_seq(o) -> ISeq | None:
     """Coerce the argument o to a ISeq. If o is None, return None."""
     return _seq_or_nil(sequence(o))
 
@@ -275,16 +276,16 @@ def _to_seq_none(_) -> None:
 
 
 @to_seq.register(ISeq)
-def _to_seq_iseq(o: ISeq) -> Optional[ISeq]:
+def _to_seq_iseq(o: ISeq) -> ISeq | None:
     return _seq_or_nil(o)
 
 
 @to_seq.register(LazySeq)
-def _to_seq_lazyseq(o: LazySeq) -> Optional[ISeq]:
+def _to_seq_lazyseq(o: LazySeq) -> ISeq | None:
     # Force evaluation of the LazySeq by calling o.seq() directly.
     return o.seq()
 
 
 @to_seq.register(ISeqable)
-def _to_seq_iseqable(o: ISeqable) -> Optional[ISeq]:
+def _to_seq_iseqable(o: ISeqable) -> ISeq | None:
     return _seq_or_nil(o.seq())

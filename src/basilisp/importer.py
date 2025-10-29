@@ -144,9 +144,9 @@ class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
     def find_spec(
         self,
         fullname: str,
-        path: Optional[Sequence[str]],
-        target: Optional[types.ModuleType] = None,
-    ) -> Optional[ModuleSpec]:
+        path: Sequence[str] | None,
+        target: types.ModuleType | None = None,
+    ) -> ModuleSpec | None:
         """Find the ModuleSpec for the specified Basilisp module.
 
         Returns None if the module is not a Basilisp module to allow import processing to continue.
@@ -234,7 +234,7 @@ class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
             assert spec is not None, "spec must be defined here"
         return spec.loader_state["filename"]
 
-    def get_code(self, fullname: str) -> Optional[types.CodeType]:
+    def get_code(self, fullname: str) -> types.CodeType | None:
         """Return code to load a Basilisp module.
 
         This function is part of the ABC for `importlib.abc.ExecutionLoader` which is

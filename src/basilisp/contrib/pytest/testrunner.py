@@ -6,7 +6,8 @@ import traceback
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from types import GeneratorType
-from typing import Callable, Optional
+from typing import Optional
+from collections.abc import Callable
 
 import pytest
 
@@ -108,7 +109,7 @@ class FixtureManager:
         self._teardowns: Iterable[FixtureTeardown] = ()
 
     @staticmethod
-    def _run_fixture(fixture: FixtureFunction) -> Optional[Iterator[None]]:
+    def _run_fixture(fixture: FixtureFunction) -> Iterator[None] | None:
         """Run a fixture function. If the fixture is a generator function, return the
         generator/coroutine. Otherwise, simply return the value from the function, if
         one."""
@@ -199,7 +200,7 @@ class BasilispFile(pytest.File):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self._fixture_manager: Optional[FixtureManager] = None
+        self._fixture_manager: FixtureManager | None = None
 
     @staticmethod
     def _collected_fixtures(
@@ -248,7 +249,7 @@ class BasilispFile(pytest.File):
         modnames = _get_fully_qualified_module_names(self.path)
         assert modnames, "Must have at least one module name"
 
-        exc: Optional[ModuleNotFoundError] = None
+        exc: ModuleNotFoundError | None = None
         for modname in modnames:
             try:
                 module = importlib.import_module(modname)
@@ -360,7 +361,7 @@ class BasilispTestItem(pytest.Item):
         If any tests fail, raise an ExceptionInfo exception with the test failures.
         PyTest will invoke self.repr_failure to display the failures to the user."""
         results: lmap.PersistentMap = self._run_test()
-        failures: Optional[vec.PersistentVector] = results.val_at(_FAILURES_KW)
+        failures: vec.PersistentVector | None = results.val_at(_FAILURES_KW)
         if runtime.to_seq(failures):
             raise TestFailuresInfo("Test failures", lmap.map(results))
 
@@ -391,7 +392,7 @@ class BasilispTestItem(pytest.Item):
     def reportinfo(self):
         return self.fspath, 0, self.name
 
-    def _error_msg(self, exc: Exception, line: Optional[int] = None) -> str:
+    def _error_msg(self, exc: Exception, line: int | None = None) -> str:
         line_msg = Maybe(line).map(lambda l: f":{l}").or_else_get("")
         messages = [f"ERROR in ({self.name}) ({self._filename}{line_msg})", "\n\n"]
         messages.extend(traceback.format_exception(Exception, exc, exc.__traceback__))

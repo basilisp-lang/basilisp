@@ -316,7 +316,7 @@ class BasilispNamespaceIndex(Index):
     shortname = "namespaces"
 
     def generate(  # pylint: disable=too-many-locals
-        self, docnames: Optional[Iterable[str]] = None
+        self, docnames: Iterable[str] | None = None
     ) -> tuple[list[tuple[str, list[IndexEntry]]], bool]:
         content: dict[str, list[IndexEntry]] = defaultdict(list)
 
@@ -548,10 +548,10 @@ class BasilispDomain(Domain):
         target: str,
         node: pending_xref,
         contnode: Element,
-    ) -> Optional[Element]:
+    ) -> Element | None:
         nsname = node.get("lpy:namespace")
 
-        maybe_obj: Union[FormEntry, NamespaceEntry, VarEntry, None]
+        maybe_obj: FormEntry | NamespaceEntry | VarEntry | None
         reftype = node.get("reftype")
         if reftype == "ns":
             maybe_obj = self.namespaces.get(target)

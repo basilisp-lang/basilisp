@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, MutableMapping, Sequence
 from enum import Enum
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, Optional, TypeVar, Union
+from collections.abc import Callable
 
 import attr
 
@@ -186,7 +187,7 @@ class Node(ABC, Generic[T]):
                 f(child, *args, **kwargs)
 
     def fix_missing_locations(
-        self, form_loc: Optional[tuple[int, int, int, int]] = None
+        self, form_loc: tuple[int, int, int, int] | None = None
     ) -> "Node[T]":
         """Return a transformed copy of this node with location in this node's
         environment updated to match the `form_loc` if given, or using its
@@ -207,7 +208,7 @@ class Node(ABC, Generic[T]):
             e is not None for e in loc
         ), "Must specify location information"
 
-        new_attrs: MutableMapping[str, Union[NodeEnv, Node, Iterable[Node]]] = {
+        new_attrs: MutableMapping[str, NodeEnv | Node | Iterable[Node]] = {
             "env": attr.evolve(
                 self.env, line=loc[0], col=loc[1], end_line=loc[2], end_col=loc[3]
             )
@@ -330,12 +331,12 @@ class LocalType(Enum):
 class NodeEnv:
     ns: Namespace
     file: str
-    line: Optional[int] = None
-    col: Optional[int] = None
-    end_line: Optional[int] = None
-    end_col: Optional[int] = None
-    pos: Optional[NodeSyntacticPosition] = None
-    func_ctx: Optional[FunctionContext] = None
+    line: int | None = None
+    col: int | None = None
+    end_line: int | None = None
+    end_col: int | None = None
+    pos: NodeSyntacticPosition | None = None
+    func_ctx: FunctionContext | None = None
 
 
 @attr.frozen
@@ -355,11 +356,11 @@ class Binding(Node[sym.Symbol], Assignable):
     name: str
     local: LocalType
     env: NodeEnv = attr.field(hash=False)
-    tag: Optional[Node] = None
-    arg_id: Optional[int] = None
+    tag: Node | None = None
+    arg_id: int | None = None
     is_variadic: bool = False
     is_assignable: bool = False
-    init: Optional[Node] = None
+    init: Node | None = None
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.BINDING
@@ -399,10 +400,10 @@ class Def(Node[SpecialForm]):
     form: SpecialForm
     name: sym.Symbol
     var: Var
-    init: Optional[Node]
-    doc: Optional[str]
+    init: Node | None
+    doc: str | None
     env: NodeEnv = attr.field(hash=False)
-    tag: Optional[Node] = None
+    tag: Node | None = None
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.DEF
@@ -455,7 +456,7 @@ class DefTypeClassMethod(DefTypeMember):
     fixed_arity: int
     body: "Do"
     is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
+    kwarg_support: KeywordArgSupport | None = None
     children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD
     top_level: bool = False
@@ -484,7 +485,7 @@ class DefTypeMethodArity(Node[SpecialForm]):
     loop_id: LoopID
     env: NodeEnv = attr.field(hash=False)
     is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
+    kwarg_support: KeywordArgSupport | None = None
     children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.DEFTYPE_METHOD_ARITY
     top_level: bool = False
@@ -512,7 +513,7 @@ class DefTypeStaticMethod(DefTypeMember):
     fixed_arity: int
     body: "Do"
     is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
+    kwarg_support: KeywordArgSupport | None = None
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.DEFTYPE_STATICMETHOD
     top_level: bool = False
@@ -542,10 +543,10 @@ class Fn(Node[SpecialForm]):
     max_fixed_arity: int
     arities: IPersistentVector["FnArity"]
     env: NodeEnv = attr.field(hash=False)
-    local: Optional[Binding] = None
+    local: Binding | None = None
     is_variadic: bool = False
     is_async: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
+    kwarg_support: KeywordArgSupport | None = None
     inline_fn: Optional["Fn"] = None
     children: Sequence[kw.Keyword] = vec.v(ARITIES)
     op: NodeOp = NodeOp.FN
@@ -561,7 +562,7 @@ class FnArity(Node[SpecialForm]):
     fixed_arity: int
     body: Do
     env: NodeEnv = attr.field(hash=False)
-    tag: Optional[Node] = None
+    tag: Node | None = None
     is_variadic: bool = False
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.FN_ARITY
@@ -585,7 +586,7 @@ class HostCall(Node[SpecialForm]):
 
 @attr.frozen
 class HostField(Node[Union[SpecialForm, sym.Symbol]], Assignable):
-    form: Union[SpecialForm, sym.Symbol]
+    form: SpecialForm | sym.Symbol
     field: str
     target: Node
     env: NodeEnv = attr.field(hash=False)
@@ -622,9 +623,9 @@ class Import(Node[SpecialForm]):
 
 @attr.frozen
 class ImportAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
-    form: Union[sym.Symbol, vec.PersistentVector]
+    form: sym.Symbol | vec.PersistentVector
     name: str
-    alias: Optional[str]
+    alias: str | None
     refers: Iterable[str]
     refer_all: bool
     env: NodeEnv = attr.field(hash=False)
@@ -678,7 +679,7 @@ class Local(Node[sym.Symbol], Assignable):
     local: LocalType
     env: NodeEnv = attr.field(hash=False)
     is_assignable: bool = False
-    arg_id: Optional[int] = None
+    arg_id: int | None = None
     is_variadic: bool = False
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.LOCAL
@@ -761,7 +762,7 @@ class PyList(Node[list]):
 
 @attr.frozen(eq=True)
 class PySet(Node[Union[frozenset, set]]):
-    form: Union[frozenset, set]
+    form: frozenset | set
     items: Iterable[Node]
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
@@ -839,9 +840,9 @@ class Reify(Node[SpecialForm]):
 
 @attr.frozen
 class RequireAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
-    form: Union[sym.Symbol, vec.PersistentVector]
+    form: sym.Symbol | vec.PersistentVector
     name: str
-    alias: Optional[str]
+    alias: str | None
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.REQUIRE_ALIAS
@@ -874,7 +875,7 @@ class Set(Node[IPersistentSet]):
 @attr.frozen
 class SetBang(Node[SpecialForm]):
     form: SpecialForm
-    target: Union[Assignable, Node]
+    target: Assignable | Node
     val: Node
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(TARGET, VAL)
@@ -887,7 +888,7 @@ class SetBang(Node[SpecialForm]):
 class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
-    cause: Optional[Node]
+    cause: Node | None
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
@@ -902,7 +903,7 @@ class Try(Node[SpecialForm]):
     catches: Iterable[Catch]
     children: Sequence[kw.Keyword]
     env: NodeEnv = attr.field(hash=False)
-    finally_: Optional[Do] = None
+    finally_: Do | None = None
     op: NodeOp = NodeOp.TRY
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.EMPTY
@@ -910,7 +911,7 @@ class Try(Node[SpecialForm]):
 
 @attr.frozen
 class VarRef(Node[Union[sym.Symbol, ISeq]], Assignable):
-    form: Union[sym.Symbol, ISeq]
+    form: sym.Symbol | ISeq
     var: Var
     env: NodeEnv = attr.field(hash=False)
     return_var: bool = False
@@ -939,7 +940,7 @@ T_withmeta = TypeVar("T_withmeta", Fn, Map, Queue, Reify, Set, Vector)
 @attr.frozen
 class WithMeta(Node[LispForm], Generic[T_withmeta]):
     form: LispForm
-    meta: Union[Const, Map]
+    meta: Const | Map
     expr: T_withmeta
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(META, EXPR)
@@ -951,7 +952,7 @@ class WithMeta(Node[LispForm], Generic[T_withmeta]):
 @attr.frozen
 class Yield(Node[SpecialForm]):
     form: SpecialForm
-    expr: Optional[Node]
+    expr: Node | None
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.YIELD

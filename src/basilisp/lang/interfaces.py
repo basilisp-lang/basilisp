@@ -4,7 +4,6 @@ from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence, Siz
 from typing import (
     AbstractSet,
     Any,
-    Callable,
     Final,
     Generic,
     Optional,
@@ -13,6 +12,7 @@ from typing import (
     Union,
     overload,
 )
+from collections.abc import Callable
 
 from typing_extensions import Self, Unpack
 
@@ -33,7 +33,7 @@ class IDeref(Generic[T], ABC):
     __slots__ = ()
 
     @abstractmethod
-    def deref(self) -> Optional[T]:
+    def deref(self) -> T | None:
         raise NotImplementedError()
 
 
@@ -50,8 +50,8 @@ class IBlockingDeref(IDeref[T]):
 
     @abstractmethod
     def deref(
-        self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
-    ) -> Optional[T]:
+        self, timeout: float | None = None, timeout_val: T | None = None
+    ) -> T | None:
         raise NotImplementedError()
 
 
@@ -178,12 +178,12 @@ class INamed(ABC):
 
     @property
     @abstractmethod
-    def ns(self) -> Optional[str]:
+    def ns(self) -> str | None:
         raise NotImplementedError()
 
     @classmethod
     @abstractmethod
-    def with_name(cls, name: str, ns: Optional[str] = None) -> Self:
+    def with_name(cls, name: str, ns: str | None = None) -> Self:
         """Create a new instance of this INamed with `name` and optional `ns`."""
         raise NotImplementedError()
 
@@ -239,11 +239,11 @@ class IRef(IDeref[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_validator(self) -> Optional[RefValidator[T]]:
+    def get_validator(self) -> RefValidator[T] | None:
         raise NotImplementedError()
 
     @abstractmethod
-    def set_validator(self, vf: Optional[RefValidator[T]] = None) -> None:
+    def set_validator(self, vf: RefValidator[T] | None = None) -> None:
         raise NotImplementedError()
 
 
@@ -304,7 +304,7 @@ class ILookup(Generic[K, V], ABC):
     __slots__ = ()
 
     @abstractmethod
-    def val_at(self, k: K, default: Optional[V] = None) -> Optional[V]:
+    def val_at(self, k: K, default: V | None = None) -> V | None:
         raise NotImplementedError()
 
 
@@ -364,7 +364,7 @@ class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
         raise NotImplementedError()
 
     @abstractmethod
-    def entry(self, k: K) -> Optional[IMapEntry[K, V]]:
+    def entry(self, k: K) -> IMapEntry[K, V] | None:
         raise NotImplementedError()
 
 
@@ -380,7 +380,7 @@ class IPersistentStack(IPersistentCollection[T]):
     __slots__ = ()
 
     @abstractmethod
-    def peek(self) -> Optional[T]:
+    def peek(self) -> T | None:
         raise NotImplementedError()
 
     @abstractmethod
@@ -605,7 +605,7 @@ class ITransientAssociative(ILookup[K, V], ITransientCollection[IMapEntry[K, V]]
         raise NotImplementedError()
 
     @abstractmethod
-    def entry_transient(self, k: K) -> Optional[IMapEntry[K, V]]:
+    def entry_transient(self, k: K) -> IMapEntry[K, V] | None:
         raise NotImplementedError()
 
 
@@ -767,7 +767,7 @@ class ISeq(ILispObject, IPersistentCollection[T]):
 
     @property
     @abstractmethod
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         raise NotImplementedError()
 
     @property

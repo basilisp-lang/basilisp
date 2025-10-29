@@ -150,7 +150,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             )
         return new_node
 
-    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> Optional[ast.AST]:
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> ast.AST | None:
         """Eliminate dead code from except handler bodies."""
         new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.ExceptHandler)
@@ -163,14 +163,14 @@ class PythonASTOptimizer(ast.NodeTransformer):
             new_node,
         )
 
-    def visit_Expr(self, node: ast.Expr) -> Optional[ast.Expr]:
+    def visit_Expr(self, node: ast.Expr) -> ast.Expr | None:
         """Eliminate no-op constant expressions which are in the tree
         as standalone statements."""
         if isinstance(node.value, (ast.Constant, ast.Name)):
             return None
         return node
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> Optional[ast.AST]:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST | None:
         """Eliminate dead code from function bodies."""
         with self._new_global_context():
             new_node = self.generic_visit(node)
@@ -186,7 +186,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             new_node,
         )
 
-    def visit_Global(self, node: ast.Global) -> Optional[ast.Global]:
+    def visit_Global(self, node: ast.Global) -> ast.Global | None:
         """Eliminate redundant name declarations inside a Python `global` statement.
 
         Python `global` statements may only refer to a name prior to its declaration.
@@ -201,7 +201,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             else None
         )
 
-    def visit_If(self, node: ast.If) -> Optional[ast.AST]:
+    def visit_If(self, node: ast.If) -> ast.AST | None:
         """Eliminate dead code from if/elif bodies.
 
         If the new `if` statement `body` is empty after eliminating dead code, replace
@@ -232,7 +232,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
 
         return ast.copy_location(ifstmt, new_node)
 
-    def visit_While(self, node: ast.While) -> Optional[ast.AST]:
+    def visit_While(self, node: ast.While) -> ast.AST | None:
         """Eliminate dead code from while bodies."""
         new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.While)
@@ -245,7 +245,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             new_node,
         )
 
-    def visit_Try(self, node: ast.Try) -> Optional[ast.AST]:
+    def visit_Try(self, node: ast.Try) -> ast.AST | None:
         """Eliminate dead code from except try bodies."""
         new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.Try)

@@ -53,10 +53,10 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
         return _seq_lrepr(self._inner, "#queue (", ")", meta=self._meta, **kwargs)
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentQueue":
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentQueue":
         return queue(self._inner, meta=meta)
 
     def cons(self, *elems: T) -> "PersistentQueue[T]":
@@ -76,7 +76,7 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
             raise IndexError("Cannot pop an empty queue")
         return PersistentQueue(self._inner.popleft(), meta=self._meta)
 
-    def seq(self) -> Optional[ISeq[T]]:
+    def seq(self) -> ISeq[T] | None:
         if len(self._inner) == 0:
             return None
         return sequence(self)

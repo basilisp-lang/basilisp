@@ -1,4 +1,5 @@
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar
+from collections.abc import Callable
 
 import attr
 
@@ -11,7 +12,7 @@ T = TypeVar("T")
 @attr.frozen
 class _DelayState(Generic[T]):
     f: Callable[[], T]
-    value: Optional[T]
+    value: T | None
     computed: bool = False
 
 
@@ -28,7 +29,7 @@ class Delay(IDeref[T], IPending):
         else:
             return _DelayState(f=state.f, value=state.f(), computed=True)
 
-    def deref(self) -> Optional[T]:
+    def deref(self) -> T | None:
         return self._state.swap(self.__deref).value
 
     @property

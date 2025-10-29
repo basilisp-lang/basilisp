@@ -119,7 +119,7 @@ class TestImporter:
         filenames = set()
 
         def _make_new_module(
-            *ns_path: str, ns_name: str = "", module_text: Optional[str] = None
+            *ns_path: str, ns_name: str = "", module_text: str | None = None
         ) -> None:
             """Generate a new module. If ns_name is not the empty string, use that
             name as the name of a Basilisp namespace with a single Var named `val`

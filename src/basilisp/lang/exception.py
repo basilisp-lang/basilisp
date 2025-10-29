@@ -26,10 +26,10 @@ class ExceptionInfo(IExceptionInfo):
 
 @functools.singledispatch
 def format_exception(  # pylint: disable=unused-argument
-    e: Optional[BaseException],
-    tp: Optional[type[BaseException]] = None,
-    tb: Optional[TracebackType] = None,
-    disable_color: Optional[bool] = None,
+    e: BaseException | None,
+    tp: type[BaseException] | None = None,
+    tb: TracebackType | None = None,
+    disable_color: bool | None = None,
 ) -> list[str]:
     """Format an exception into something readable, returning a list of newline
     terminated strings.
@@ -49,9 +49,9 @@ def format_exception(  # pylint: disable=unused-argument
 
 
 def print_exception(
-    e: Optional[BaseException],
-    tp: Optional[type[BaseException]] = None,
-    tb: Optional[TracebackType] = None,
+    e: BaseException | None,
+    tp: type[BaseException] | None = None,
+    tb: TracebackType | None = None,
 ) -> None:
     """Print the given exception `e` using Basilisp's own exception formatting.
 

@@ -42,10 +42,10 @@ class CompilerPhase(Enum):
 
 @attr.frozen
 class _loc:
-    line: Optional[int] = None
-    col: Optional[int] = None
-    end_line: Optional[int] = None
-    end_col: Optional[int] = None
+    line: int | None = None
+    col: int | None = None
+    end_line: int | None = None
+    end_col: int | None = None
 
     def __bool__(self):
         return (
@@ -61,9 +61,9 @@ class CompilerException(IExceptionInfo):
     msg: str
     phase: CompilerPhase
     filename: str
-    form: Union[LispForm, None, ISeq] = None
-    lisp_ast: Optional[Node] = None
-    py_ast: Optional[Union[ast.expr, ast.stmt]] = None
+    form: LispForm | None | ISeq = None
+    lisp_ast: Node | None = None
+    py_ast: ast.expr | ast.stmt | None = None
 
     @property
     def data(self) -> IPersistentMap:
@@ -112,15 +112,15 @@ class CompilerException(IExceptionInfo):
 @format_exception.register(CompilerException)
 def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argument
     e: CompilerException,
-    tp: Optional[type[Exception]] = None,
-    tb: Optional[TracebackType] = None,
-    disable_color: Optional[bool] = None,
+    tp: type[Exception] | None = None,
+    tb: TracebackType | None = None,
+    disable_color: bool | None = None,
 ) -> list[str]:
     """Format a compiler exception as a list of newline-terminated strings.
 
     If `disable_color` is True, no color formatting will be applied to the source
     code."""
-    context_exc: Optional[BaseException] = e.__cause__
+    context_exc: BaseException | None = e.__cause__
 
     lines: list[str] = [os.linesep]
     if context_exc is not None:

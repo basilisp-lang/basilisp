@@ -48,8 +48,8 @@ def ns(test_ns: str, test_ns_sym: sym.Symbol) -> runtime.Namespace:
 def lcompile(ns: runtime.Namespace, compiler_file_path: str) -> CompileFn:
     def _lcompile(
         s: str,
-        resolver: Optional[reader.Resolver] = None,
-        opts: Optional[dict[str, bool]] = None,
+        resolver: reader.Resolver | None = None,
+        opts: dict[str, bool] | None = None,
     ):
         """Compile and execute the code in the input string.
 

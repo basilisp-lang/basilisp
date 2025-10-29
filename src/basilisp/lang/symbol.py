@@ -20,7 +20,7 @@ class Symbol(ILispObject, INamed, IWithMeta):
     __slots__ = ("_name", "_ns", "_meta", "_hash")
 
     def __init__(
-        self, name: str, ns: Optional[str] = None, meta: Optional[IPersistentMap] = None
+        self, name: str, ns: str | None = None, meta: IPersistentMap | None = None
     ) -> None:
         self._name = name
         self._ns = ns
@@ -44,18 +44,18 @@ class Symbol(ILispObject, INamed, IWithMeta):
         return self._name
 
     @property
-    def ns(self) -> Optional[str]:
+    def ns(self) -> str | None:
         return self._ns
 
     @classmethod
-    def with_name(cls, name: str, ns: Optional[str] = None) -> "Symbol":
+    def with_name(cls, name: str, ns: str | None = None) -> "Symbol":
         return Symbol(name, ns=ns)
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Symbol":
+    def with_meta(self, meta: IPersistentMap | None) -> "Symbol":
         return Symbol(self._name, self._ns, meta=meta)
 
     def as_python_sym(self) -> str:
@@ -84,7 +84,7 @@ class Symbol(ILispObject, INamed, IWithMeta):
             return False
         return self._ns < other._ns or self._name < other._name
 
-    def __call__(self, m: Union[IAssociative, IPersistentSet], default=None):
+    def __call__(self, m: IAssociative | IPersistentSet, default=None):
         if isinstance(m, IPersistentSet):
             return self if self in m else default
         try:
@@ -94,7 +94,7 @@ class Symbol(ILispObject, INamed, IWithMeta):
 
 
 def symbol(
-    name: str, ns: Optional[str] = None, meta: Optional[IPersistentMap] = None
+    name: str, ns: str | None = None, meta: IPersistentMap | None = None
 ) -> Symbol:
     """Create a new symbol."""
     return Symbol(name, ns=ns, meta=meta)

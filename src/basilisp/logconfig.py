@@ -18,7 +18,7 @@ def get_level() -> str:
 
 
 def get_handler(
-    level: Optional[str] = None, fmt: str = DEFAULT_FORMAT
+    level: str | None = None, fmt: str = DEFAULT_FORMAT
 ) -> logging.Handler:
     """Get the default logging handler for Basilisp."""
     handler = (
@@ -32,7 +32,7 @@ def get_handler(
 
 
 def configure_root_logger(
-    level: Optional[str] = None, fmt: str = DEFAULT_FORMAT
+    level: str | None = None, fmt: str = DEFAULT_FORMAT
 ) -> None:
     """Configure the Basilisp root logger."""
     level = level or get_level()

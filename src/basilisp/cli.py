@@ -8,7 +8,8 @@ import textwrap
 import types
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
+from collections.abc import Callable
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler
@@ -97,7 +98,7 @@ def init_path(args: argparse.Namespace, unsafe_path: str = "") -> None:
         prepend_once(unsafe_path)
 
 
-def _to_bool(v: Optional[str]) -> Optional[bool]:
+def _to_bool(v: str | None) -> bool | None:
     """Coerce a string argument to a boolean value, if possible."""
     if v is None:
         return v
@@ -389,8 +390,8 @@ Handler = Union[
 def _subcommand(
     subcommand: str,
     *,
-    help: Optional[str] = None,  # pylint: disable=redefined-builtin
-    description: Optional[str] = None,
+    help: str | None = None,  # pylint: disable=redefined-builtin
+    description: str | None = None,
     handler: Handler,
     allows_extra: bool = False,
 ) -> Callable[
@@ -820,7 +821,7 @@ def run_script():
     os.execvp("basilisp", args)  # nosec B606, B607
 
 
-def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
+def invoke_cli(args: Sequence[str] | None = None) -> None:
     """Entrypoint to run the Basilisp CLI."""
     parser = argparse.ArgumentParser(
         description="Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."

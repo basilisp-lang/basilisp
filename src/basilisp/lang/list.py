@@ -42,10 +42,10 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
         return _seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentList":
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentList":
         return list(self._inner, meta=meta)
 
     @property
@@ -74,7 +74,7 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
     def empty(self) -> "PersistentList":
         return EMPTY.with_meta(self._meta)
 
-    def seq(self) -> Optional[ISeq[T]]:
+    def seq(self) -> ISeq[T] | None:
         if len(self._inner) == 0:
             return None
         return super().seq()
