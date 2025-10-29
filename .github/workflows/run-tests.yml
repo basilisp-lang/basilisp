@@ -16,10 +16,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+        version: ['3.10', '3.11', '3.12', '3.13', '3.14']
         include:
-          - version: '3.9'
-            tox-env: py39,py39-mypy,py39-lint,bandit
           - version: '3.10'
             tox-env: py310,py310-mypy,py310-lint,bandit
           - version: '3.11'
@@ -150,8 +148,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.9']
-        tox-env: ['py39']
+        version: ['3.10']
+        tox-env: ['py310']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
