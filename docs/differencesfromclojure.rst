@@ -16,7 +16,7 @@ Hosted on Python
 ----------------
 
 Unlike Clojure, Basilisp is hosted on the Python VM.
-Basilisp supports versions of Python 3.9+.
+Basilisp supports versions of Python 3.10+.
 Basilisp projects and libraries may both import Python code and be imported by Python code (once the Basilisp runtime has been :ref:`initialized <bootstrapping>` and the import hooks have been installed).
 
 .. _type_differences:

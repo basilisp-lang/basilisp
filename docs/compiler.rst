@@ -193,7 +193,7 @@ Debugging
 
 The compiler generates Python code by generating Python AST nodes, rather than emitting the raw Python code as text.
 This is convenient for the compiler, but inspecting Python AST nodes manually for bugs can be a bit of a challenge even with a debugger.
-For this reason, the Basilisp compiler can also use the :external:py:func:`ast.unparse` (`astor <https://github.com/berkerpeksag/astor>`_ in versions of Python prior to 3.9) library to generate raw Python code for visual inspection.
+For this reason, the Basilisp compiler can also use the :external:py:func:`ast.unparse` library to generate raw Python code for visual inspection.
 
 Currently, the compiler is configured to automatically generate Python code for all namespaces.
 This code generation isn't slow, but it does add an appreciable amount of time to the compilation of each individual namespace.
