@@ -17,9 +17,7 @@ def get_level() -> str:
     return os.getenv("BASILISP_LOGGING_LEVEL", "WARNING")
 
 
-def get_handler(
-    level: str | None = None, fmt: str = DEFAULT_FORMAT
-) -> logging.Handler:
+def get_handler(level: str | None = None, fmt: str = DEFAULT_FORMAT) -> logging.Handler:
     """Get the default logging handler for Basilisp."""
     handler = (
         logging.StreamHandler()
@@ -31,9 +29,7 @@ def get_handler(
     return handler
 
 
-def configure_root_logger(
-    level: str | None = None, fmt: str = DEFAULT_FORMAT
-) -> None:
+def configure_root_logger(level: str | None = None, fmt: str = DEFAULT_FORMAT) -> None:
     """Configure the Basilisp root logger."""
     level = level or get_level()
     logger = logging.getLogger("basilisp")

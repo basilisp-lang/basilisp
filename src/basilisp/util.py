@@ -1,8 +1,7 @@
 import contextlib
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import Generic, Optional, TypeVar
-from collections.abc import Callable
 
 
 @contextlib.contextmanager

@@ -1,9 +1,8 @@
 import threading
-from typing import Generic, Optional, TypeVar
 from collections.abc import Callable
+from typing import Concatenate, Generic, Optional, TypeVar
 
 from typing_extensions import ParamSpec
-from typing import Concatenate
 
 from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import IPersistentMap, RefValidator

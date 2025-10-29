@@ -6,10 +6,9 @@ import pathlib
 import sys
 import textwrap
 import types
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Optional, Union
-from collections.abc import Callable
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler

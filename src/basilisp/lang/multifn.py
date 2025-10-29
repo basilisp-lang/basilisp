@@ -1,6 +1,6 @@
 import threading
-from typing import Any, Generic, Optional, TypeVar
 from collections.abc import Callable
+from typing import Any, Generic, Optional, TypeVar
 
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime

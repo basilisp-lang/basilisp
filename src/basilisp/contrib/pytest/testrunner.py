@@ -3,11 +3,10 @@ import inspect
 import os
 import sys
 import traceback
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from types import GeneratorType
 from typing import Optional
-from collections.abc import Callable
 
 import pytest
 

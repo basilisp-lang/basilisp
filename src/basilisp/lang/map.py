@@ -1,8 +1,7 @@
 from builtins import map as pymap
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from itertools import islice
 from typing import Any, Optional, TypeVar, Union, cast
-from collections.abc import Callable
 
 from immutables import Map as _Map
 from immutables import MapMutation
@@ -91,10 +90,10 @@ class TransientMap(ITransientMap[K, V]):
     def cons_transient(  # type: ignore[override]
         self,
         *elems: (
-            IPersistentMap[K, V] |
-            IMapEntry[K, V] |
-            IPersistentVector[K | V] |
-            Mapping[K, V]
+            IPersistentMap[K, V]
+            | IMapEntry[K, V]
+            | IPersistentVector[K | V]
+            | Mapping[K, V]
         ),
     ) -> "TransientMap[K, V]":
         try:
@@ -323,10 +322,10 @@ class PersistentMap(
     def cons(  # type: ignore[override, return]
         self,
         *elems: (
-            IPersistentMap[K, V] |
-            IMapEntry[K, V] |
-            IPersistentVector[K | V] |
-            Mapping[K, V]
+            IPersistentMap[K, V]
+            | IMapEntry[K, V]
+            | IPersistentVector[K | V]
+            | Mapping[K, V]
         ),
     ) -> "PersistentMap[K, V]":
         with self._inner.mutate() as m:

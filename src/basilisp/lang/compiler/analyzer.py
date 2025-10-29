@@ -11,6 +11,7 @@ import sys
 import uuid
 from collections import defaultdict
 from collections.abc import (
+    Callable,
     Collection,
     Iterable,
     Iterator,
@@ -23,11 +24,9 @@ from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
 from re import Pattern
-from typing import Any, Optional, TypeVar, Union, cast
-from collections.abc import Callable
+from typing import Any, Literal, Optional, TypeVar, Union, cast
 
 import attr
-from typing import Literal
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -2727,9 +2726,7 @@ def _do_warn_on_arity_mismatch(
     fn: VarRef, form: llist.PersistentList | ISeq, ctx: AnalyzerContext
 ) -> None:
     if ctx.warn_on_arity_mismatch and getattr(fn.var.value, "_basilisp_fn", False):
-        arities: tuple[int | kw.Keyword] | None = getattr(
-            fn.var.value, "arities", None
-        )
+        arities: tuple[int | kw.Keyword] | None = getattr(fn.var.value, "arities", None)
         if arities is not None:
             has_variadic = REST_KW in arities
             fixed_arities = set(filter(lambda v: v != REST_KW, arities))

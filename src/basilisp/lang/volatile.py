@@ -1,9 +1,8 @@
-from typing import Optional, TypeVar
 from collections.abc import Callable
+from typing import Concatenate, Optional, TypeVar
 
 import attr
 from typing_extensions import ParamSpec
-from typing import Concatenate
 
 from basilisp.lang.interfaces import IDeref
 

@@ -17,10 +17,9 @@ import re
 import sys
 import threading
 import types
-from collections.abc import Iterable, Iterator, Mapping, Sequence, Sized
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
 from fractions import Fraction
 from typing import AbstractSet, Any, NoReturn, Optional, TypeVar, Union, cast
-from collections.abc import Callable
 
 import attr
 
@@ -592,9 +591,7 @@ class Namespace(ReferenceBase):
         "_import_refers",
     )
 
-    def __init__(
-        self, name: sym.Symbol, module: BasilispModule | None = None
-    ) -> None:
+    def __init__(self, name: sym.Symbol, module: BasilispModule | None = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
@@ -1705,9 +1702,7 @@ def deref(o, timeout_ms=None, timeout_val=None):
 
 
 @deref.register(IBlockingDeref)
-def _deref_blocking(
-    o: IBlockingDeref, timeout_ms: int | None = None, timeout_val=None
-):
+def _deref_blocking(o: IBlockingDeref, timeout_ms: int | None = None, timeout_val=None):
     timeout_s = None
     if timeout_ms is not None:
         timeout_s = timeout_ms / 1000 if timeout_ms != 0 else 0

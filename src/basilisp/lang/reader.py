@@ -9,14 +9,13 @@ import math
 import os
 import re
 import uuid
-from collections.abc import Collection, Iterable, MutableMapping, Sequence
+from collections.abc import Callable, Collection, Iterable, MutableMapping, Sequence
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
 from re import Pattern
 from types import TracebackType
 from typing import Any, NoReturn, Optional, TypeVar, Union, cast
-from collections.abc import Callable
 
 import attr
 from typing_extensions import Unpack
@@ -799,9 +798,7 @@ def _map_key_processor(
 
 
 @_with_loc
-def _read_map(
-    ctx: ReaderContext, namespace: str | None = None
-) -> lmap.PersistentMap:
+def _read_map(ctx: ReaderContext, namespace: str | None = None) -> lmap.PersistentMap:
     """Return a map from the input stream."""
     reader = ctx.reader
     start = reader.advance()

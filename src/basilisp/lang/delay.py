@@ -1,5 +1,5 @@
-from typing import Generic, Optional, TypeVar
 from collections.abc import Callable
+from typing import Generic, Optional, TypeVar
 
 import attr
 

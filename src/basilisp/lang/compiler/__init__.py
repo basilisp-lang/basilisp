@@ -3,10 +3,9 @@ import itertools
 import os
 import types
 from ast import unparse
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, Optional
-from collections.abc import Callable
 
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap

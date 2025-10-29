@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, MutableMapping, Sequence
+from collections.abc import Callable, Iterable, MutableMapping, Sequence
 from enum import Enum
 from typing import Any, Generic, Optional, TypeVar, Union
-from collections.abc import Callable
 
 import attr
 

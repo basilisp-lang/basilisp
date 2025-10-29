@@ -10,7 +10,7 @@ import logging
 import pickle  # nosec B403
 import re
 import uuid
-from collections.abc import Collection, Iterable, Mapping, MutableMapping
+from collections.abc import Callable, Collection, Iterable, Mapping, MutableMapping
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -18,12 +18,10 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from re import Pattern
-from typing import TYPE_CHECKING, Generic, Optional, TypeVar, Union, cast
-from collections.abc import Callable
+from typing import TYPE_CHECKING, Concatenate, Generic, Optional, TypeVar, Union, cast
 
 import attr
 from typing_extensions import ParamSpec
-from typing import Concatenate
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
