@@ -748,7 +748,8 @@ def test(
         # `basilisp` declares the testrunner as a pytest plugin, so
         # pytest tries to import it for assertion rewriting.  Since
         # it's already imported, pytest emits a warning. As rewriting
-        # isn't needed, we ignore it.
+        # isn't needed, we ignore it. (Requires pytest >=8.4.0 to take
+        # effect)
         extra = [
             "-W",
             "ignore:Module already imported so cannot be rewritten; basilisp:pytest.PytestAssertRewriteWarning",
