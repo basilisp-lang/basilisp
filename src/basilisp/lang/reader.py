@@ -5,6 +5,7 @@ import contextlib
 import decimal
 import functools
 import io
+import math
 import os
 import re
 import uuid
@@ -1498,9 +1499,9 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
 
 
 _NUMERIC_CONSTANTS = {
-    "NaN": float("nan"),
-    "Inf": float("inf"),
-    "-Inf": -float("inf"),
+    "NaN": math.nan,
+    "Inf": math.inf,
+    "-Inf": -math.inf,
 }
 
 

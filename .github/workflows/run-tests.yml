@@ -26,14 +26,16 @@ jobs:
             tox-env: py312,py312-mypy,py312-lint,bandit
           - version: '3.13'
             tox-env: py313,py313-mypy,py313-lint,bandit
+          # TODO: bandit doesn't currently work with 3.14
+          #       https://github.com/PyCQA/bandit/issues/1314
           - version: '3.14'
-            tox-env: py314,py314-mypy,py314-lint,bandit,format
+            tox-env: py314,py314-mypy,py314-lint,format
           - os: windows-latest
             version: '3.14'
-            tox-env: py314,bandit
+            tox-env: py314,py314-lint
           - os: macos-latest
             version: '3.14'
-            tox-env: py313,bandit
+            tox-env: py313,py314-lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
