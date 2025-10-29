@@ -2411,7 +2411,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
         )
 
         refers: Optional[ast.expr] = None
-        if node.refer_all:
+        if alias.refer_all:
             key, val = genname("k"), genname("v")
             refers = ast.DictComp(
                 key=ast.Call(
@@ -2447,10 +2447,10 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                     )
                 ],
             )
-        elif node.refers:
+        elif alias.refers:
             refer_keys: list[Optional[ast.expr]] = []
             refer_vals: list[ast.expr] = []
-            for refer in node.refers:
+            for refer in alias.refers:
                 refer_keys.append(
                     ast.Call(
                         func=_NEW_SYM_FN_NAME, args=[ast.Constant(refer)], keywords=[]

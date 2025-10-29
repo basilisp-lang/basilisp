@@ -2574,8 +2574,9 @@ def _do_warn_on_import_or_require_name_clash(
 def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
-    aliases, refers, refer_all = [], [], False
+    aliases = []
     for f in form.rest:  # pylint: disable=too-many-nested-blocks
+        refers, refer_all = [], False
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
@@ -2678,6 +2679,8 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
                 form=f,
                 name=module_name.name,
                 alias=module_alias,
+                refers=refers,
+                refer_all=refer_all,
                 env=ctx.get_node_env(),
             )
         )
@@ -2691,8 +2694,6 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     return Import(
         form=form,
         aliases=aliases,
-        refers=refers,
-        refer_all=refer_all,
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 

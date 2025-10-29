@@ -3572,6 +3572,21 @@ class TestImport:
             )
         )
 
+    def test_multi_import_with_refer(self, lcompile: CompileFn):
+        import sys
+        from os import mkdir
+
+        assert [sys, mkdir] == list(
+            lcompile(
+                "(import sys [os :refer [mkdir]]) [sys mkdir]"
+            )
+        )
+        assert [sys, mkdir] == list(
+            lcompile(
+                "(import [os :refer [mkdir]] sys) [sys mkdir]"
+            )
+        )
+
     def test_nested_imports_visible_with_parent(self, lcompile: CompileFn):
         import collections.abc
 

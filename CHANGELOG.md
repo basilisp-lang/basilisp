@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for Python 3.14 (#1282)
 
+### Fixed
+ * Fix a bug where `import` refers would incorrectly be applied to all import modules in the same form (#1274)
+
 ### Removed
  * Removed support for Python 3.9 (#1283)
 
@@ -33,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug where protocols with methods with leading hyphens in method names could not be defined (#1230)
  * Fix a bug where attempting to `:refer` a non-existent Var from another namespace would throw an unhelpful exception (#1231)
- * Fixed a bug where `(range 0)` would return `(0)` rather than than `()` as expected (#1258)
+ * Fix a bug where `(range 0)` would return `(0)` rather than `()` as expected (#1258)
 
 ## [v0.3.8]
 ### Added

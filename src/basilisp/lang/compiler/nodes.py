@@ -613,8 +613,6 @@ class If(Node[SpecialForm]):
 class Import(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable["ImportAlias"]
-    refers: Iterable[str]
-    refer_all: bool
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.IMPORT
@@ -627,6 +625,8 @@ class ImportAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     form: Union[sym.Symbol, vec.PersistentVector]
     name: str
     alias: Optional[str]
+    refers: Iterable[str]
+    refer_all: bool
     env: NodeEnv = attr.field(hash=False)
     children: Sequence[kw.Keyword] = vec.EMPTY
     op: NodeOp = NodeOp.IMPORT_ALIAS
