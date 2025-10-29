@@ -549,11 +549,11 @@ class IPersistentVector(
         raise NotImplementedError()
 
 
-T_tcoll_co = TypeVar("T_tcoll_co", bound="ITransientCollection", covariant=True)
+T_tcoll = TypeVar("T_tcoll", bound="ITransientCollection")
 
 
 # Including ABC as a base seems to cause catastrophic meltdown.
-class IEvolveableCollection(Generic[T_tcoll_co]):
+class IEvolveableCollection(Generic[T_tcoll]):
     """``IEvolveableCollection`` types support creating transient variants of persistent
     data structures which can be modified efficiently and then returned back into
     persistent data structures once modification is complete.
@@ -563,7 +563,7 @@ class IEvolveableCollection(Generic[T_tcoll_co]):
        :lpy:fn:`transient`"""
 
     @abstractmethod
-    def to_transient(self) -> T_tcoll_co:
+    def to_transient(self) -> T_tcoll:
         raise NotImplementedError()
 
 
@@ -578,11 +578,11 @@ class ITransientCollection(Generic[T]):
     __slots__ = ()
 
     @abstractmethod
-    def cons_transient(self: T_tcoll_co, *elems: T) -> "T_tcoll_co":
+    def cons_transient(self: T_tcoll, *elems: T) -> "T_tcoll":
         raise NotImplementedError()
 
     @abstractmethod
-    def to_persistent(self: T_tcoll_co) -> "IPersistentCollection[T]":
+    def to_persistent(self: T_tcoll) -> "IPersistentCollection[T]":
         raise NotImplementedError()
 
 
@@ -720,6 +720,9 @@ def seq_equals(s1: Union["ISeq", ISequential], s2: Any) -> bool:
     return True
 
 
+T_inner = TypeVar("T_inner")
+
+
 class ISeq(ILispObject, IPersistentCollection[T]):
     """``ISeq`` types represent a potentially infinite sequence of elements.
 
@@ -733,7 +736,7 @@ class ISeq(ILispObject, IPersistentCollection[T]):
 
     __slots__ = ()
 
-    class _SeqIter(Iterator[T]):
+    class _SeqIter(Iterator[T_inner]):
         """Stateful iterator for sequence types.
 
         This is primarily useful for avoiding blowing the stack on a long (or infinite)
@@ -742,7 +745,7 @@ class ISeq(ILispObject, IPersistentCollection[T]):
 
         __slots__ = ("_cur",)
 
-        def __init__(self, seq: "ISeq[T]"):
+        def __init__(self, seq: "ISeq[T_inner]"):
             self._cur = seq
 
         def __next__(self):

@@ -162,7 +162,7 @@ def format_syntax_error(  # pylint: disable=unused-argument
 
     context_exc: Optional[BaseException] = e.__cause__
 
-    lines = [os.linesep]
+    lines: list[str] = [os.linesep]
     if context_exc is not None:
         lines.append(f"  exception: {type(context_exc)} from {type(e)}{os.linesep}")
     else:

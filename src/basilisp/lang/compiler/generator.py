@@ -1598,7 +1598,7 @@ def _wrap_override_var_indirection(
     ) -> GeneratedPyAST[T_pynode]:
         if isinstance(node, Do) and node.use_var_indirection:
             with ctx.with_var_indirection_override():
-                return f(ctx, cast(T_node, node), *args, **kwargs)
+                return f(ctx, node, *args, **kwargs)
         else:
             with ctx.with_var_indirection_override(False):
                 return f(ctx, node, *args, **kwargs)
