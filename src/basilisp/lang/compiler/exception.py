@@ -2,7 +2,7 @@ import ast
 import os
 from enum import Enum
 from types import TracebackType
-from typing import Any, Optional, Union
+from typing import Any
 
 import attr
 

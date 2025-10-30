@@ -8,7 +8,7 @@ import textwrap
 import types
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler

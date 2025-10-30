@@ -3,7 +3,7 @@ import inspect
 import logging
 import sys
 import types
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from sphinx.ext.autodoc import (
     ClassDocumenter,

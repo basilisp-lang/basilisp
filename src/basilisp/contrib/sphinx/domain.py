@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, NamedTuple, Optional, Union, cast
+from typing import Any, NamedTuple, cast
 
 from docutils import nodes
 from docutils.nodes import Element, Node

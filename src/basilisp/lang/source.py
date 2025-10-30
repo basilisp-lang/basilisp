@@ -2,7 +2,6 @@ import itertools
 import linecache
 import os
 from collections.abc import Iterable
-from typing import Optional
 
 try:
     import pygments.formatters

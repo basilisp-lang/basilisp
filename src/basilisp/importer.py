@@ -9,7 +9,7 @@ from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import ModuleSpec
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from typing_extensions import TypedDict
 

@@ -1,5 +1,5 @@
 import threading
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 from basilisp.lang.interfaces import IBlockingDeref, IPending
 

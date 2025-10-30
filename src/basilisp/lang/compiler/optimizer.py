@@ -3,7 +3,7 @@ import functools
 from collections import deque
 from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Deque, Optional
+from typing import Deque
 
 from basilisp.lang.compiler.constants import OPERATOR_ALIAS
 from basilisp.lang.compiler.utils import ast_FunctionDef

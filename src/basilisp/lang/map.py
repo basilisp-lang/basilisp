@@ -1,7 +1,7 @@
 from builtins import map as pymap
 from collections.abc import Callable, Iterable, Mapping
 from itertools import islice
-from typing import Any, Optional, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 from immutables import Map as _Map
 from immutables import MapMutation

@@ -2,7 +2,6 @@ import functools
 import sys
 import traceback
 from types import TracebackType
-from typing import Optional
 
 import attr
 

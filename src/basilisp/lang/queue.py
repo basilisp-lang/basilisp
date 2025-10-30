@@ -1,4 +1,4 @@
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 from pyrsistent import PDeque, pdeque  # noqa # pylint: disable=unused-import
 from typing_extensions import Unpack

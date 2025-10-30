@@ -7,7 +7,6 @@ import textwrap
 import uuid
 from fractions import Fraction
 from pathlib import Path
-from typing import Optional
 
 import pytest
 

@@ -8,12 +8,10 @@ import sys
 import tempfile
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
 
-import basilisp.main
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym

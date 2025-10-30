@@ -3,7 +3,6 @@ import os
 import sysconfig
 import threading
 from pathlib import Path
-from typing import Optional
 
 from basilisp import importer as importer
 from basilisp import logconfig

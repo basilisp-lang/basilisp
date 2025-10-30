@@ -1,6 +1,5 @@
 import io
 import sys
-from typing import Dict, Optional, Tuple
 
 import pytest
 

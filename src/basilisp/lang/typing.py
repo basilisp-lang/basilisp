@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from re import Pattern
-from typing import Optional, Protocol, Union
+from typing import Protocol, Union
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist

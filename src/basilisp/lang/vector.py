@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from functools import total_ordering
-from typing import Optional, TypeVar, Union, cast, overload
+from typing import TypeVar, Union, cast, overload
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver

@@ -1,6 +1,6 @@
 import threading
 from collections.abc import Callable
-from typing import Concatenate, Generic, Optional, TypeVar
+from typing import Concatenate, Generic, TypeVar
 
 from typing_extensions import ParamSpec
 

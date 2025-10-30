@@ -1,4 +1,4 @@
-from typing import Optional, TypeVar, cast
+from typing import TypeVar, cast
 
 from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
 from pyrsistent._plist import _EMPTY_PLIST  # pylint: disable=import-private-name

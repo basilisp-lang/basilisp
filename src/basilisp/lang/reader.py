@@ -15,7 +15,7 @@ from fractions import Fraction
 from itertools import chain
 from re import Pattern
 from types import TracebackType
-from typing import Any, NoReturn, Optional, TypeVar, Union, cast
+from typing import Any, NoReturn, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Unpack

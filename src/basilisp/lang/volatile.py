@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Concatenate, Optional, TypeVar
+from typing import Concatenate, TypeVar
 
 import attr
 from typing_extensions import ParamSpec

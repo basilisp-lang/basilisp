@@ -1,7 +1,6 @@
 import threading
 from collections.abc import Iterable
 from functools import total_ordering
-from typing import Optional, Union
 
 from typing_extensions import Unpack
 
