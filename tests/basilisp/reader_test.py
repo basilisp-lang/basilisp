@@ -7,7 +7,6 @@ import textwrap
 import uuid
 from fractions import Fraction
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -37,7 +36,7 @@ def read_str_first(
     resolver: reader.Resolver = None,
     data_readers=None,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    features: IPersistentSet[kw.Keyword] | None = None,
     process_reader_cond: bool = True,
     default_data_reader_fn=None,
 ):

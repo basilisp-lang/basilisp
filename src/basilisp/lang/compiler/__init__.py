@@ -3,9 +3,9 @@ import itertools
 import os
 import types
 from ast import unparse
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
@@ -60,7 +60,7 @@ BytecodeCollector = Callable[[types.CodeType], None]
 class CompilerContext:
     __slots__ = ("_filename", "_actx", "_gctx", "_optimizer")
 
-    def __init__(self, filename: str, opts: Optional[CompilerOpts] = None):
+    def __init__(self, filename: str, opts: CompilerOpts | None = None):
         self._filename = filename
         self._actx = AnalyzerContext(filename=filename, opts=opts)
         self._gctx = GeneratorContext(filename=filename, opts=opts)
@@ -84,15 +84,15 @@ class CompilerContext:
 
 
 def compiler_opts(  # pylint: disable=too-many-arguments
-    generate_auto_inlines: Optional[bool] = None,
-    inline_functions: Optional[bool] = None,
-    warn_on_arity_mismatch: Optional[bool] = None,
-    warn_on_shadowed_name: Optional[bool] = None,
-    warn_on_shadowed_var: Optional[bool] = None,
-    warn_on_unused_names: Optional[bool] = None,
-    warn_on_non_dynamic_set: Optional[bool] = None,
-    use_var_indirection: Optional[bool] = None,
-    warn_on_var_indirection: Optional[bool] = None,
+    generate_auto_inlines: bool | None = None,
+    inline_functions: bool | None = None,
+    warn_on_arity_mismatch: bool | None = None,
+    warn_on_shadowed_name: bool | None = None,
+    warn_on_shadowed_var: bool | None = None,
+    warn_on_unused_names: bool | None = None,
+    warn_on_non_dynamic_set: bool | None = None,
+    use_var_indirection: bool | None = None,
+    warn_on_var_indirection: bool | None = None,
 ) -> CompilerOpts:
     """Return a map of compiler options with defaults applied."""
     return lmap.map(
@@ -148,7 +148,7 @@ def compile_and_exec_form(
     ctx: CompilerContext,
     ns: runtime.Namespace,
     wrapped_fn_name: str = _DEFAULT_FN,
-    collect_bytecode: Optional[BytecodeCollector] = None,
+    collect_bytecode: BytecodeCollector | None = None,
 ) -> Any:
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
@@ -204,7 +204,7 @@ def _incremental_compile_module(
     py_ast: GeneratedPyAST,
     module: BasilispModule,
     source_filename: str,
-    collect_bytecode: Optional[BytecodeCollector] = None,
+    collect_bytecode: BytecodeCollector | None = None,
 ) -> None:
     """Incrementally compile a stream of AST nodes in module mod.
 
@@ -232,7 +232,7 @@ def _bootstrap_module(
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
     module: BasilispModule,
-    collect_bytecode: Optional[BytecodeCollector] = None,
+    collect_bytecode: BytecodeCollector | None = None,
 ) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     _incremental_compile_module(
@@ -249,7 +249,7 @@ def compile_module(
     forms: Iterable[ReaderForm],
     ctx: CompilerContext,
     module: BasilispModule,
-    collect_bytecode: Optional[BytecodeCollector] = None,
+    collect_bytecode: BytecodeCollector | None = None,
 ) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
     executed as a Python module.
@@ -298,7 +298,7 @@ def load(
     path: str,
     ctx: CompilerContext,
     ns: runtime.Namespace,
-    collect_bytecode: Optional[BytecodeCollector] = None,
+    collect_bytecode: BytecodeCollector | None = None,
 ) -> Any:
     """Call :lpy:fn:`basilisp.core/load` with the given ``path``, returning the
     result."""
@@ -311,7 +311,7 @@ def load_file(
     path: Path,
     ctx: CompilerContext,
     ns: runtime.Namespace,
-    collect_bytecode: Optional[BytecodeCollector] = None,
+    collect_bytecode: BytecodeCollector | None = None,
 ) -> Any:
     """Call :lpy:fn:`basilisp.core/load-file` with the given ``path``, returning the
     result."""

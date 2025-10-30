@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from functools import total_ordering
-from typing import Optional, TypeVar, Union, cast, overload
+from typing import TypeVar, Union, cast, overload
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
@@ -64,7 +64,7 @@ class TransientVector(ITransientVector[T]):
     def contains_transient(self, k: int) -> bool:
         return 0 <= k < len(self._inner)
 
-    def entry_transient(self, k: int) -> Optional[IMapEntry[int, T]]:
+    def entry_transient(self, k: int) -> IMapEntry[int, T] | None:
         try:
             return MapEntry.of(k, self._inner[k])
         except IndexError:
@@ -102,7 +102,7 @@ class PersistentVector(
     __slots__ = ("_inner", "_meta")
 
     def __init__(
-        self, wrapped: "PVector[T]", meta: Optional[IPersistentMap] = None
+        self, wrapped: "PVector[T]", meta: IPersistentMap | None = None
     ) -> None:
         self._inner = wrapped
         self._meta = meta
@@ -134,7 +134,7 @@ class PersistentVector(
     def __len__(self):
         return len(self._inner)
 
-    def __call__(self, k: int, default: Optional[T] = None) -> Optional[T]:
+    def __call__(self, k: int, default: T | None = None) -> T | None:
         return self.val_at(k, default=default)
 
     def __lt__(self, other):
@@ -164,10 +164,10 @@ class PersistentVector(
         return _seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentVector[T]":
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentVector[T]":
         return vector(self._inner, meta=meta)
 
     def cons(self, *elems: T) -> "PersistentVector[T]":  # type: ignore[override]
@@ -182,13 +182,13 @@ class PersistentVector(
     def contains(self, k: int) -> bool:
         return 0 <= k < len(self._inner)
 
-    def entry(self, k: int) -> Optional[IMapEntry[int, T]]:
+    def entry(self, k: int) -> IMapEntry[int, T] | None:
         try:
             return MapEntry.of(k, self._inner[k])
         except IndexError:
             return None
 
-    def val_at(self, k: int, default: Optional[T] = None) -> Optional[T]:
+    def val_at(self, k: int, default: T | None = None) -> T | None:
         try:
             return self._inner[k]
         except (IndexError, TypeError):
@@ -197,12 +197,12 @@ class PersistentVector(
     def empty(self) -> "PersistentVector[T]":
         return EMPTY.with_meta(self._meta)
 
-    def seq(self) -> Optional[ISeq[T]]:  # type: ignore[override]
+    def seq(self) -> ISeq[T] | None:  # type: ignore[override]
         if len(self._inner) == 0:
             return None
         return sequence(self)
 
-    def peek(self) -> Optional[T]:
+    def peek(self) -> T | None:
         if len(self) == 0:
             return None
         return self[-1]
@@ -280,7 +280,7 @@ class MapEntry(IMapEntry[K, V], PersistentVector[Union[K, V]]):
         return MapEntry(pvector([k, v]))
 
     @staticmethod
-    def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[K, V]":
+    def from_vec(v: Sequence[K | V]) -> "MapEntry[K, V]":
         return MapEntry(pvector(v))
 
 
@@ -288,12 +288,12 @@ EMPTY: PersistentVector = PersistentVector(pvector(()))
 
 
 def vector(
-    members: Iterable[T], meta: Optional[IPersistentMap] = None
+    members: Iterable[T], meta: IPersistentMap | None = None
 ) -> PersistentVector[T]:
     """Creates a new vector."""
     return PersistentVector(pvector(members), meta=meta)
 
 
-def v(*members: T, meta: Optional[IPersistentMap] = None) -> PersistentVector[T]:
+def v(*members: T, meta: IPersistentMap | None = None) -> PersistentVector[T]:
     """Creates a new vector from members."""
     return PersistentVector(pvector(members), meta=meta)

@@ -9,13 +9,13 @@ import math
 import os
 import re
 import uuid
-from collections.abc import Collection, Iterable, MutableMapping, Sequence
+from collections.abc import Callable, Collection, Iterable, MutableMapping, Sequence
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
 from re import Pattern
 from types import TracebackType
-from typing import Any, Callable, NoReturn, Optional, TypeVar, Union, cast
+from typing import Any, NoReturn, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Unpack
@@ -127,9 +127,9 @@ DefaultDataReaderFn = Callable[[sym.Symbol, RawReaderForm], Any]
 @attr.define(repr=False, str=False)
 class SyntaxError(Exception):
     message: str
-    line: Optional[int] = None
-    col: Optional[int] = None
-    filename: Optional[str] = None
+    line: int | None = None
+    col: int | None = None
+    filename: str | None = None
 
     def __repr__(self):
         return (
@@ -138,7 +138,7 @@ class SyntaxError(Exception):
         )
 
     def __str__(self):
-        keys: dict[str, Union[str, int]] = {}
+        keys: dict[str, str | int] = {}
         if self.filename is not None:
             keys["file"] = self.filename
         if self.line is not None and self.col is not None:
@@ -154,14 +154,14 @@ class SyntaxError(Exception):
 @format_exception.register(SyntaxError)
 def format_syntax_error(  # pylint: disable=unused-argument
     e: SyntaxError,
-    tp: Optional[type[Exception]] = None,
-    tb: Optional[TracebackType] = None,
-    disable_color: Optional[bool] = None,
+    tp: type[Exception] | None = None,
+    tb: TracebackType | None = None,
+    disable_color: bool | None = None,
 ) -> list[str]:
     """If `disable_color` is True, no color formatting will be applied to the source
     code."""
 
-    context_exc: Optional[BaseException] = e.__cause__
+    context_exc: BaseException | None = e.__cause__
 
     lines: list[str] = [os.linesep]
     if context_exc is not None:
@@ -225,8 +225,8 @@ class StreamReader:
         self,
         stream: io.TextIOBase,
         pushback_depth: int = 5,
-        init_line: Optional[int] = None,
-        init_column: Optional[int] = None,
+        init_line: int | None = None,
+        init_column: int | None = None,
     ) -> None:
         """`init_line` and `init_column` refer to where the `stream`
         starts in the broader context, defaulting to 1 and 0
@@ -245,7 +245,7 @@ class StreamReader:
         self._update_loc()
 
     @property
-    def name(self) -> Optional[str]:
+    def name(self) -> str | None:
         return getattr(self._stream, "name", None)
 
     @property
@@ -378,12 +378,12 @@ class ReaderContext:
     def __init__(  # pylint: disable=too-many-arguments
         self,
         reader: StreamReader,
-        resolver: Optional[Resolver] = None,
-        data_readers: Optional[DataReaders] = None,
+        resolver: Resolver | None = None,
+        data_readers: DataReaders | None = None,
         eof: Any = None,
-        features: Optional[IPersistentSet[kw.Keyword]] = None,
+        features: IPersistentSet[kw.Keyword] | None = None,
         process_reader_cond: bool = True,
-        default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
+        default_data_reader_fn: DefaultDataReaderFn | None = None,
     ) -> None:
         self._data_readers = Maybe(data_readers).or_else_get(lmap.EMPTY)
         self._default_data_reader_fn = Maybe(default_data_reader_fn).or_else_get(
@@ -540,8 +540,8 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
         return vec.vector(feature_list)
 
     def val_at(
-        self, k: kw.Keyword, default: Optional[ReaderForm] = None
-    ) -> Optional[ReaderForm]:
+        self, k: kw.Keyword, default: ReaderForm | None = None
+    ) -> ReaderForm | None:
         if k == READER_COND_FORM_KW:
             return self._form
         elif k == READER_COND_SPLICING_KW:
@@ -555,7 +555,7 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
 
     def select_feature(
         self, features: IPersistentSet[kw.Keyword]
-    ) -> Union[ReaderForm, object]:
+    ) -> ReaderForm | object:
         for k, form in self._feature_vec:
             if k in features:
                 return form
@@ -610,8 +610,8 @@ def _consume_whitespace(ctx: ReaderContext) -> str:
 
 
 def _read_namespaced(
-    ctx: ReaderContext, allowed_suffix: Optional[str] = None
-) -> tuple[Optional[str], str]:
+    ctx: ReaderContext, allowed_suffix: str | None = None
+) -> tuple[str | None, str]:
     """Read a namespaced token (keyword or symbol) from the input stream."""
     ns: list[str] = []
     name: list[str] = []
@@ -657,7 +657,7 @@ def _read_coll(
     ctx: ReaderContext,
     f: Callable[
         [Collection[Any]],
-        Union[llist.PersistentList, lset.PersistentSet, vec.PersistentVector],
+        llist.PersistentList | lset.PersistentSet | vec.PersistentVector,
     ],
     end_char: str,
     coll_name: str,
@@ -771,7 +771,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
 
 
 def _map_key_processor(
-    namespace: Optional[str],
+    namespace: str | None,
 ) -> Callable[[Any], Any]:
     """Return a map key processor.
 
@@ -798,9 +798,7 @@ def _map_key_processor(
 
 
 @_with_loc
-def _read_map(
-    ctx: ReaderContext, namespace: Optional[str] = None
-) -> lmap.PersistentMap:
+def _read_map(ctx: ReaderContext, namespace: str | None = None) -> lmap.PersistentMap:
     """Return a map from the input stream."""
     reader = ctx.reader
     start = reader.advance()
@@ -974,7 +972,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
         s.append(char)
 
 
-def _read_fstr(ctx: ReaderContext) -> Union[str, llist.PersistentList]:
+def _read_fstr(ctx: ReaderContext) -> str | llist.PersistentList:
     """Return a UTF-8 encoded string from the input stream."""
     elems: list[LispReaderForm] = []
     s: list[str] = []
@@ -1151,7 +1149,7 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map: Optional[lmap.PersistentMap[LispForm, LispForm]]
+    meta_map: lmap.PersistentMap[LispForm, LispForm] | None
     if isinstance(meta, sym.Symbol):
         meta_map = lmap.map({READER_TAG_KW: meta})
     elif isinstance(meta, kw.Keyword):
@@ -1188,7 +1186,7 @@ def _walk(form, _, outer_f):
 
 @_walk.register(IPersistentList)
 @_walk.register(ISeq)
-def _walk_ipersistentlist(form: Union[IPersistentList, ISeq], inner_f, outer_f):
+def _walk_ipersistentlist(form: IPersistentList | ISeq, inner_f, outer_f):
     coll = llist.list(map(inner_f, form))
     if isinstance(form, IMeta) and form.meta is not None:
         coll = coll.with_meta(form.meta)
@@ -1238,7 +1236,7 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
         form = _read_list(ctx)
     arg_set = set()
 
-    def arg_suffix(arg_num: Optional[str]) -> str:
+    def arg_suffix(arg_num: str | None) -> str:
         if arg_num is None:
             return "1"
         elif arg_num == "&":
@@ -1246,7 +1244,7 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
         else:
             return arg_num
 
-    def sym_replacement(arg_num: Optional[str]) -> sym.Symbol:
+    def sym_replacement(arg_num: str | None) -> sym.Symbol:
         suffix = arg_suffix(arg_num)
         if ctx.is_syntax_quoted:
             suffix = f"{suffix}#"
@@ -1630,7 +1628,7 @@ def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
 
 def _load_record_or_type(
     ctx: ReaderContext, s: sym.Symbol, v: LispReaderForm
-) -> Union[IRecord, IType]:
+) -> IRecord | IType:
     """Attempt to load the constructor named by `s` and construct a new
     record or type instance from the vector or map following name."""
     assert s.ns is None, "Record reader macro cannot have namespace"
@@ -1821,12 +1819,12 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
 
 def syntax_quote(  # pylint: disable=too-many-arguments
     form: RawReaderForm,
-    resolver: Optional[Resolver] = None,
-    data_readers: Optional[DataReaders] = None,
+    resolver: Resolver | None = None,
+    data_readers: DataReaders | None = None,
     eof: Any = EOF,
-    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    features: IPersistentSet[kw.Keyword] | None = None,
     process_reader_cond: bool = True,
-    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
+    default_data_reader_fn: DefaultDataReaderFn | None = None,
 ):
     """Return the syntax quoted version of a form."""
     # the buffer is unused here, but is necessary to create a ReaderContext
@@ -1845,15 +1843,15 @@ def syntax_quote(  # pylint: disable=too-many-arguments
 
 def read(  # pylint: disable=too-many-arguments
     stream,
-    resolver: Optional[Resolver] = None,
-    data_readers: Optional[DataReaders] = None,
+    resolver: Resolver | None = None,
+    data_readers: DataReaders | None = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    features: IPersistentSet[kw.Keyword] | None = None,
     process_reader_cond: bool = True,
-    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
-    init_line: Optional[int] = None,
-    init_column: Optional[int] = None,
+    default_data_reader_fn: DefaultDataReaderFn | None = None,
+    init_line: int | None = None,
+    init_column: int | None = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a stream as a Lisp expression.
 
@@ -1907,15 +1905,15 @@ def read(  # pylint: disable=too-many-arguments
 
 def read_str(  # pylint: disable=too-many-arguments
     s: str,
-    resolver: Optional[Resolver] = None,
-    data_readers: Optional[DataReaders] = None,
+    resolver: Resolver | None = None,
+    data_readers: DataReaders | None = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    features: IPersistentSet[kw.Keyword] | None = None,
     process_reader_cond: bool = True,
-    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
-    init_line: Optional[int] = None,
-    init_column: Optional[int] = None,
+    default_data_reader_fn: DefaultDataReaderFn | None = None,
+    init_line: int | None = None,
+    init_column: int | None = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a string as a Lisp expression.
 
@@ -1942,13 +1940,13 @@ def read_str(  # pylint: disable=too-many-arguments
 
 def read_file(  # pylint: disable=too-many-arguments
     filename: str,
-    resolver: Optional[Resolver] = None,
-    data_readers: Optional[DataReaders] = None,
+    resolver: Resolver | None = None,
+    data_readers: DataReaders | None = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    features: IPersistentSet[kw.Keyword] | None = None,
     process_reader_cond: bool = True,
-    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
+    default_data_reader_fn: DefaultDataReaderFn | None = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a file as a Lisp expression.
 

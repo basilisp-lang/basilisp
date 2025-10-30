@@ -1,7 +1,8 @@
 import threading
-from typing import Any, Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, Concatenate, Optional, TypeVar
 
-from typing_extensions import Concatenate, ParamSpec
+from typing_extensions import ParamSpec
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
@@ -28,19 +29,19 @@ class ReferenceBase(IReference):
     Implementers must have the `_lock` and `_meta` properties defined."""
 
     _lock: threading.RLock
-    _meta: Optional[IPersistentMap]
+    _meta: IPersistentMap | None
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         with self._lock:
             return self._meta
 
-    def alter_meta(self, f: AlterMeta, *args) -> Optional[IPersistentMap]:
+    def alter_meta(self, f: AlterMeta, *args) -> IPersistentMap | None:
         with self._lock:
             self._meta = f(self._meta, *args)
             return self._meta
 
-    def reset_meta(self, meta: Optional[IPersistentMap]) -> Optional[IPersistentMap]:
+    def reset_meta(self, meta: IPersistentMap | None) -> IPersistentMap | None:
         with self._lock:
             self._meta = meta
             return meta
@@ -59,7 +60,7 @@ class RefBase(IRef[T], ReferenceBase):
     Implementers must have the `_validators` and `_watches` properties defined.
     """
 
-    _validator: Optional[RefValidator[T]]
+    _validator: RefValidator[T] | None
     _watches: IPersistentMap[RefWatchKey, RefWatcher[T]]
 
     def add_watch(self, k: RefWatchKey, wf: RefWatcher[T]) -> "RefBase[T]":
@@ -76,16 +77,16 @@ class RefBase(IRef[T], ReferenceBase):
             self._watches = self._watches.dissoc(k)
             return self
 
-    def get_validator(self) -> Optional[RefValidator[T]]:
+    def get_validator(self) -> RefValidator[T] | None:
         return self._validator
 
-    def set_validator(self, vf: Optional[RefValidator[T]] = None) -> None:
+    def set_validator(self, vf: RefValidator[T] | None = None) -> None:
         with self._lock:
             if vf is not None:
                 self._validate(self.deref(), vf=vf)
             self._validator = vf
 
-    def _validate(self, val: Any, vf: Optional[RefValidator[T]] = None) -> None:
+    def _validate(self, val: Any, vf: RefValidator[T] | None = None) -> None:
         vf = vf or self._validator
         if vf is not None:
             try:

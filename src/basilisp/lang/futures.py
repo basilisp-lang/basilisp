@@ -1,8 +1,9 @@
+from collections.abc import Callable
 from concurrent.futures import Future as _Future  # noqa # pylint: disable=unused-import
 from concurrent.futures import ProcessPoolExecutor as _ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
 from concurrent.futures import TimeoutError as _TimeoutError
-from typing import Callable, Optional, TypeVar
+from typing import TypeVar
 
 import attr
 from typing_extensions import ParamSpec
@@ -27,8 +28,8 @@ class Future(IBlockingDeref[T], IPending):
         return self._future.cancelled()
 
     def deref(
-        self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
-    ) -> Optional[T]:
+        self, timeout: float | None = None, timeout_val: T | None = None
+    ) -> T | None:
         try:
             return self._future.result(timeout=timeout)
         except _TimeoutError:
@@ -43,7 +44,7 @@ class Future(IBlockingDeref[T], IPending):
 
     # Pass `Future.result(timeout=...)` through so `Executor.map(...)` can
     # still work with this Future wrapper.
-    def result(self, timeout: Optional[float] = None) -> T:
+    def result(self, timeout: float | None = None) -> T:
         return self._future.result(timeout=timeout)
 
 
@@ -53,7 +54,7 @@ class Future(IBlockingDeref[T], IPending):
 
 
 class ProcessPoolExecutor(_ProcessPoolExecutor):  # pragma: no cover
-    def __init__(self, max_workers: Optional[int] = None):
+    def __init__(self, max_workers: int | None = None):
         super().__init__(max_workers=max_workers)
 
     # pylint: disable=arguments-differ
@@ -66,7 +67,7 @@ class ProcessPoolExecutor(_ProcessPoolExecutor):  # pragma: no cover
 class ThreadPoolExecutor(_ThreadPoolExecutor):
     def __init__(
         self,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         thread_name_prefix: str = "basilisp-futures",
     ):
         super().__init__(max_workers=max_workers, thread_name_prefix=thread_name_prefix)

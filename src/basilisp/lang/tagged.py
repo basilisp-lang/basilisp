@@ -1,4 +1,4 @@
-from typing import Optional, TypeVar, Union
+from typing import TypeVar, Union
 
 from typing_extensions import Unpack
 
@@ -23,7 +23,7 @@ class TaggedLiteral(ILispObject, ILookup[K, T]):
     def __init__(self, tag: Symbol, form) -> None:
         self._tag = tag
         self._form = form
-        self._hash: Optional[int] = None
+        self._hash: int | None = None
 
     @property
     def tag(self) -> Symbol:
@@ -51,7 +51,7 @@ class TaggedLiteral(ILispObject, ILookup[K, T]):
     def __getitem__(self, item):
         return self.val_at(item)
 
-    def val_at(self, k: K, default: Optional[V] = None) -> T:
+    def val_at(self, k: K, default: V | None = None) -> T:
         if k == _TAG_KW:
             return self._tag
         elif k == _FORM_KW:

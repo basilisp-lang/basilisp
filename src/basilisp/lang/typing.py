@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from re import Pattern
-from typing import Optional, Protocol, Union
+from typing import Protocol, Union
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -55,9 +55,9 @@ SpecialForm = Union[llist.PersistentList, ISeq]
 
 class BasilispFunction(Protocol):
     _basilisp_fn: bool
-    arities: IPersistentSet[Union[kw.Keyword, int]]
-    meta: Optional[IPersistentMap]
+    arities: IPersistentSet[kw.Keyword | int]
+    meta: IPersistentMap | None
 
     def __call__(self, *args, **kwargs): ...
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "BasilispFunction": ...
+    def with_meta(self, meta: IPersistentMap | None) -> "BasilispFunction": ...

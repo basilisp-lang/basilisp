@@ -1,7 +1,8 @@
 import threading
-from typing import Callable, Generic, Optional, TypeVar
+from collections.abc import Callable
+from typing import Concatenate, Generic, TypeVar
 
-from typing_extensions import Concatenate, ParamSpec
+from typing_extensions import ParamSpec
 
 from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import IPersistentMap, RefValidator
@@ -17,10 +18,10 @@ class Atom(RefBase[T], Generic[T]):
     def __init__(
         self,
         state: T,
-        meta: Optional[IPersistentMap] = None,
-        validator: Optional[RefValidator] = None,
+        meta: IPersistentMap | None = None,
+        validator: RefValidator | None = None,
     ) -> None:
-        self._meta: Optional[IPersistentMap] = meta
+        self._meta: IPersistentMap | None = meta
         self._state = state
         self._lock = threading.RLock()
         self._watches = lmap.EMPTY

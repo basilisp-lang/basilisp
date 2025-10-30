@@ -17,9 +17,9 @@ import re
 import sys
 import threading
 import types
-from collections.abc import Iterable, Iterator, Mapping, Sequence, Sized
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
 from fractions import Fraction
-from typing import AbstractSet, Any, Callable, NoReturn, Optional, TypeVar, Union, cast
+from typing import AbstractSet, Any, NoReturn, Optional, TypeVar, Union, cast
 
 import attr
 
@@ -245,7 +245,7 @@ class Var(RefBase):
         ns: "Namespace",
         name: sym.Symbol,
         dynamic: bool = False,
-        meta: Optional[IPersistentMap] = None,
+        meta: IPersistentMap | None = None,
     ) -> None:
         self._ns = ns
         self._name = name
@@ -296,7 +296,7 @@ class Var(RefBase):
             self._tl = _VarBindings() if dynamic else None
 
     @property
-    def is_private(self) -> Optional[bool]:
+    def is_private(self) -> bool | None:
         if self._meta is not None:
             return self._meta.val_at(_PRIVATE_META_KEY)
         return False
@@ -388,7 +388,7 @@ class Var(RefBase):
         name: sym.Symbol,
         val,
         dynamic: bool = False,
-        meta: Optional[IPersistentMap] = None,
+        meta: IPersistentMap | None = None,
     ) -> "Var":
         """Intern the value bound to the symbol `name` in namespace `ns`.
 
@@ -415,7 +415,7 @@ class Var(RefBase):
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         dynamic: bool = False,
-        meta: Optional[IPersistentMap] = None,
+        meta: IPersistentMap | None = None,
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
         return cls.intern(ns, name, cls.__UNBOUND_SENTINEL, dynamic=dynamic, meta=meta)
@@ -591,13 +591,11 @@ class Namespace(ReferenceBase):
         "_import_refers",
     )
 
-    def __init__(
-        self, name: sym.Symbol, module: Optional[BasilispModule] = None
-    ) -> None:
+    def __init__(self, name: sym.Symbol, module: BasilispModule | None = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
-        self._meta: Optional[IPersistentMap] = None
+        self._meta: IPersistentMap | None = None
         self._lock = threading.RLock()
 
         self._aliases: NamespaceMap = lmap.EMPTY
@@ -776,7 +774,7 @@ class Namespace(ReferenceBase):
         with self._lock:
             self._interns = self._interns.dissoc(sym)
 
-    def find(self, sym: sym.Symbol) -> Optional[Var]:
+    def find(self, sym: sym.Symbol) -> Var | None:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
         with self._lock:
@@ -790,7 +788,7 @@ class Namespace(ReferenceBase):
         sym: sym.Symbol,
         module: Module,
         *aliases: sym.Symbol,
-        refers: Optional[dict[sym.Symbol, Any]] = None,
+        refers: dict[sym.Symbol, Any] | None = None,
     ) -> None:
         """Add the Symbol as an imported Symbol in this Namespace.
 
@@ -817,14 +815,14 @@ class Namespace(ReferenceBase):
                     m = m.assoc(alias, sym)
                 self._import_aliases = m
 
-    def get_import_refer(self, sym: sym.Symbol) -> Optional[sym.Symbol]:
+    def get_import_refer(self, sym: sym.Symbol) -> sym.Symbol | None:
         """Get the Python module member name referred by Symbol or None if it does not
         exist."""
         with self._lock:
             refer = self._import_refers.val_at(sym, None)
             return refer.module_name if refer is not None else None
 
-    def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
+    def get_import(self, sym: sym.Symbol) -> BasilispModule | None:
         """Return the module if a module named by sym has been imported into
         this Namespace, None otherwise.
 
@@ -845,7 +843,7 @@ class Namespace(ReferenceBase):
             with self._lock:
                 self._refers = self._refers.assoc(sym, var)
 
-    def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
+    def get_refer(self, sym: sym.Symbol) -> Var | None:
         """Get the Var referred by Symbol or None if it does not exist."""
         with self._lock:
             return self._refers.val_at(sym, None)
@@ -868,7 +866,7 @@ class Namespace(ReferenceBase):
     def __get_or_create(
         ns_cache: NamespaceMap,
         name: sym.Symbol,
-        module: Optional[BasilispModule] = None,
+        module: BasilispModule | None = None,
     ) -> lmap.PersistentMap:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -893,7 +891,7 @@ class Namespace(ReferenceBase):
 
     @classmethod
     def get_or_create(
-        cls, name: sym.Symbol, module: Optional[BasilispModule] = None
+        cls, name: sym.Symbol, module: BasilispModule | None = None
     ) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
@@ -923,7 +921,7 @@ class Namespace(ReferenceBase):
             raise ValueError("Cannot remove the Basilisp core namespace")
         while True:
             oldval: lmap.PersistentMap = cls._NAMESPACES.deref()
-            ns: Optional[Namespace] = oldval.val_at(name, None)
+            ns: Namespace | None = oldval.val_at(name, None)
             newval = oldval
             if ns is not None:
                 newval = oldval.dissoc(name)
@@ -943,7 +941,7 @@ class Namespace(ReferenceBase):
         return is_match
 
     def __complete_alias(
-        self, prefix: str, name_in_ns: Optional[str] = None
+        self, prefix: str, name_in_ns: str | None = None
     ) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of aliased namespaces. If name_in_ns is given,
@@ -963,7 +961,7 @@ class Namespace(ReferenceBase):
                 yield f"{alias}/"
 
     def __complete_imports_and_aliases(
-        self, prefix: str, name_in_module: Optional[str] = None
+        self, prefix: str, name_in_module: str | None = None
     ) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of imports and aliased imports. If name_in_module
@@ -1208,7 +1206,7 @@ def _first_none(_: None) -> None:
 
 
 @first.register(ISeq)
-def _first_iseq(o: ISeq[T]) -> Optional[T]:
+def _first_iseq(o: ISeq[T]) -> T | None:
     return o.first
 
 
@@ -1246,13 +1244,13 @@ def nthrest(coll, i: int):
         coll = rest(coll)
 
 
-def next_(o) -> Optional[ISeq]:
+def next_(o) -> ISeq | None:
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
     return to_seq(rest(o))
 
 
-def nthnext(coll, i: int) -> Optional[ISeq]:
+def nthnext(coll, i: int) -> ISeq | None:
     """Returns the nth next sequence of coll."""
     while True:
         if coll is None:
@@ -1309,7 +1307,7 @@ T_reduce_init = TypeVar("T_reduce_init")
 def internal_reduce(
     coll: Any,
     f: ReduceFunction,
-    init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
+    init: T_reduce_init | object = IReduce.REDUCE_SENTINEL,
 ) -> T_reduce_init:
     raise TypeError(f"Type {type(coll)} cannot be reduced")
 
@@ -1317,9 +1315,9 @@ def internal_reduce(
 @internal_reduce.register(collections.abc.Iterable)
 @internal_reduce.register(type(None))
 def _internal_reduce_iterable(
-    coll: Optional[Iterable[T]],
+    coll: Iterable[T] | None,
     f: ReduceFunction[T_reduce_init, T],
-    init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
+    init: T_reduce_init | object = IReduce.REDUCE_SENTINEL,
 ) -> T_reduce_init:
     s = to_seq(coll)
 
@@ -1345,7 +1343,7 @@ def _internal_reduce_iterable(
 def _internal_reduce_ireduce(
     coll: IReduce,
     f: ReduceFunction[T_reduce_init, T],
-    init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
+    init: T_reduce_init | object = IReduce.REDUCE_SENTINEL,
 ) -> T_reduce_init:
     if init is IReduce.REDUCE_SENTINEL:
         return coll.reduce(f)
@@ -1566,13 +1564,13 @@ def _keys_none(_: None) -> None:
 
 @keys.register(collections.abc.Iterable)
 @keys.register(ISeqable)
-def _keys_iterable(o: Union[ISeqable, Iterable]) -> Optional[ISeq]:
+def _keys_iterable(o: ISeqable | Iterable) -> ISeq | None:
     return keys(to_seq(o))
 
 
 @keys.register(ISeq)
-def _keys_iseq(o: ISeq) -> Optional[ISeq]:
-    def _key_seq(s: ISeq) -> Optional[ISeq]:
+def _keys_iseq(o: ISeq) -> ISeq | None:
+    def _key_seq(s: ISeq) -> ISeq | None:
         if to_seq(s) is not None:
             e = s.first
             if not isinstance(e, IMapEntry):
@@ -1586,7 +1584,7 @@ def _keys_iseq(o: ISeq) -> Optional[ISeq]:
 
 
 @keys.register(collections.abc.Mapping)
-def _keys_mapping(o: Mapping) -> Optional[ISeq]:
+def _keys_mapping(o: Mapping) -> ISeq | None:
     return to_seq(o.keys())
 
 
@@ -1602,13 +1600,13 @@ def _vals_none(_: None) -> None:
 
 @keys.register(collections.abc.Iterable)
 @vals.register(ISeqable)
-def _vals_iterable(o: Union[ISeqable, Iterable]) -> Optional[ISeq]:
+def _vals_iterable(o: ISeqable | Iterable) -> ISeq | None:
     return vals(to_seq(o))
 
 
 @vals.register(ISeq)
-def _vals_iseq(o: ISeq) -> Optional[ISeq]:
-    def _val_seq(s: ISeq) -> Optional[ISeq]:
+def _vals_iseq(o: ISeq) -> ISeq | None:
+    def _val_seq(s: ISeq) -> ISeq | None:
         if to_seq(s) is not None:
             e = s.first
             if not isinstance(e, IMapEntry):
@@ -1622,7 +1620,7 @@ def _vals_iseq(o: ISeq) -> Optional[ISeq]:
 
 
 @vals.register(collections.abc.Mapping)
-def _vals_mapping(o: Mapping) -> Optional[ISeq]:
+def _vals_mapping(o: Mapping) -> ISeq | None:
     return to_seq(o.values())
 
 
@@ -1658,8 +1656,8 @@ def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
     Additionally, partials do not take the meta from the wrapped function, so that
     value should be cleared and the `with-meta` method should be replaced with a
     new method."""
-    existing_arities: IPersistentSet[Union[kw.Keyword, int]] = f.arities
-    new_arities: set[Union[kw.Keyword, int]] = set()
+    existing_arities: IPersistentSet[kw.Keyword | int] = f.arities
+    new_arities: set[kw.Keyword | int] = set()
     for arity in existing_arities:
         if isinstance(arity, kw.Keyword):
             new_arities.add(arity)
@@ -1704,9 +1702,7 @@ def deref(o, timeout_ms=None, timeout_val=None):
 
 
 @deref.register(IBlockingDeref)
-def _deref_blocking(
-    o: IBlockingDeref, timeout_ms: Optional[int] = None, timeout_val=None
-):
+def _deref_blocking(o: IBlockingDeref, timeout_ms: int | None = None, timeout_val=None):
     timeout_s = None
     if timeout_ms is not None:
         timeout_s = timeout_ms / 1000 if timeout_ms != 0 else 0
@@ -1812,7 +1808,7 @@ def _fn_to_comparator(f):
     return cmp
 
 
-def sort(coll, f=compare) -> Optional[ISeq]:
+def sort(coll, f=compare) -> ISeq | None:
     """Return a sorted sequence of the elements in coll. If a
     comparator function f is provided, compare elements in coll
     using f or use the `compare` fn if not.
@@ -1853,7 +1849,7 @@ def sort(coll, f=compare) -> Optional[ISeq]:
         return llist.EMPTY
 
 
-def sort_by(keyfn, coll, cmp=compare) -> Optional[ISeq]:
+def sort_by(keyfn, coll, cmp=compare) -> ISeq | None:
     """Return a sorted sequence of the elements in coll. If a
     comparator function cmp is provided, compare elements in coll
     using cmp or use the `compare` fn if not.
@@ -1963,7 +1959,7 @@ def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name)
 @to_py.register(ISeq)
 @to_py.register(IPersistentVector)
 def _to_py_list(
-    o: Union[IPersistentList, ISeq, IPersistentVector],
+    o: IPersistentList | ISeq | IPersistentVector,
     keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
 ) -> list:
     return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
@@ -2134,7 +2130,7 @@ def _with_attrs(**kwargs):
     return decorator
 
 
-def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
+def _fn_with_meta(f, meta: lmap.PersistentMap | None):
     """Return a new function with the given meta. If the function f already
     has a meta map, then merge the new meta with the existing meta."""
 
@@ -2163,7 +2159,7 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
 
 
 def _basilisp_fn(
-    arities: tuple[Union[int, kw.Keyword], ...],
+    arities: tuple[int | kw.Keyword, ...],
 ) -> Callable[..., BasilispFunction]:
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
@@ -2269,7 +2265,7 @@ def _load_constant(s: bytes) -> Any:
 ###############################
 
 
-def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
+def resolve_alias(s: sym.Symbol, ns: Namespace | None = None) -> sym.Symbol:
     """Resolve the aliased symbol in the current namespace."""
     if s in _SPECIAL_FORMS:
         return s
@@ -2289,7 +2285,7 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
             return sym.symbol(s.name, ns=ns.name)
 
 
-def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
+def resolve_var(s: sym.Symbol, ns: Namespace | None = None) -> Var | None:
     """Resolve the aliased symbol to a Var from the specified namespace, or the
     current namespace if none is specified."""
     ns_qualified_sym = resolve_alias(s, ns)
@@ -2302,7 +2298,7 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 
 
 @contextlib.contextmanager
-def bindings(bindings: Optional[Mapping[Var, Any]] = None):
+def bindings(bindings: Mapping[Var, Any] | None = None):
     """Context manager for temporarily changing the value thread-local value for
     Basilisp dynamic Vars."""
     m = lmap.map(bindings or {})
@@ -2321,7 +2317,7 @@ def bindings(bindings: Optional[Mapping[Var, Any]] = None):
 
 @contextlib.contextmanager
 def ns_bindings(
-    ns_name: str, module: Optional[BasilispModule] = None
+    ns_name: str, module: BasilispModule | None = None
 ) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.symbol(ns_name)
@@ -2360,7 +2356,7 @@ def get_current_ns() -> Namespace:
 
 def set_current_ns(
     ns_name: str,
-    module: Optional[BasilispModule] = None,
+    module: BasilispModule | None = None,
 ) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.symbol(ns_name)
@@ -2380,7 +2376,7 @@ def set_current_ns(
 
 def add_generated_python(
     generated_python: str,
-    which_ns: Optional[Namespace] = None,
+    which_ns: Namespace | None = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:

@@ -13,7 +13,6 @@ import time
 import venv
 from collections.abc import Sequence
 from threading import Thread
-from typing import Optional
 from unittest.mock import patch
 
 import attr
@@ -82,7 +81,7 @@ class CapturedIO:
 
 @pytest.fixture
 def run_cli(monkeypatch, capsys, cap_lisp_io):
-    def _run_cli(args: Sequence[str], input: Optional[str] = None):
+    def _run_cli(args: Sequence[str], input: str | None = None):
         monkeypatch.setattr("basilisp.main._runtime_is_initialized", False)
         if input is not None:
             monkeypatch.setattr(
@@ -333,7 +332,7 @@ class TestREPL:
                 ["repl", *temp_path_args],
                 input=" ".join(
                     [
-                        f"(import pathlib sys)",
+                        "(import pathlib sys)",
                         "(doseq [path sys/path]",
                         "  (prn (.as-posix (pathlib/Path path))))",
                     ]
@@ -413,7 +412,7 @@ class TestRun:
                     "-c",
                     os.linesep.join(
                         [
-                            f"(import pathlib sys)",
+                            "(import pathlib sys)",
                             "(doseq [path sys/path]",
                             "  (prn (.as-posix (pathlib/Path path))))",
                         ]
@@ -731,7 +730,7 @@ class TestRun:
                 ["run", *temp_path_args, "-"],
                 input=os.linesep.join(
                     [
-                        f"(import pathlib sys)",
+                        "(import pathlib sys)",
                         "(doseq [path sys/path]",
                         "  (prn (.as-posix (pathlib/Path path))))",
                     ]

@@ -75,9 +75,9 @@ def assert_no_logs(caplog):
 @pytest.fixture
 def assert_matching_logs(
     caplog,
-) -> typing.Callable[[str, int, typing.Union[typing.Pattern, str]], None]:
+) -> typing.Callable[[str, int, typing.Pattern | str], None]:
     def _assert_matching_logs(
-        logger_name: str, log_level: int, pattern: typing.Union[typing.Pattern, str]
+        logger_name: str, log_level: int, pattern: typing.Pattern | str
     ) -> None:
         if isinstance(pattern, str):
             pattern = re.compile(pattern)
@@ -106,9 +106,9 @@ def assert_matching_logs(
 @pytest.fixture
 def assert_no_matching_logs(
     caplog,
-) -> typing.Callable[[str, int, typing.Union[typing.Pattern, str]], None]:
+) -> typing.Callable[[str, int, typing.Pattern | str], None]:
     def _assert_no_matching_logs(
-        logger_name: str, log_level: int, pattern: typing.Union[typing.Pattern, str]
+        logger_name: str, log_level: int, pattern: typing.Pattern | str
     ) -> None:
         if isinstance(pattern, str):
             pattern = re.compile(pattern)

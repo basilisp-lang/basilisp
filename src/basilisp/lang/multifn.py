@@ -1,5 +1,6 @@
 import threading
-from typing import Any, Callable, Generic, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime
@@ -35,7 +36,7 @@ class MultiFunction(Generic[T]):
         name: sym.Symbol,
         dispatch: DispatchFunction,
         default: T,
-        hierarchy: Optional[IRef] = None,
+        hierarchy: IRef | None = None,
     ) -> None:
         self._name = name
         self._default = default
@@ -101,11 +102,11 @@ class MultiFunction(Generic[T]):
             self._methods = self._methods.assoc(key, method)
             self._reset_cache()
 
-    def _find_and_cache_method(self, key: T) -> Optional[Method]:
+    def _find_and_cache_method(self, key: T) -> Method | None:
         """Find and cache the best method for dispatch value `key`."""
         with self._lock:
-            best_key: Optional[T] = None
-            best_method: Optional[Method] = None
+            best_key: T | None = None
+            best_method: Method | None = None
             for method_key, method in self._methods.items():
                 if self._is_a(key, method_key):
                     if best_key is None or self._precedes(method_key, best_key):
@@ -125,7 +126,7 @@ class MultiFunction(Generic[T]):
 
             return best_method
 
-    def get_method(self, key: T) -> Optional[Method]:
+    def get_method(self, key: T) -> Method | None:
         """Return the method which would handle this dispatch key or None if no method
         defined for this key and no default."""
         if self._cached_hierarchy != self._hierarchy.deref():
@@ -159,7 +160,7 @@ class MultiFunction(Generic[T]):
         """Return a mapping of preferred values to the set of other values."""
         return self._prefers
 
-    def remove_method(self, key: T) -> Optional[Method]:
+    def remove_method(self, key: T) -> Method | None:
         """Remove the method defined for this key and return it."""
         with self._lock:
             method = self._methods.val_at(key, None)

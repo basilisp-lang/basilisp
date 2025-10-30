@@ -8,12 +8,10 @@ import sys
 import tempfile
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
 
-import basilisp.main
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
@@ -119,7 +117,7 @@ class TestImporter:
         filenames = set()
 
         def _make_new_module(
-            *ns_path: str, ns_name: str = "", module_text: Optional[str] = None
+            *ns_path: str, ns_name: str = "", module_text: str | None = None
         ) -> None:
             """Generate a new module. If ns_name is not the empty string, use that
             name as the name of a Basilisp namespace with a single Var named `val`

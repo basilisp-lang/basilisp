@@ -10,7 +10,7 @@ import logging
 import pickle  # nosec B403
 import re
 import uuid
-from collections.abc import Collection, Iterable, Mapping, MutableMapping
+from collections.abc import Callable, Collection, Iterable, Mapping, MutableMapping
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -18,10 +18,10 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from re import Pattern
-from typing import TYPE_CHECKING, Callable, Generic, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Concatenate, Generic, Optional, TypeVar, Union, cast
 
 import attr
-from typing_extensions import Concatenate, ParamSpec
+from typing_extensions import ParamSpec
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -168,7 +168,7 @@ class SymbolTable:
             self._table[s] = SymbolTableEntry(ctx, munged, s)
         return self
 
-    def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
+    def find_symbol(self, s: sym.Symbol) -> SymbolTableEntry | None:
         if s in self._table:
             return self._table[s]
         if self._parent is None:
@@ -217,8 +217,8 @@ class RecurType(Enum):
 class RecurPoint:
     loop_id: str
     type: RecurType
-    binding_names: Optional[Iterable[str]] = None
-    is_variadic: Optional[bool] = None
+    binding_names: Iterable[str] | None = None
+    is_variadic: bool | None = None
     has_recur: bool = False
 
 
@@ -233,7 +233,7 @@ class GeneratorContext:
     )
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[CompilerOpts] = None
+        self, filename: str | None = None, opts: CompilerOpts | None = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
@@ -289,8 +289,8 @@ class GeneratorContext:
         self,
         loop_id: str,
         type_: RecurType,
-        binding_names: Optional[Iterable[str]] = None,
-        is_variadic: Optional[bool] = None,
+        binding_names: Iterable[str] | None = None,
+        is_variadic: bool | None = None,
     ):
         self._recur_points.append(
             RecurPoint(
@@ -325,9 +325,9 @@ class GeneratorContext:
     def GeneratorException(
         self,
         msg: str,
-        form: Union[LispForm, None, ISeq] = None,
-        lisp_ast: Optional[Node] = None,
-        py_ast: Optional[Union[ast.expr, ast.stmt]] = None,
+        form: LispForm | None | ISeq = None,
+        lisp_ast: Node | None = None,
+        py_ast: ast.expr | ast.stmt | None = None,
     ) -> CompilerException:
         """Return a CompilerException annotated with the current filename and
         :code-generation compiler phase set. The remaining keyword arguments are
@@ -536,9 +536,9 @@ def _fn_node(  # pylint: disable=too-many-arguments
     args: ast.arguments,
     body: list[ast.stmt],
     decorator_list: list[ast.expr],
-    returns: Optional[ast.expr],
+    returns: ast.expr | None,
     is_async: bool,
-) -> Union[ast.AsyncFunctionDef, ast.FunctionDef]:
+) -> ast.AsyncFunctionDef | ast.FunctionDef:
     if is_async:
         return ast_AsyncFunctionDef(
             name=name,
@@ -558,8 +558,8 @@ def _fn_node(  # pylint: disable=too-many-arguments
 
 
 def _tagged_assign(
-    target: ast.Name, value: ast.expr, annotation: Optional[ast.expr] = None
-) -> Union[ast.Assign, ast.AnnAssign]:
+    target: ast.Name, value: ast.expr, annotation: ast.expr | None = None
+) -> ast.Assign | ast.AnnAssign:
     """Return a possibly annotated assignment."""
     if annotation is not None:
         return ast.AnnAssign(
@@ -654,7 +654,7 @@ def _with_ast_loc_deps(
 MetaNode = Union[Const, MapNode]
 
 
-def _should_gen_safe_python_param_names(fn_meta_node: Optional[MetaNode]) -> bool:
+def _should_gen_safe_python_param_names(fn_meta_node: MetaNode | None) -> bool:
     """Return True if the `fn_meta_node` has the meta key set to generate globally
     unique function parameter names."""
     return (
@@ -831,8 +831,8 @@ def statementize(e: PyASTNode) -> ast.stmt:
 def expressionize(
     body: GeneratedPyAST,
     fn_name: str,
-    args: Optional[Iterable[ast.arg]] = None,
-    vargs: Optional[ast.arg] = None,
+    args: Iterable[ast.arg] | None = None,
+    vargs: ast.arg | None = None,
 ) -> ast.FunctionDef:
     """Given a series of expression AST nodes, create a function AST node
     with the given name that can be called and will return the result of
@@ -929,7 +929,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
             def_ast = gen_py_ast(ctx, node.init)
             is_defn = False
 
-        tag: Optional[ast.expr]
+        tag: ast.expr | None
         tag_deps: Iterable[PyASTNode]
         if node.tag is not None and (tag_ast := gen_py_ast(ctx, node.tag)) is not None:
             tag = tag_ast.node
@@ -1095,8 +1095,8 @@ def __deftype_property_to_py_ast(
 def __multi_arity_deftype_dispatch_method(
     name: str,
     arity_map: Mapping[int, str],
-    default_name: Optional[str] = None,
-    max_fixed_arity: Optional[int] = None,
+    default_name: str | None = None,
+    max_fixed_arity: int | None = None,
 ) -> GeneratedPyAST[ast.stmt]:
     """Return the Python AST nodes for an argument-length dispatch method for
     multi-arity `deftype*` or `reify*` methods.
@@ -1135,7 +1135,7 @@ def __multi_arity_deftype_dispatch_method(
     """
     method_prefix = genname("self")
 
-    dispatch_keys: list[Optional[ast.expr]] = []
+    dispatch_keys: list[ast.expr | None] = []
     dispatch_vals: list[ast.expr] = []
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Constant(k))
@@ -1266,7 +1266,7 @@ def __multi_arity_deftype_method_to_py_ast(
     )
 
     arity_to_name = {}
-    rest_arity_name: Optional[str] = None
+    rest_arity_name: str | None = None
     fn_defs = []
     for arity in arities:
         arity_name = arity.python_name
@@ -1301,7 +1301,7 @@ def __deftype_method_arity_to_py_ast(
     ctx: GeneratorContext,
     node: DefTypeMethod,
     arity: DefTypeMethodArity,
-    method_name: Optional[str] = None,
+    method_name: str | None = None,
 ) -> GeneratedPyAST[ast.stmt]:
     assert arity.op == NodeOp.DEFTYPE_METHOD_ARITY
     assert node.name == arity.name
@@ -1417,7 +1417,7 @@ def __deftype_member_to_py_ast(
 
 def __deftype_or_reify_bases_to_py_ast(
     ctx: GeneratorContext,
-    node: Union[DefType, Reify],
+    node: DefType | Reify,
     interfaces: Iterable[DefTypeBase],
 ) -> list[ast.expr]:
     """Return a list of AST nodes for the base classes for a `deftype*` or `reify*`."""
@@ -1490,7 +1490,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
             else:
                 attr_default_kws = []
 
-            tag: Optional[ast.expr] = None
+            tag: ast.expr | None = None
             if (
                 field.tag is not None
                 and (tag_ast := gen_py_ast(ctx, field.tag)) is not None
@@ -1640,7 +1640,7 @@ def _synthetic_do_to_py_ast(
     )
 
 
-def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
+def __fn_name(ctx: GeneratorContext, s: str | None) -> str:
     """Generate a safe Python function name from a function name symbol.
 
     If no symbol is provided, generate a name with a default prefix.
@@ -1659,7 +1659,7 @@ def __fn_args_to_py_ast(
     params: Iterable[Binding],
     body: Do,
     should_generate_safe_names: bool = False,
-) -> tuple[list[ast.arg], Optional[ast.arg], list[ast.stmt], Iterable[PyASTNode]]:
+) -> tuple[list[ast.arg], ast.arg | None, list[ast.stmt], Iterable[PyASTNode]]:
     """Generate a list of Python AST nodes from function method parameters.
 
     Parameter names are munged and modified to ensure global
@@ -1681,7 +1681,7 @@ def __fn_args_to_py_ast(
         if should_generate_safe_names or binding.name == "_":
             arg_name = genname(arg_name)
 
-        arg_tag: Optional[ast.expr]
+        arg_tag: ast.expr | None
         if (
             binding.tag is not None
             and (arg_tag_ast := gen_py_ast(ctx, binding.tag)) is not None
@@ -1771,7 +1771,7 @@ def __fn_decorator(
 
 
 def __fn_meta(
-    ctx: GeneratorContext, meta_node: Optional[MetaNode] = None
+    ctx: GeneratorContext, meta_node: MetaNode | None = None
 ) -> tuple[Iterable[PyASTNode], Iterable[ast.expr]]:
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
@@ -1790,7 +1790,7 @@ def __fn_meta(
 
 
 def __kwargs_support_decorator(
-    node: Union[Fn, DefTypeMethodArity, DefTypeClassMethod, DefTypeStaticMethod],
+    node: Fn | DefTypeMethodArity | DefTypeClassMethod | DefTypeStaticMethod,
 ) -> Iterable[ast.expr]:
     if node.kwarg_support is None:
         return
@@ -1806,8 +1806,8 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
     method: FnArity,
-    def_name: Optional[str] = None,
-    meta_node: Optional[MetaNode] = None,
+    def_name: str | None = None,
+    meta_node: MetaNode | None = None,
 ) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
@@ -1834,7 +1834,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 
-        ret_ann_tag: Optional[ast.expr]
+        ret_ann_tag: ast.expr | None
         ret_ann_deps: Iterable[PyASTNode]
         if (
             method.tag is not None
@@ -1903,11 +1903,11 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     ctx: GeneratorContext,
     name: str,
     arity_map: Mapping[int, str],
-    return_tags: Iterable[Optional[Node]],
-    default_name: Optional[str] = None,
-    rest_arity_fixed_arity: Optional[int] = None,
-    max_fixed_arity: Optional[int] = None,
-    meta_node: Optional[MetaNode] = None,
+    return_tags: Iterable[Node | None],
+    default_name: str | None = None,
+    rest_arity_fixed_arity: int | None = None,
+    max_fixed_arity: int | None = None,
+    meta_node: MetaNode | None = None,
     is_async: bool = False,
 ) -> GeneratedPyAST[ast.expr]:
     """Return the Python AST nodes for a argument-length dispatch function
@@ -1925,7 +1925,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     """
     dispatch_map_name = f"{name}_dispatch_map"
 
-    dispatch_keys: list[Optional[ast.expr]] = []
+    dispatch_keys: list[ast.expr | None] = []
     dispatch_vals: list[ast.expr] = []
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Constant(k))
@@ -2025,7 +2025,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 
     meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
 
-    ret_ann_ast: Optional[ast.expr] = None
+    ret_ann_ast: ast.expr | None = None
     ret_ann_deps: list[PyASTNode] = []
     if all(tag is not None for tag in return_tags):
         ret_ann_asts: list[ast.expr] = []
@@ -2100,8 +2100,8 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
     arities: Collection[FnArity],
-    def_name: Optional[str] = None,
-    meta_node: Optional[MetaNode] = None,
+    def_name: str | None = None,
+    meta_node: MetaNode | None = None,
 ) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
@@ -2112,8 +2112,8 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     py_fn_name = __fn_name(ctx, lisp_fn_name) if def_name is None else munge(def_name)
 
     arity_to_name = {}
-    rest_arity_name: Optional[str] = None
-    rest_arity_fixed_arity: Optional[int] = None
+    rest_arity_name: str | None = None
+    rest_arity_fixed_arity: int | None = None
     fn_defs = []
     all_arity_def_deps: list[PyASTNode] = []
     for arity in arities:
@@ -2149,7 +2149,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
             )
             all_arity_def_deps.extend(fn_def_deps)
 
-            ret_ann_tag: Optional[ast.expr]
+            ret_ann_tag: ast.expr | None
             if (
                 arity.tag is not None
                 and (ret_ann_ast := gen_py_ast(ctx, arity.tag)) is not None
@@ -2205,8 +2205,8 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
 def _fn_to_py_ast(
     ctx: GeneratorContext,
     node: Fn,
-    def_name: Optional[str] = None,
-    meta_node: Optional[MetaNode] = None,
+    def_name: str | None = None,
+    meta_node: MetaNode | None = None,
 ) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST Node for a `fn` expression."""
     assert node.op == NodeOp.FN
@@ -2222,7 +2222,7 @@ def _fn_to_py_ast(
 
 @_with_ast_loc_deps
 def __if_body_to_py_ast(
-    ctx: GeneratorContext, node: Node, result_name: Optional[str]
+    ctx: GeneratorContext, node: Node, result_name: str | None
 ) -> GeneratedPyAST:
     """Generate custom `if` nodes to handle `recur` bodies.
 
@@ -2410,7 +2410,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
             )
         )
 
-        refers: Optional[ast.expr] = None
+        refers: ast.expr | None = None
         if alias.refer_all:
             key, val = genname("k"), genname("v")
             refers = ast.DictComp(
@@ -2448,7 +2448,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                 ],
             )
         elif alias.refers:
-            refer_keys: list[Optional[ast.expr]] = []
+            refer_keys: list[ast.expr | None] = []
             refer_vals: list[ast.expr] = []
             for refer in alias.refers:
                 refer_keys.append(
@@ -2536,7 +2536,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST[ast.expr]
             assert init_node is not None
             init_ast = gen_py_ast(ctx, init_node)
 
-            tag: Optional[ast.expr]
+            tag: ast.expr | None
             if (
                 binding.tag is not None
                 and (tag_ast := gen_py_ast(ctx, binding.tag)) is not None
@@ -2797,12 +2797,12 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST[ast.e
 
 @_with_ast_loc
 def _reify_to_py_ast(
-    ctx: GeneratorContext, node: Reify, meta_node: Optional[MetaNode] = None
+    ctx: GeneratorContext, node: Reify, meta_node: MetaNode | None = None
 ) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST Node for a `reify*` expression."""
     assert node.op == NodeOp.REIFY
 
-    meta_ast: Optional[GeneratedPyAST]
+    meta_ast: GeneratedPyAST | None
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
     else:
@@ -3108,7 +3108,7 @@ def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST[ast.e
 
     exc_ast = gen_py_ast(ctx, node.exception)
 
-    cause: Optional[ast.expr]
+    cause: ast.expr | None
     cause_deps: Iterable[PyASTNode]
     if (
         node.cause is not None
@@ -3250,7 +3250,7 @@ def _local_sym_to_py_ast(
         )
 
 
-def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
+def __name_in_module(name: str, module: BasilispModule) -> str | None:
     """Resolve the name inside of module. If the munged name can be found inside the
     module, return the munged name. Return None otherwise."""
     safe_name = munge(name)
@@ -3264,7 +3264,7 @@ def __var_direct_link_to_py_ast(
     current_ns: runtime.Namespace,
     var: runtime.Var,
     py_var_ctx: PyASTCtx,
-) -> Optional[GeneratedPyAST[ast.expr]]:
+) -> GeneratedPyAST[ast.expr] | None:
     """Attempt to directly link a Var reference to a Python variable in the module of
     the current Namespace.
 
@@ -3473,11 +3473,11 @@ def _maybe_host_form_to_py_ast(
 
 @_with_ast_loc
 def _map_to_py_ast(
-    ctx: GeneratorContext, node: MapNode, meta_node: Optional[MetaNode] = None
+    ctx: GeneratorContext, node: MapNode, meta_node: MetaNode | None = None
 ) -> GeneratedPyAST[ast.expr]:
     assert node.op == NodeOp.MAP
 
-    meta_ast: Optional[GeneratedPyAST]
+    meta_ast: GeneratedPyAST | None
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
     else:
@@ -3505,11 +3505,11 @@ def _map_to_py_ast(
 
 @_with_ast_loc
 def _queue_to_py_ast(
-    ctx: GeneratorContext, node: QueueNode, meta_node: Optional[MetaNode] = None
+    ctx: GeneratorContext, node: QueueNode, meta_node: MetaNode | None = None
 ) -> GeneratedPyAST[ast.expr]:
     assert node.op == NodeOp.QUEUE
 
-    meta_ast: Optional[GeneratedPyAST]
+    meta_ast: GeneratedPyAST | None
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
     else:
@@ -3534,11 +3534,11 @@ def _queue_to_py_ast(
 
 @_with_ast_loc
 def _set_to_py_ast(
-    ctx: GeneratorContext, node: SetNode, meta_node: Optional[MetaNode] = None
+    ctx: GeneratorContext, node: SetNode, meta_node: MetaNode | None = None
 ) -> GeneratedPyAST[ast.expr]:
     assert node.op == NodeOp.SET
 
-    meta_ast: Optional[GeneratedPyAST]
+    meta_ast: GeneratedPyAST | None
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
     else:
@@ -3563,11 +3563,11 @@ def _set_to_py_ast(
 
 @_with_ast_loc
 def _vec_to_py_ast(
-    ctx: GeneratorContext, node: VectorNode, meta_node: Optional[MetaNode] = None
+    ctx: GeneratorContext, node: VectorNode, meta_node: MetaNode | None = None
 ) -> GeneratedPyAST[ast.expr]:
     assert node.op == NodeOp.VECTOR
 
-    meta_ast: Optional[GeneratedPyAST]
+    meta_ast: GeneratedPyAST | None
     if meta_node is not None:
         meta_ast = gen_py_ast(ctx, meta_node)
     else:
@@ -3717,7 +3717,7 @@ def _collection_literal_to_py_ast(
 
 def _const_meta_kwargs_ast(
     ctx: GeneratorContext, form: LispForm
-) -> Optional[GeneratedPyAST]:
+) -> GeneratedPyAST | None:
     if isinstance(form, IMeta) and form.meta is not None:
         genned = _const_val_to_py_ast(_clean_meta(form), ctx)
         return GeneratedPyAST(
@@ -3736,7 +3736,7 @@ def _const_meta_kwargs_ast(
 @_const_val_to_py_ast.register(int)
 @_const_val_to_py_ast.register(str)
 @_simple_ast_generator
-def _py_const_to_py_ast(form: Union[bool, None], _: GeneratorContext) -> ast.Constant:
+def _py_const_to_py_ast(form: bool | None, _: GeneratorContext) -> ast.Constant:
     return ast.Constant(form)
 
 
@@ -3920,7 +3920,7 @@ def _const_set_to_py_ast(
 @_const_val_to_py_ast.register(llist.PersistentList)
 @_const_val_to_py_ast.register(ISeq)
 def _const_seq_to_py_ast(
-    form: Union[llist.PersistentList, ISeq], ctx: GeneratorContext
+    form: llist.PersistentList | ISeq, ctx: GeneratorContext
 ) -> GeneratedPyAST[ast.expr]:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
 

@@ -1,5 +1,5 @@
 import threading
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 from basilisp.lang.interfaces import IBlockingDeref, IPending
 
@@ -12,7 +12,7 @@ class Promise(IBlockingDeref[T], IPending):
     def __init__(self) -> None:
         self._condition = threading.Condition()
         self._is_delivered = False
-        self._value: Optional[T] = None
+        self._value: T | None = None
 
     def deliver(self, value: T) -> None:
         with self._condition:
@@ -22,8 +22,8 @@ class Promise(IBlockingDeref[T], IPending):
                 self._condition.notify_all()
 
     def deref(
-        self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
-    ) -> Optional[T]:
+        self, timeout: float | None = None, timeout_val: T | None = None
+    ) -> T | None:
         with self._condition:
             if self._condition.wait_for(lambda: self._is_delivered, timeout=timeout):
                 return self._value

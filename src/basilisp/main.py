@@ -3,7 +3,6 @@ import os
 import sysconfig
 import threading
 from pathlib import Path
-from typing import Optional
 
 from basilisp import importer as importer
 from basilisp import logconfig
@@ -16,7 +15,7 @@ _INIT_LOCK = threading.Lock()
 _runtime_is_initialized = False
 
 
-def init(opts: Optional[CompilerOpts] = None, force_reload: bool = False) -> None:
+def init(opts: CompilerOpts | None = None, force_reload: bool = False) -> None:
     """
     Initialize the runtime environment for Basilisp code evaluation.
 
@@ -45,7 +44,7 @@ def init(opts: Optional[CompilerOpts] = None, force_reload: bool = False) -> Non
 
 
 def bootstrap(
-    target: str, opts: Optional[CompilerOpts] = None
+    target: str, opts: CompilerOpts | None = None
 ) -> None:  # pragma: no cover
     """
     Import a Basilisp namespace or function identified by ``target``. If a function
@@ -71,7 +70,7 @@ def bootstrap(
         getattr(mod, fn_name)()
 
 
-def bootstrap_python(site_packages: Optional[str] = None) -> str:
+def bootstrap_python(site_packages: str | None = None) -> str:
     """Bootstrap a Python installation by installing a ``.pth`` file
     in ``site-packages`` directory (corresponding to "purelib" in
     :external:py:func:`sysconfig.get_paths`). Returns the path to the
@@ -91,7 +90,7 @@ def bootstrap_python(site_packages: Optional[str] = None) -> str:
     return str(pth)
 
 
-def unbootstrap_python(site_packages: Optional[str] = None) -> Optional[str]:
+def unbootstrap_python(site_packages: str | None = None) -> str | None:
     """Remove the `basilispbootstrap.pth` file found in the Python site-packages
     directory (corresponding to "purelib" in :external:py:func:`sysconfig.get_paths`).
     Return the path of the removed file, if any."""

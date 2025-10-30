@@ -1,7 +1,6 @@
 import threading
 from collections.abc import Iterable
 from functools import total_ordering
-from typing import Optional, Union
 
 from typing_extensions import Unpack
 
@@ -23,7 +22,7 @@ _INTERN: IPersistentMap[int, "Keyword"] = lmap.EMPTY
 class Keyword(ILispObject, INamed):
     __slots__ = ("_name", "_ns", "_hash")
 
-    def __init__(self, name: str, ns: Optional[str] = None) -> None:
+    def __init__(self, name: str, ns: str | None = None) -> None:
         self._name = name
         self._ns = ns
         self._hash = hash_kw(name, ns)
@@ -33,11 +32,11 @@ class Keyword(ILispObject, INamed):
         return self._name
 
     @property
-    def ns(self) -> Optional[str]:
+    def ns(self) -> str | None:
         return self._ns
 
     @classmethod
-    def with_name(cls, name: str, ns: Optional[str] = None) -> "Keyword":
+    def with_name(cls, name: str, ns: str | None = None) -> "Keyword":
         return keyword(name, ns=ns)
 
     def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
@@ -67,7 +66,7 @@ class Keyword(ILispObject, INamed):
             return False
         return self._ns < other._ns or self._name < other._name
 
-    def __call__(self, m: Union[IAssociative, IPersistentSet], default=None):
+    def __call__(self, m: IAssociative | IPersistentSet, default=None):
         if isinstance(m, IPersistentSet):
             return self if self in m else default
         try:
@@ -81,7 +80,7 @@ class Keyword(ILispObject, INamed):
 
 def complete(
     text: str,
-    kw_cache: Optional[IPersistentMap[int, Keyword]] = None,
+    kw_cache: IPersistentMap[int, Keyword] | None = None,
 ) -> Iterable[str]:
     """Return an iterable of possible completions for the given text."""
     assert text.startswith(":")
@@ -107,12 +106,12 @@ def complete(
     return map(str, results)
 
 
-def hash_kw(name: str, ns: Optional[str] = None) -> int:
+def hash_kw(name: str, ns: str | None = None) -> int:
     """Return the hash of a potential Keyword instance by its name and namespace."""
     return hash((name, ns))
 
 
-def keyword_from_hash(kw_hash: int, name: str, ns: Optional[str] = None) -> Keyword:
+def keyword_from_hash(kw_hash: int, name: str, ns: str | None = None) -> Keyword:
     """Return the interned keyword with the hash `kw_hash` or create and intern a new
     keyword with name `name` and optional namespace `ns`.
 
@@ -136,14 +135,14 @@ def keyword_from_hash(kw_hash: int, name: str, ns: Optional[str] = None) -> Keyw
         return kw
 
 
-def find_keyword(name: str, ns: Optional[str] = None) -> Optional[Keyword]:
+def find_keyword(name: str, ns: str | None = None) -> Keyword | None:
     """Return the already-interned keyword named by `name` and `ns`, if one exists.
     If the keyword with that name is not interned, return None."""
     with _LOCK:
         return _INTERN.val_at(hash_kw(name, ns))
 
 
-def keyword(name: str, ns: Optional[str] = None) -> Keyword:
+def keyword(name: str, ns: str | None = None) -> Keyword:
     """Return a keyword with name `name` and optional namespace `ns`.
 
     Keyword instances are interned, so an existing object may be returned if one

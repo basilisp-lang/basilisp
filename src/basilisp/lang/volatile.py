@@ -1,7 +1,8 @@
-from typing import Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import Concatenate, TypeVar
 
 import attr
-from typing_extensions import Concatenate, ParamSpec
+from typing_extensions import ParamSpec
 
 from basilisp.lang.interfaces import IDeref
 
@@ -17,7 +18,7 @@ class Volatile(IDeref[T]):
 
     value: T
 
-    def deref(self) -> Optional[T]:
+    def deref(self) -> T | None:
         return self.value
 
     def reset(self, v: T) -> T:

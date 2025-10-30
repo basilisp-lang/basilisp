@@ -3,7 +3,7 @@ import inspect
 import logging
 import sys
 import types
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from sphinx.ext.autodoc import (
     ClassDocumenter,
@@ -51,7 +51,7 @@ _SOURCE_PROTOCOL_KW = kw.keyword("source-protocol", ns=runtime.CORE_NS)
 _METHODS_KW = kw.keyword("methods")
 
 
-def _get_doc(reference: IReference) -> Optional[list[list[str]]]:
+def _get_doc(reference: IReference) -> list[list[str]] | None:
     """Return the docstring of an IReference type (e.g. Namespace or Var)."""
     docstring = reference.meta and reference.meta.val_at(_DOC_KW)
     if docstring is None:
@@ -79,7 +79,7 @@ class NamespaceDocumenter(Documenter):
         "deprecated": bool_option,
     }
 
-    object: Optional[runtime.Namespace]
+    object: runtime.Namespace | None
 
     @classmethod
     def can_document_member(
@@ -122,7 +122,7 @@ class NamespaceDocumenter(Documenter):
         self.module = ns.module
         return True
 
-    def get_doc(self) -> Optional[list[list[str]]]:
+    def get_doc(self) -> list[list[str]] | None:
         assert self.object is not None
         return _get_doc(self.object)
 
@@ -155,7 +155,7 @@ class NamespaceDocumenter(Documenter):
                 continue
             if val.meta is not None:
                 # Ignore undocumented members unless undoc_members is set
-                docstring: Optional[str] = val.meta.val_at(_DOC_KW)
+                docstring: str | None = val.meta.val_at(_DOC_KW)
                 if docstring is None and not self.options.undoc_members:
                     continue
                 # Private members will be excluded unless they are requested
@@ -215,7 +215,7 @@ class VarDocumenter(Documenter):
         "deprecated": bool_option,
     }
 
-    object: Optional[runtime.Var]
+    object: runtime.Var | None
 
     @classmethod
     def can_document_member(
@@ -292,7 +292,7 @@ class VarDocumenter(Documenter):
             if self.object.meta.val_at(_DEPRECATED_KW):
                 self.add_line("   :deprecated:", sourcename)
 
-    def get_doc(self) -> Optional[list[list[str]]]:
+    def get_doc(self) -> list[list[str]] | None:
         assert self.object is not None
         return _get_doc(self.object)
 

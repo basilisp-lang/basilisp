@@ -1,7 +1,7 @@
 from builtins import map as pymap
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from itertools import islice
-from typing import Any, Callable, Optional, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 from immutables import Map as _Map
 from immutables import MapMutation
@@ -78,7 +78,7 @@ class TransientMap(ITransientMap[K, V]):
                 pass
         return self
 
-    def entry_transient(self, k: K) -> Optional[IMapEntry[K, V]]:
+    def entry_transient(self, k: K) -> IMapEntry[K, V] | None:
         v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
         if v is _ENTRY_SENTINEL:
             return None
@@ -89,12 +89,12 @@ class TransientMap(ITransientMap[K, V]):
 
     def cons_transient(  # type: ignore[override]
         self,
-        *elems: Union[
-            IPersistentMap[K, V],
-            IMapEntry[K, V],
-            IPersistentVector[Union[K, V]],
-            Mapping[K, V],
-        ],
+        *elems: (
+            IPersistentMap[K, V]
+            | IMapEntry[K, V]
+            | IPersistentVector[K | V]
+            | Mapping[K, V]
+        ),
     ) -> "TransientMap[K, V]":
         try:
             for elem in elems:
@@ -123,7 +123,7 @@ def map_lrepr(  # pylint: disable=too-many-locals
     entries: Callable[[], Iterable[tuple[Any, Any]]],
     start: str,
     end: str,
-    meta: Optional[IPersistentMap] = None,
+    meta: IPersistentMap | None = None,
     **kwargs: Unpack[PrintSettings],
 ) -> str:
     """Produce a Lisp representation of an associative collection, bookended
@@ -220,7 +220,7 @@ class PersistentMap(
     def __init__(
         self,
         m: "_Map[K, V]",
-        meta: Optional[IPersistentMap] = None,
+        meta: IPersistentMap | None = None,
     ) -> None:
         self._inner = m
         self._meta = meta
@@ -228,8 +228,8 @@ class PersistentMap(
     @classmethod
     def from_coll(
         cls,
-        members: Union[Mapping[K, V], Iterable[tuple[K, V]]],
-        meta: Optional[IPersistentMap] = None,
+        members: Mapping[K, V] | Iterable[tuple[K, V]],
+        meta: IPersistentMap | None = None,
     ) -> "PersistentMap[K, V]":
         return PersistentMap(_Map(members), meta=meta)
 
@@ -273,10 +273,10 @@ class PersistentMap(
         )
 
     @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentMap":
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentMap":
         return PersistentMap(self._inner, meta=meta)
 
     def assoc(self, *kvs):
@@ -321,12 +321,12 @@ class PersistentMap(
 
     def cons(  # type: ignore[override, return]
         self,
-        *elems: Union[
-            IPersistentMap[K, V],
-            IMapEntry[K, V],
-            IPersistentVector[Union[K, V]],
-            Mapping[K, V],
-        ],
+        *elems: (
+            IPersistentMap[K, V]
+            | IMapEntry[K, V]
+            | IPersistentVector[K | V]
+            | Mapping[K, V]
+        ),
     ) -> "PersistentMap[K, V]":
         with self._inner.mutate() as m:
             try:
@@ -351,7 +351,7 @@ class PersistentMap(
     def empty(self) -> "PersistentMap":
         return EMPTY.with_meta(self._meta)
 
-    def seq(self) -> Optional[ISeq[IMapEntry[K, V]]]:
+    def seq(self) -> ISeq[IMapEntry[K, V]] | None:
         if len(self._inner) == 0:
             return None
         return iterator_sequence((MapEntry.of(k, v) for k, v in self._inner.items()))
@@ -371,7 +371,7 @@ EMPTY: PersistentMap = PersistentMap.from_coll(())
 
 
 def map(  # pylint:disable=redefined-builtin
-    kvs: Mapping[K, V], meta: Optional[IPersistentMap] = None
+    kvs: Mapping[K, V], meta: IPersistentMap | None = None
 ) -> PersistentMap[K, V]:
     """Creates a new map."""
     # For some reason, creating a new `immutables.Map` instance from an existing
