@@ -510,6 +510,18 @@
   ([coll]
    (basilisp.lang.queue/queue coll)))
 
+(def array-map hash-map)
+(def sorted-map hash-map)
+(def sorted-set hash-set)
+
+(defn sorted-map-by
+  [comparator & keyvals]
+  (apply sorted-map keyvals))
+
+(defn sorted-set-by
+  [comparator & keyvals]
+  (apply sorted-set keyvals))
+
 (defn symbol
   "Create a new symbol with ``name`` and optional namespace ``ns``.
 
@@ -1178,8 +1190,22 @@
   [x]
   (+ x 1))
 
+(defn ^:inline inc'
+  "Increment the argument by 1.
+
+  Included for Clojure compatibility. Functionally identical to :lpy:fn:`inc`."
+  [x]
+  (+ x 1))
+
 (defn ^:inline dec
   "Decrement the argument by 1."
+  [x]
+  (- x 1))
+
+(defn ^:inline dec'
+  "Decrement the argument by 1.
+
+  Included for Clojure compatibility. Functionally identical to :lpy:fn:`dec`."
   [x]
   (- x 1))
 
@@ -1991,7 +2017,14 @@
   Equivalent to Python's ``array[start:stop:step]`` extended indexing
   syntax. Use ``nil`` when omitting any of these fields."
   [array & stop-or-start-stop-step]
-  `(aget ~array (python/slice ~@stop-or-start-stop-step) ))
+  `(aget ~array (python/slice ~@stop-or-start-stop-step)))
+
+(def int-array object-array)
+(def long-array object-array)
+(def short-array object-array)
+(def float-array object-array)
+(def double-array object-array)
+(def bool-array object-array)
 
 (defn ^:inline booleans
   "Dummy cast to a Python list of booleans.

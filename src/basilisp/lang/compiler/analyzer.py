@@ -3327,10 +3327,9 @@ def _catch_ast(form: ISeq, ctx: AnalyzerContext) -> Catch:
 
     catch_cls = _analyze_form(runtime.nth(form, 1), ctx)
     if not isinstance(catch_cls, (MaybeClass, MaybeHostForm)):
-        catch_cls = _analyze_form(sym.symbol("Exception"), ctx)
-        # raise ctx.AnalyzerException(
-        #     "catch forms must name a class type to catch", form=catch_cls
-        # )
+        raise ctx.AnalyzerException(
+            "catch forms must name a class type to catch", form=catch_cls
+        )
 
     local_name = runtime.nth(form, 2)
     if not isinstance(local_name, sym.Symbol):
