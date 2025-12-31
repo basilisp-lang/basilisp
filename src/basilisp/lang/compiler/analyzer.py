@@ -3319,7 +3319,7 @@ def _catch_ast(form: ISeq, ctx: AnalyzerContext) -> Catch:
     assert form.first == SpecialForm.CATCH
     nelems = count(form)
 
-    if nelems < 4:
+    if nelems < 3:
         raise ctx.AnalyzerException(
             "catch forms must contain at least 4 elements: (catch class local body*)",
             form=form,
@@ -3415,7 +3415,11 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
         isinstance(node, Catch) for node in catches
     ), "All catch statements must be catch ops"
 
-    *try_statements, try_ret = try_exprs
+    if try_exprs:
+        *try_statements, try_ret = try_exprs
+    else:
+        try_statements, try_ret = [], _const_node(None, ctx)
+
     return Try(
         form=form,
         body=Do(

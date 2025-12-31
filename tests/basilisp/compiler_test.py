@@ -6192,6 +6192,14 @@ class TestThrow:
 
 
 class TestTryCatch:
+    def test_try_empty_body(self, lcompile: CompileFn):
+        assert None is lcompile(
+            """
+          (try
+            (catch AttributeError _ :not-nil))
+        """
+        )
+
     def test_single_catch_ignoring_binding(
         self,
         lcompile: CompileFn,
@@ -6252,16 +6260,16 @@ class TestTryCatch:
         captured = capsys.readouterr()
         assert "neither\n" == captured.out
 
-    def test_catch_num_elems(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-              (try
-                (.lower "UPPER")
-                (catch AttributeError _))
+    def test_catch_default_nil(self, lcompile: CompileFn):
+        assert None is lcompile(
             """
-            )
+          (try
+            (.fakemethod "UPPER")
+            (catch AttributeError _))
+        """
+        )
 
+    def test_catch_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
