@@ -87,7 +87,7 @@ Scientific Notation
    0.31400000000000006
 
 Basilisp supports scientific notation using the ``e`` syntax common to many programming languages.
-The significand (the number to the left of the ``e`` ) may be an integer or floating point and may be prefixed with a single negative sign ``-``.
+The significand (the number to the left of the ``e`` ) may be an integer or floating point and may be prefixed with a single negative sign ``-`` or plus sign ``+``.
 The exponent (the number to the right of the ``e`` ) must be an integer and may be prefixed with a single negative sign ``-``.
 The resulting value will be either an integer or float depending on the type of the significand.
 
@@ -150,6 +150,10 @@ String literals are always read with the UTF-8 encoding.
 
 String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
 Their meanings match the equivalent escape sequences supported in `Python string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
+
+String literals may also contain Unicode escape sequences prefixed with ``\u`` or ``\U``.
+The escape sequence must be followed by either exactly 4 or exactly 8 hexadecimal characters, which denote a Unicode character with the given hex value.
+Unlike in Python, you may prefix with either ``\u`` or ``\U`` without respect to the number of hex digits which follow.
 
 .. seealso::
 
