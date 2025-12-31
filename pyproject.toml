@@ -1,10 +1,13 @@
-[tool.poetry]
+[project]
 name = "basilisp"
 version = "0.4.0"
 description = "A Clojure-like lisp written for Python"
-authors = ["Christopher Rink <chrisrink10@gmail.com>"]
-license = "Eclipse Public License 1.0 (EPL-1.0)"
+authors = [
+    { name = "Christopher Rink", email = "chris@crink.dev" },
+]
+license = "EPL-1.0"
 readme = "README.md"
+requires-python = ">=3.10"
 packages = [
     { include = "basilisp", from = "src" },
 ]
@@ -15,7 +18,6 @@ classifiers = [
     # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Eclipse Public License 1.0 (EPL-1.0)",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -28,48 +30,48 @@ classifiers = [
     "Topic :: Software Development :: Compilers",
 ]
 include = ["README.md", "LICENSE"]
+dependencies = [
+    "attrs >=22.2.0",
+    "immutables (>=0.20,<1.0.0)",
+    "prompt-toolkit (>=3.0.0,<4.0.0)",
+    "pyrsistent (>=0.18.0,<1.0.0)",
+    "typing-extensions (>=4.7.0,<5.0.0)",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-attrs = ">=22.2.0"
-immutables = ">=0.20,<1.0.0"
-prompt-toolkit = ">=3.0.0,<4.0.0"
-pyrsistent = ">=0.18.0,<1.0.0"
-typing-extensions = ">=4.7.0,<5.0.0"
-
-pytest = { version = ">=7.0.0,<9.0.0", optional = true }
-pygments = { version = ">=2.9.0,<3.0.0", optional = true }
-
-[tool.poetry.group.dev.dependencies]
-black = ">=24.0.0"
-docutils = "*"
-isort = "*"
-pygments = "*"
-pytest = ">=7.0.0,<9.0.0"
-pytest-pycharm = "*"
+[dependency-groups]
+dev = [
+    "black >=24.0.0",
+    "docutils",
+    "isort",
+    "pygments",
+    "pytest (>=7.0.0,<9.0.0)",
+    "pytest-pycharm",
+    "tox",
+]
 # Ensure the Sphinx version remains synchronized with docs/requirements.txt
 # to maintain consistent output during both development and publishing on
 # Read The Docs.
-sphinx = "^7.1.0"
-sphinx-autobuild = "^2024.04.16"
-sphinx-copybutton = "^0.5.2"
-sphinxext-opengraph = "^v0.9.1"
-furo = "^2023.08.19"
-tox = "*"
+docs = [
+    "furo >=2023.08.19",
+    "sphinx (>=7.1.0,<8.0.0)",
+    "sphinx-autobuild >=2024.04.16",
+    "sphinx-copybutton (>=0.5.2,<6.0.0)",
+    "sphinxext-opengraph (>=v0.9.1,<1.0.0)",
+]
 
-[tool.poetry.extras]
-pygments = ["pygments"]
-pytest = ["pytest"]
+[project.optional-dependencies]
+pygments = ["pygments (>=2.9.0,<3.0.0)"]
+pytest = ["pytest (>=7.0.0,<9.0.0)"]
 
-[tool.poetry.scripts]
+[project.scripts]
 basilisp = "basilisp.cli:invoke_cli"
 basilisp-run = "basilisp.cli:run_script"
 
-[tool.poetry.plugins.pytest11]
+[project.entry-points.pytest11]
 basilisp_test_runner = "basilisp.contrib.pytest.testrunner"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.bandit]
