@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import os
+import re
 import sys
 import traceback
 from collections.abc import Callable, Iterable, Iterator
@@ -58,11 +59,27 @@ def pytest_unconfigure(config):
         runtime.pop_thread_bindings()
 
 
+_test_path = os.getenv("BASILISP_TEST_PATH", "").strip()
+_TEST_PATHS: list[str] | None = (
+    [str(Path(p).absolute()) for p in _test_path.split(os.pathsep)]
+    if _test_path
+    else None
+)
+
+_test_file_pattern = os.getenv(
+    "BASILISP_TEST_FILE_PATTERN", r"(test_[^.]*|.*_test)\.(lpy|cljc)"
+)
+_TEST_FILE_PATTERN = re.compile(_test_file_pattern)
+
+
 def pytest_collect_file(file_path: Path, parent):
     """Primary PyTest hook to identify Basilisp test files."""
-    if file_path.suffix == ".lpy":
-        if file_path.name.startswith("test_") or file_path.stem.endswith("_test"):
-            return BasilispFile.from_parent(parent, path=file_path)
+    if _TEST_PATHS and not any(str(file_path).startswith(p) for p in _TEST_PATHS):
+        return None
+
+    if _TEST_FILE_PATTERN.fullmatch(file_path.name):
+        return BasilispFile.from_parent(parent, path=file_path)
+
     return None
 
 
@@ -171,7 +188,11 @@ def _is_package(path: Path) -> bool:
     """Return `True` if the given path refers to a Python or Basilisp package."""
     _, _, files = next(os.walk(path))
     for file in files:
-        if file in {"__init__.lpy", "__init__.py"} or file.endswith(".lpy"):
+        if (
+            file in {"__init__.lpy", "__init__.py"}
+            or file.endswith(".lpy")
+            or file.endswith(".cljc")
+        ):
             return True
     return False
 
