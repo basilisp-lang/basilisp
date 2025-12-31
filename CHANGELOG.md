@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for Python 3.14 (#1282)
+ * Added support for Unicode escape sequences in string literals (#1295)
 
 ### Changed
  * `try` and `catch` special form bodies may now be empty and will return `nil` when no expressions are given (#1294)

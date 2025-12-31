@@ -66,6 +66,7 @@ float_literal = re.compile(r"(-?(?:\d|[1-9]\d+)(?:\.\d*)?)M?")
 complex_literal = re.compile(r"-?(\d+(?:\.\d*)?)J")
 arbitrary_base_literal = re.compile(r"-?(\d{1,2})r([0-9A-Za-z]+)")
 octal_literal = re.compile("-?0([0-7]+)N?")
+hex_chars = re.compile("[0-9A-Fa-f]")
 hex_literal = re.compile("-?0[Xx]([0-9A-Fa-f]+)N?")
 ratio_literal = re.compile(r"(-?\d+)/(\d+)")
 scientific_notation_literal = re.compile(r"-?(\d+(?:\.\d*)?)[Ee]([+\-]?\d+)")
@@ -945,6 +946,31 @@ _STR_ESCAPE_CHARS = {
 }
 
 
+def _read_unicode_escape_seq(ctx: ReaderContext) -> str:
+    """Return a single UTF-8 character encoded with \\u or \\U prefix followed by 4 or 8
+    hexadecimal characters.
+
+    Unlike in Python, there is no distinction between the upper and lowercase prefix."""
+    reader = ctx.reader
+    reader.advance()
+    unicode_escape_seq: list[str] = []
+    while True:
+        char = reader.peek()
+        if not hex_chars.match(char):
+            reader.pushback()
+            break
+        unicode_escape_seq.append(char)
+        reader.next_char()
+
+    unicode_hex = "".join(unicode_escape_seq)
+    if len(unicode_hex) not in {4, 8}:
+        raise ctx.syntax_error(
+            f"Unicode escape sequence must be exactly 4 or 8 hex digits; got '{unicode_hex}'"
+        )
+
+    return chr(int(unicode_hex, base=16))
+
+
 def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
     """Return a UTF-8 encoded string from the input stream.
 
@@ -958,11 +984,13 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             raise ctx.eof_error("Unexpected EOF in string")
         if char == "\\":
             char = reader.next_char()
-            escape_char = _STR_ESCAPE_CHARS.get(char, None)
-            if escape_char:
+            if (escape_char := _STR_ESCAPE_CHARS.get(char, None)) is not None:
                 s.append(escape_char)
                 continue
-            if allow_arbitrary_escapes:
+            elif char in {"u", "U"}:
+                s.append(_read_unicode_escape_seq(ctx))
+                continue
+            elif allow_arbitrary_escapes:
                 s.append("\\")
             else:
                 raise ctx.syntax_error(f"Unknown escape sequence: \\{char}")
@@ -986,9 +1014,11 @@ def _read_fstr(ctx: ReaderContext) -> str | llist.PersistentList:
             raise ctx.eof_error("Unexpected EOF in string")
         if char == "\\":
             char = reader.next_char()
-            escape_char = _STR_ESCAPE_CHARS.get(char, None)
-            if escape_char:
+            if (escape_char := _STR_ESCAPE_CHARS.get(char, None)) is not None:
                 s.append(escape_char)
+                continue
+            elif char in {"u", "U"}:
+                s.append(_read_unicode_escape_seq(ctx))
                 continue
             if char == "{":
                 s.append(char)

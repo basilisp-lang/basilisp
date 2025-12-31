@@ -735,6 +735,9 @@ class TestString:
             ("\r", r'"\r"'),
             ("\t", r'"\t"'),
             ("\v", r'"\v"'),
+            ("\u2007", r'"\u2007"'),
+            ("\u1234", r'"\u1234"'),
+            ("\U0001f40d", r'"\U0001f40d"'),
             ("Hello,\nmy name is\tChris.", r'"Hello,\nmy name is\tChris."'),
             ("Regular string", '"Regular string"'),
             ("String with 'inner string'", "\"String with 'inner string'\""),
@@ -744,9 +747,20 @@ class TestString:
     def test_legal_string(self, v: str, raw: str):
         assert v == read_str_first(raw)
 
-    def test_invalid_escape(self):
+    @pytest.mark.parametrize(
+        "s",
+        [
+            r'"\q"',
+            r'"\u203"',
+            r'"\u20303"',
+            r'"\U0001f40"',
+            r'"\U0001f40de"',
+            r'"\uZZZZ"',
+        ],
+    )
+    def test_invalid_escape_sequences(self, s):
         with pytest.raises(reader.SyntaxError):
-            read_str_first(r'"\q"')
+            read_str_first(s)
 
     def test_missing_terminating_quote(self):
         with pytest.raises(reader.SyntaxError):
@@ -771,6 +785,9 @@ class TestFormatString:
             ("\r", r'#f "\r"'),
             ("\t", r'#f "\t"'),
             ("\v", r'#f "\v"'),
+            ("\u2007", r'#f "\u2007"'),
+            ("\u1234", r'#f "\u1234"'),
+            ("\U0001f40d", r'#f "\U0001f40d"'),
             ("Hello,\nmy name is\tChris.", r'#f "Hello,\nmy name is\tChris."'),
             ("Regular string", '#f "Regular string"'),
             ("String with 'inner string'", "#f \"String with 'inner string'\""),
@@ -825,9 +842,20 @@ class TestFormatString:
         with pytest.raises(reader.SyntaxError):
             read_str_first(r'#f "one {(+ 1 2) :a} three"')
 
-    def test_invalid_escape(self):
+    @pytest.mark.parametrize(
+        "s",
+        [
+            r'#f "\q"',
+            r'#f "\u203"',
+            r'#f "\u20303"',
+            r'#f "\U0001f40"',
+            r'#f "\U0001f40de"',
+            r'#f "\uZZZZ"',
+        ],
+    )
+    def test_invalid_escapes(self, s):
         with pytest.raises(reader.SyntaxError):
-            read_str_first(r'#f "\q"')
+            read_str_first(s)
 
     def test_missing_expression(self):
         with pytest.raises(reader.SyntaxError):
