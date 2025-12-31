@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for Python 3.14 (#1282)
 
+### Changed
+ * `try` and `catch` special form bodies may now be empty and will return `nil` when no expressions are given (#1294)
+
 ### Fixed
  * Fix a bug where `import` refers would incorrectly be applied to all import modules in the same form (#1274)
  * Suppress pytest assertion rewrite warning for basilisp when running `basilisp test` (#1252)

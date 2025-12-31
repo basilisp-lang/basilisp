@@ -393,8 +393,8 @@ Primary Special Forms
 
 .. lpy:specialform:: (try *exprs *catch-exprs finally?)
 
-   Execute 1 or more expressions (``exprs``) in an implicit :lpy:form:`do`, returning the final value if no exceptions occur.
-   If an exception occurs and a matching ``catch`` expression is provided, handle the exception and return the value of the ``catch`` expression.
+   Execute 0 or more expressions (``exprs``) in an implicit :lpy:form:`do`, returning the final value if no exceptions occur or ``nil`` if no expressions were given.
+   If an exception occurs and a matching ``catch`` expression is provided, handle the exception and return the value of the ``catch`` expression or ``nil`` if no expression is given.
    Evaluation of which ``catch`` expression to use follows the semantics of the underlying Python VM -- that is, for an exception ``e``, bind to the first ``catch`` expression for which ``(instance? ExceptionType e)`` returns ``true``.
    Users may optionally provide a ``finally`` clause trailing the final ``catch`` expression which will be executed in all cases.
 
