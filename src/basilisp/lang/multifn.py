@@ -1,5 +1,5 @@
 import threading
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from typing_extensions import Generic, ParamSpec, Protocol
 
@@ -113,7 +113,7 @@ class MultiFunction(Generic[T, P]):
             self._methods = self._methods.assoc(key, method)
             self._reset_cache()
 
-    def _find_and_cache_method(self, key: T) -> Optional[Method[T, P]]:
+    def _find_and_cache_method(self, key: T) -> Method[T, P] | None:
         """Find and cache the best method for dispatch value `key`."""
         with self._lock:
             best_key: T | None = None
@@ -137,7 +137,7 @@ class MultiFunction(Generic[T, P]):
 
             return best_method
 
-    def get_method(self, key: T) -> Optional[Method[T, P]]:
+    def get_method(self, key: T) -> Method[T, P] | None:
         """Return the method which would handle this dispatch key or None if no method
         defined for this key and no default."""
         if self._cached_hierarchy != self._hierarchy.deref():
@@ -171,7 +171,7 @@ class MultiFunction(Generic[T, P]):
         """Return a mapping of preferred values to the set of other values."""
         return self._prefers
 
-    def remove_method(self, key: T) -> Optional[Method[T, P]]:
+    def remove_method(self, key: T) -> Method[T, P] | None:
         """Remove the method defined for this key and return it."""
         with self._lock:
             method = self._methods.val_at(key, None)
