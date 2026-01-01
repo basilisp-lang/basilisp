@@ -1022,7 +1022,11 @@
   ([v]
    (basilisp.lang.atom/Atom v))
   ([v & kwargs]
-   (apply-kw basilisp.lang.atom/Atom v (apply hash-map kwargs))))
+   (let [opts (apply hash-map kwargs)]
+     (basilisp.lang.atom/Atom v
+                              **
+                              :meta (:meta opts)
+                              :validator (:validator opts)))))
 
 (defn ^:inline realized?
   "Return ``true`` if the delay, future, lazy sequence, or promise has been realized."
@@ -1643,7 +1647,9 @@
 (defn bigdec
   "Coerce ``x`` to a Python :external:py:class:`decimal.Decimal`\\."
   [x]
-  (decimal/Decimal x))
+  (if (instance? fractions/Fraction x)
+    (operator/truediv (decimal/Decimal (.-numerator x)) (.-denominator x))
+    (decimal/Decimal x)))
 
 (defn ^:inline bigint
   "Coerce ``x`` to an integer.
