@@ -1,6 +1,7 @@
 import threading
-from collections.abc import Callable
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
+
+from typing_extensions import Generic, ParamSpec, Protocol
 
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime
@@ -9,15 +10,25 @@ from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import IPersistentMap, IPersistentSet, IRef
 
 T = TypeVar("T")
-DispatchFunction = Callable[..., T]
-Method = Callable[..., Any]
+P = ParamSpec("P")
+
+
+class DispatchFunction(Protocol[T, P]):
+    def __call__(self, v: T, *args: P.args, **kwargs: P.kwargs) -> T: ...
+
+
+T_contra = TypeVar("T_contra", contravariant=True)
+
+
+class Method(Protocol[T_contra, P]):
+    def __call__(self, v: T_contra, *args: P.args, **kwargs: P.kwargs) -> Any: ...
 
 
 _GLOBAL_HIERARCHY_SYM = sym.symbol("global-hierarchy", ns=runtime.CORE_NS)
 _ISA_SYM = sym.symbol("isa?", ns=runtime.CORE_NS)
 
 
-class MultiFunction(Generic[T]):
+class MultiFunction(Generic[T, P]):
     __slots__ = (
         "_name",
         "_default",
@@ -34,7 +45,7 @@ class MultiFunction(Generic[T]):
     def __init__(
         self,
         name: sym.Symbol,
-        dispatch: DispatchFunction,
+        dispatch: DispatchFunction[T, P],
         default: T,
         hierarchy: IRef | None = None,
     ) -> None:
@@ -64,11 +75,11 @@ class MultiFunction(Generic[T]):
         # caches.
         self._cached_hierarchy = self._hierarchy.deref()
 
-    def __call__(self, *args, **kwargs):
-        key = self._dispatch(*args, **kwargs)
+    def __call__(self, v: T, *args: P.args, **kwargs: P.kwargs) -> Any:
+        key = self._dispatch(v, *args, **kwargs)
         method = self.get_method(key)
         if method is not None:
-            return method(*args, **kwargs)
+            return method(v, *args, **kwargs)
         raise NotImplementedError
 
     def _reset_cache(self):
@@ -95,14 +106,14 @@ class MultiFunction(Generic[T]):
         selection."""
         return self._has_preference(tag, parent) or self._is_a(tag, parent)
 
-    def add_method(self, key: T, method: Method) -> None:
+    def add_method(self, key: T, method: Method[T, P]) -> None:
         """Add a new method to this function which will respond for key returned from
         the dispatch function."""
         with self._lock:
             self._methods = self._methods.assoc(key, method)
             self._reset_cache()
 
-    def _find_and_cache_method(self, key: T) -> Method | None:
+    def _find_and_cache_method(self, key: T) -> Method[T, P] | None:
         """Find and cache the best method for dispatch value `key`."""
         with self._lock:
             best_key: T | None = None
@@ -126,7 +137,7 @@ class MultiFunction(Generic[T]):
 
             return best_method
 
-    def get_method(self, key: T) -> Method | None:
+    def get_method(self, key: T) -> Method[T, P] | None:
         """Return the method which would handle this dispatch key or None if no method
         defined for this key and no default."""
         if self._cached_hierarchy != self._hierarchy.deref():
@@ -160,7 +171,7 @@ class MultiFunction(Generic[T]):
         """Return a mapping of preferred values to the set of other values."""
         return self._prefers
 
-    def remove_method(self, key: T) -> Method | None:
+    def remove_method(self, key: T) -> Method[T, P] | None:
         """Remove the method defined for this key and return it."""
         with self._lock:
             method = self._methods.val_at(key, None)
@@ -180,5 +191,5 @@ class MultiFunction(Generic[T]):
         return self._default
 
     @property
-    def methods(self) -> IPersistentMap[T, Method]:
+    def methods(self) -> IPersistentMap[T, Method[T, P]]:
         return self._methods
