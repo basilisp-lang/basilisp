@@ -5,6 +5,7 @@ import re
 import sys
 import traceback
 from collections.abc import Callable, Iterable, Iterator
+from functools import cache
 from pathlib import Path
 from types import GeneratorType
 from typing import Optional
@@ -59,25 +60,31 @@ def pytest_unconfigure(config):
         runtime.pop_thread_bindings()
 
 
-_test_path = os.getenv("BASILISP_TEST_PATH", "").strip()
-_TEST_PATHS: list[str] | None = (
-    [str(Path(p).absolute()) for p in _test_path.split(os.pathsep)]
-    if _test_path
-    else None
-)
+@cache
+def _get_test_file_path() -> list[str] | None:
+    _test_path = os.getenv("BASILISP_TEST_PATH", "").strip()
+    return (
+        [str(Path(p).absolute()) for p in _test_path.split(os.pathsep)]
+        if _test_path
+        else None
+    )
 
-_test_file_pattern = os.getenv(
-    "BASILISP_TEST_FILE_PATTERN", r"(test_[^.]*|.*_test)\.(lpy|cljc)"
-)
-_TEST_FILE_PATTERN = re.compile(_test_file_pattern)
+
+@cache
+def _get_test_file_pattern() -> re.Pattern:
+    _test_file_pattern = os.getenv(
+        "BASILISP_TEST_FILE_PATTERN", r"(test_[^.]*|.*_test)\.(lpy|cljc)"
+    )
+    return re.compile(_test_file_pattern)
 
 
 def pytest_collect_file(file_path: Path, parent):
     """Primary PyTest hook to identify Basilisp test files."""
-    if _TEST_PATHS and not any(str(file_path).startswith(p) for p in _TEST_PATHS):
+    test_paths = _get_test_file_path()
+    if test_paths and not any(str(file_path).startswith(p) for p in test_paths):
         return None
 
-    if _TEST_FILE_PATTERN.fullmatch(file_path.name):
+    if _get_test_file_pattern().fullmatch(file_path.name):
         return BasilispFile.from_parent(parent, path=file_path)
 
     return None

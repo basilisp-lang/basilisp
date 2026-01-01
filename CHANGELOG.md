@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for Python 3.14 (#1282)
  * Added support for Unicode escape sequences in string literals (#1295)
+ * Added environment variable configurations for the PyTest testrunner to allow more specific test discovery (#1301)
 
 ### Changed
  * `try` and `catch` special form bodies may now be empty and will return `nil` when no expressions are given (#1294)
