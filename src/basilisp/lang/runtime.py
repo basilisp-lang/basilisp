@@ -1238,7 +1238,7 @@ def nthrest(coll, i: int):
     while True:
         if coll is None:
             return None
-        if i == 0:
+        if i <= 0:
             return coll
         i -= 1
         coll = rest(coll)

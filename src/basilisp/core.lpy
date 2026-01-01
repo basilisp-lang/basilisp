@@ -3387,7 +3387,7 @@
   [& maps]
   (when (some identity maps)
     (persistent!
-     (reduce* #(conj! %1 %2)
+     (reduce* #(conj! (or %1 {}) %2)
               (transient {})
               maps))))
 
