@@ -62,6 +62,9 @@ def pytest_unconfigure(config):
 
 @cache
 def _get_test_file_path() -> list[str] | None:
+    """Return a list of string paths which should be searched for test files.
+
+    If `None`, use PyTest's normal collection heuristics."""
     _test_path = os.getenv("BASILISP_TEST_PATH", "").strip()
     return (
         [str(Path(p).absolute()) for p in _test_path.split(os.pathsep)]
@@ -72,6 +75,7 @@ def _get_test_file_path() -> list[str] | None:
 
 @cache
 def _get_test_file_pattern() -> re.Pattern:
+    """Return a regular expression pattern which can be used to match test files."""
     _test_file_pattern = os.getenv(
         "BASILISP_TEST_FILE_PATTERN", r"(test_[^.]*|.*_test)\.(lpy|cljc)"
     )
