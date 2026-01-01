@@ -1,9 +1,11 @@
 import importlib.util
 import inspect
 import os
+import re
 import sys
 import traceback
 from collections.abc import Callable, Iterable, Iterator
+from functools import cache
 from pathlib import Path
 from types import GeneratorType
 from typing import Optional
@@ -58,11 +60,37 @@ def pytest_unconfigure(config):
         runtime.pop_thread_bindings()
 
 
+@cache
+def _get_test_file_path() -> list[str] | None:
+    """Return a list of string paths which should be searched for test files.
+
+    If `None`, use PyTest's normal collection heuristics."""
+    _test_path = os.getenv("BASILISP_TEST_PATH", "").strip()
+    return (
+        [str(Path(p).absolute()) for p in _test_path.split(os.pathsep)]
+        if _test_path
+        else None
+    )
+
+
+@cache
+def _get_test_file_pattern() -> re.Pattern:
+    """Return a regular expression pattern which can be used to match test files."""
+    _test_file_pattern = os.getenv(
+        "BASILISP_TEST_FILE_PATTERN", r"(test_[^.]*|.*_test)\.(lpy|cljc)"
+    )
+    return re.compile(_test_file_pattern)
+
+
 def pytest_collect_file(file_path: Path, parent):
     """Primary PyTest hook to identify Basilisp test files."""
-    if file_path.suffix == ".lpy":
-        if file_path.name.startswith("test_") or file_path.stem.endswith("_test"):
-            return BasilispFile.from_parent(parent, path=file_path)
+    test_paths = _get_test_file_path()
+    if test_paths and not any(str(file_path).startswith(p) for p in test_paths):
+        return None
+
+    if _get_test_file_pattern().fullmatch(file_path.name):
+        return BasilispFile.from_parent(parent, path=file_path)
+
     return None
 
 
@@ -171,7 +199,11 @@ def _is_package(path: Path) -> bool:
     """Return `True` if the given path refers to a Python or Basilisp package."""
     _, _, files = next(os.walk(path))
     for file in files:
-        if file in {"__init__.lpy", "__init__.py"} or file.endswith(".lpy"):
+        if (
+            file in {"__init__.lpy", "__init__.py"}
+            or file.endswith(".lpy")
+            or file.endswith(".cljc")
+        ):
             return True
     return False
 

@@ -95,6 +95,21 @@ However, the ``test`` directory must be explicitly added to the ``PYTHONPATH`` u
    In the first example above (``tests``, a Python convention), the top-level directory is already in the ``PYTHONPATH``, allowing ``tests.myproject.core-test`` to be resolvable.
    In the second example (``test``, a Clojure convention), the test directory is explicitly added to the ``PYTHONPATH``, enabling ``myproject.core-test`` to be resolvable.
 
+.. _test_settings:
+
+Test Settings
+-------------
+
+PyTest typically searches the entire root directory recursively for test based on its own heuristics.
+For projects which don't follow those patterns, it may be necessary to configure the test discovery more precisely.
+
+To configure Basilisp to search only specific directories for Basilisp test files, set the ``BASILISP_TEST_PATH`` variable.
+Like other ``PATH``-like variables, you can specify multiple directories separated by your operating system's default path separator.
+If this variable is not set, Basilisp tests will be discovered using PyTest's default discovery.
+
+Within any eligible path, Basilisp will only load up files for tests matching the regular expression pattern given in ``BASILISP_TEST_FILE_PATTERN``.
+By default, this value is ``(test_[^.]*|.*_test)\.(lpy|cljc)``.
+
 .. _test_fixtures:
 
 Fixtures

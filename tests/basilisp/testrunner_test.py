@@ -1,3 +1,4 @@
+import os
 import platform
 import shutil
 import subprocess
@@ -287,6 +288,87 @@ def test_basilisp_test_noargs(pytester: pytest.Pytester):
     assert "==== 1 passed" in result.stdout.strip()
 
     assert result.returncode == 0
+
+
+class TestCollection:
+    @pytest.fixture(autouse=True)
+    def reset_collection_config(self):
+        from basilisp.contrib.pytest import testrunner
+
+        testrunner._get_test_file_path.cache_clear()
+        testrunner._get_test_file_pattern.cache_clear()
+
+        yield
+
+        testrunner._get_test_file_path.cache_clear()
+        testrunner._get_test_file_pattern.cache_clear()
+
+    def test_test_path_variable(
+        self, pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ):
+        runtime.Namespace.remove(sym.symbol("a.test-path-variable"))
+
+        code = """
+        (ns a.test-path-variable
+          (:require
+           [basilisp.test :refer [deftest is]]))
+        (deftest passing-test
+          (is true))
+        (deftest failing-test
+          (is false))
+        """
+        pytester.makefile(".lpy", **{"./test/a/test_path_variable": code})
+        pytester.syspathinsert()
+        monkeypatch.syspath_prepend(pytester.path / "test")
+        monkeypatch.setenv(
+            "BASILISP_TEST_PATH", os.pathsep.join([str(pytester.path), str(tmp_path)])
+        )
+        result: pytest.RunResult = pytester.runpytest("test")
+        result.assert_outcomes(passed=1, failed=1)
+
+    def test_test_path_variable_excludes_test(
+        self, pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ):
+        runtime.Namespace.remove(sym.symbol("b.test-path-variable"))
+
+        code = """
+        (ns b.test-path-variable
+          (:require
+           [basilisp.test :refer [deftest is]]))
+        (deftest passing-test
+          (is true))
+        (deftest failing-test
+          (is false))
+        """
+        pytester.makefile(".lpy", **{"./test/b/test_path_variable": code})
+        pytester.syspathinsert()
+        monkeypatch.syspath_prepend(pytester.path / "test")
+        monkeypatch.setenv("BASILISP_TEST_PATH", str(tmp_path))
+        result: pytest.RunResult = pytester.runpytest("test")
+        result.assert_outcomes()
+
+    def test_file_pattern(
+        self, pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ):
+        runtime.Namespace.remove(sym.symbol("c.test-file-pattern-variable"))
+
+        code = """
+        (ns c.test-file-pattern-variable
+          (:require
+           [basilisp.test :refer [deftest is]]))
+        (deftest passing-test
+          (is true))
+        (deftest failing-test
+          (is false))
+        """
+        pytester.makefile(".lpy", **{"./test/c/test_file_pattern_variable": code})
+        pytester.syspathinsert()
+        monkeypatch.syspath_prepend(pytester.path / "test")
+        monkeypatch.setenv(
+            "BASILISP_TEST_FILE_PATTERN", r"(check_[^.]*|.*_check)\.(lpy|cljc)"
+        )
+        result: pytest.RunResult = pytester.runpytest("test")
+        result.assert_outcomes()
 
 
 def test_ns_in_syspath(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch):
