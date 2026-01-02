@@ -1606,6 +1606,9 @@ def _vals_iterable(o: ISeqable | Iterable) -> ISeq | None:
 
 @vals.register(ISeq)
 def _vals_iseq(o: ISeq) -> ISeq | None:
+    if to_seq(o) is None:
+        return None
+
     def _val_seq(s: ISeq) -> ISeq | None:
         if to_seq(s) is not None:
             e = s.first

@@ -1560,10 +1560,10 @@
   [x]
   (and (symbol? x) (nil? (namespace x))))
 
-(defn ^:inline true?
+(defn true?
   "Return ``true`` if ``x`` is ``true``\\, otherwise ``false``\\."
   [x]
-  (operator/is- x true))
+  (and (boolean? x) (operator/is- x true)))
 
 (defn ^:no-inline uuid?
   "Return ``true`` if ``x`` is a :external:py:class:`uuid.UUID`."
