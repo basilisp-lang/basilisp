@@ -1358,10 +1358,10 @@
     (throw (python/TypeError #f"Argument must be an integer: {x}"))
     (if (= 0 (mod x 2)) true false)))
 
-(defn ^:inline false?
+(defn false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
   [x]
-  (operator/is- x false))
+  (and (boolean? x) (operator/is- x false)))
 
 (def ^{:doc "Return ``true`` if ``o`` is a :external:py:class:`float`\\.
 
