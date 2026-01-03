@@ -1135,6 +1135,11 @@ def keyword_from_name(o: Any) -> NoReturn:
     raise TypeError(f"Cannot create keyword from '{type(o)}'")
 
 
+@keyword_from_name.register(type(None))
+def _keyword_from_name_keyword(o: kw.Keyword) -> None:
+    return None
+
+
 @keyword_from_name.register(kw.Keyword)
 def _keyword_from_name_keyword(o: kw.Keyword) -> kw.Keyword:
     return o
@@ -1570,6 +1575,9 @@ def _keys_iterable(o: ISeqable | Iterable) -> ISeq | None:
 
 @keys.register(ISeq)
 def _keys_iseq(o: ISeq) -> ISeq | None:
+    if to_seq(o) is None:
+        return None
+
     def _key_seq(s: ISeq) -> ISeq | None:
         if to_seq(s) is not None:
             e = s.first
