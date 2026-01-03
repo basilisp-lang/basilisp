@@ -3034,7 +3034,7 @@
 (defn butlast
   "Return all but the last element in a sequence in linear time."
   [coll]
-  (drop-last coll))
+  (seq (drop-last coll)))
 
 (defn split-at
   "Split a collection at the ``n`` th item. Returns a vector of
@@ -4368,7 +4368,7 @@
   ([s start]
    (subs s start nil))
   ([s start end]
-   (when (> start (count s))
+   (when (or (> start (count s)) (neg? start))
      (throw (python/IndexError "Start index out of range")))
    (when-not (nil? end)
      (when (> end (count s))
