@@ -4363,11 +4363,16 @@
 (defn format
   "Format a string as by Python's ``%`` operator."
   [fmt & args]
-  (if (= 1 (count args))
+  (condp = (count args)
+    0
+    fmt
+
+    1
     (let [arg (first args)]
       (if (or (map? arg) (py-dict? arg))
         (operator/mod fmt (python/dict arg))
         (operator/mod fmt arg)))
+
     (operator/mod fmt (python/tuple args))))
 
 (defn subs
