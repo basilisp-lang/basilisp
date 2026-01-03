@@ -32,6 +32,7 @@ jobs:
           pip install "basilisp @ file://$(realpath ../basilisp)"
       - name: Run tests
         run: |
+          source .venv/bin/activate
           BASILISP_TEST_PATH="$(pwd)/test" \
             BASILISP_TEST_FILE_PATTERN='.*\.(lpy|cljc)' \
             basilisp test -p test -- --continue-on-collection-errors
