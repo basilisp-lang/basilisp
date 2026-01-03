@@ -1350,9 +1350,13 @@
   (not (seq coll)))
 
 (defn even?
-  "Return ``true`` if ``x`` is even."
+  "Return ``true`` if ``x`` is even.
+
+  Throws a ``TypeError`` if ``x`` is not an integer."
   [x]
-  (if (= 0 (mod x 2)) true false))
+  (if-not (instance? python/int x)
+    (throw (python/TypeError #f"Argument must be an integer: {x}"))
+    (if (= 0 (mod x 2)) true false)))
 
 (defn ^:inline false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
@@ -1450,9 +1454,13 @@
   (or (integer? x) (float? x) (complex? x)))
 
 (defn odd?
-  "Return ``true`` if ``x`` is odd."
+  "Return ``true`` if ``x`` is odd.
+
+  Throws a ``TypeError`` if ``x`` is not an integer."
   [x]
-  (if (= 1 (mod x 2)) true false))
+  (if-not (instance? python/int x)
+    (throw (python/TypeError #f"Argument must be an integer: {x}"))
+    (if (= 1 (mod x 2)) true false)))
 
 (defn pos?
   "Return ``true`` if ``x`` is positive."
