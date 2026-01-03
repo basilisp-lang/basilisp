@@ -120,11 +120,13 @@ def test_entry():
 def test_vector_callable():
     assert "a" == vec.v("a")(0)
     assert "b" == vec.v("a", "b")(1)
-    assert None is vec.v("a", "b")(2)
     assert "b" == vec.v("a", "b")(-1)
-    assert None is vec.EMPTY(0)
-    assert None is vec.EMPTY(1)
-    assert None is vec.EMPTY(-1)
+
+
+@pytest.mark.parametrize("v,idx", [(vec.v("a", "b"), 2), (vec.EMPTY, 0), (vec.EMPTY, 1), (vec.EMPTY, -1)])
+def test_vector_callable_index_must_be_valid(v, idx):
+    with pytest.raises(IndexError):
+        v(idx)
 
 
 def test_val_at():

@@ -3152,15 +3152,14 @@
   Return a stateful transducer if no collection is provided."
   ([n]
    (fn [rf]
-     (let [v (volatile! 1)]
+     (let [v (volatile! -1)]
        (fn
          ([] (rf))
          ([result] (rf result))
          ([result input]
-          (let [cur (vswap! v dec)]
-            (if (zero? cur)
-              (do (vreset! v n)
-                  (rf result input))
+          (let [cur (vswap! v inc)]
+            (if (zero? (rem cur n))
+              (rf result input)
               result)))))))
   ([n coll]
    (lazy-seq
@@ -3942,7 +3941,17 @@
   ([precision rounding]
    (let [current-ctx (.copy (decimal/getcontext))]
      (when-not (nil? rounding)
-       (when-not (contains? decimal-rounding-modes rounding)
+       (cond
+         (= "UNNECESSARY" rounding)
+         (let [current-traps (apply hash-map (mapcat identity (.items (.-traps current-ctx))))]
+           (set! (.-traps current-ctx)
+                 (python/dict
+                  (assoc current-traps decimal/Inexact true))))
+
+         (contains? decimal-rounding-modes rounding)
+         (set! (.-rounding current-ctx) (decimal-rounding-modes rounding))
+
+         :else
          (throw
           (python/ValueError
            (str "Unexpected rounding mode "
@@ -3950,8 +3959,6 @@
                 "; expected one of: "
                 (.join ", " (keys decimal-rounding-modes)))))))
      (set! (.-prec current-ctx) precision)
-     (when-let [rounding (decimal-rounding-modes rounding)]
-       (set! (.-rounding current-ctx) rounding))
      (decimal/localcontext current-ctx))))
 
 (defmacro with-precision

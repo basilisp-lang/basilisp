@@ -134,8 +134,8 @@ class PersistentVector(
     def __len__(self):
         return len(self._inner)
 
-    def __call__(self, k: int, default: T | None = None) -> T | None:
-        return self.val_at(k, default=default)
+    def __call__(self, k: int) -> T | None:
+        return self._inner[k]
 
     def __lt__(self, other):
         """Return true if the `self` vector is shorter than the
