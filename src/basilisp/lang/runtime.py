@@ -1268,7 +1268,7 @@ def nthnext(coll, i: int) -> ISeq | None:
 
 @functools.singledispatch
 def _cons(seq, o) -> ISeq:
-    return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
+    return lseq.Cons(o, to_seq(seq))
 
 
 @_cons.register(type(None))
@@ -1278,7 +1278,7 @@ def _cons_none(_: None, o: T) -> ISeq[T]:
 
 @_cons.register(ISeq)
 def _cons_iseq(seq: ISeq, o) -> ISeq:
-    return seq.cons(o)
+    return lseq.Cons(o, seq)
 
 
 def cons(o, seq) -> ISeq:
