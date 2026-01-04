@@ -282,21 +282,28 @@ class TestRequireDynamicNamespaces:
         return "require_dynamic_ns_test"
 
     def test_requires_and_allows_aliasing(self, lcompile: CompileFn):
-        lcompile("""
+        lcompile(
+            """
         (ns basilisp.dynamic-ns)
 
         (defn hi [] :hi)
-        """)
+        """
+        )
 
         assert runtime.get_current_ns().name == "basilisp.dynamic-ns"
 
-        assert lcompile("""
+        assert (
+            lcompile(
+                """
         (in-ns 'basilisp.require-dynamic-ns-test)
 
         (require '[basilisp.dynamic-ns :as dynamic])
 
         (dynamic/hi)
-        """) == kw.keyword("hi")
+        """
+            )
+            == kw.keyword("hi")
+        )
 
 
 class TestRequireAsAlias:
