@@ -285,6 +285,10 @@ class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
                 return code[0]
 
     def create_module(self, spec: ModuleSpec) -> BasilispModule:
+        if (ns := runtime.Namespace.get(sym.symbol(demunge(spec.name)))) is not None:
+            logger.debug(f"Reusing existing namespace '{ns}' for module '{spec.name}'")
+            return ns.module
+
         logger.debug(f"Creating Basilisp module '{spec.name}'")
         mod = BasilispModule(spec.name)
         mod.__file__ = spec.loader_state["filename"]
