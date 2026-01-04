@@ -1136,7 +1136,7 @@ def keyword_from_name(o: Any) -> NoReturn:
 
 
 @keyword_from_name.register(type(None))
-def _keyword_from_name_keyword(o: kw.Keyword) -> None:
+def _keyword_from_name_keyword(_: None) -> None:
     return None
 
 

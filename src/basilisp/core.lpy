@@ -10,6 +10,7 @@
          inspect
          math
          multiprocessing
+         numbers
          os
          pathlib
          [queue :as py-queue]
@@ -133,7 +134,7 @@
     :arglists '([o])}
   integer?
   (fn integer? [o]
-    (instance? python/int o)))
+    (instance? numbers/Integral o)))
 
 (def
   ^{:doc      "Return ``true`` if ``o`` is a string."
@@ -1451,7 +1452,8 @@
 (defn number?
   "Return ``true`` if ``x`` is a number (integer, float, or complex)."
   [x]
-  (or (integer? x) (float? x) (complex? x)))
+  (and (not (boolean? x))
+       (instance? numbers/Number x)))
 
 (defn odd?
   "Return ``true`` if ``x`` is odd.
