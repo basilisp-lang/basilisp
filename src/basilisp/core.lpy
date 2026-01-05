@@ -134,7 +134,9 @@
     :arglists '([o])}
   integer?
   (fn integer? [o]
-    (instance? numbers/Integral o)))
+    (if (instance? python/bool o)
+      false
+      (instance? numbers/Integral o))))
 
 (def
   ^{:doc      "Return ``true`` if ``o`` is a string."
@@ -327,7 +329,7 @@
 (.alter-meta #'instance? assoc :inline ^:safe-py-params (fn [class obj] `(python/isinstance ~obj ~class)))
 (.alter-meta #'boolean? assoc :inline ^:safe-py-params (fn [o] `(instance? python/bool ~o)))
 (.alter-meta #'float? assoc :inline ^:safe-py-params (fn [o] `(instance? python/float ~o)))
-(.alter-meta #'integer? assoc :inline ^:safe-py-params (fn [o] `(instance? python/int ~o)))
+(.alter-meta #'integer? assoc :inline ^:safe-py-params (fn [o] `(if (instance? python/bool ~o) false (instance? python/int ~o))))
 (.alter-meta #'string? assoc :inline ^:safe-py-params (fn [o] `(instance? python/str ~o)))
 (.alter-meta #'symbol? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.symbol/Symbol ~o)))
 (.alter-meta #'keyword? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.keyword/Keyword ~o)))
