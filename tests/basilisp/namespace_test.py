@@ -272,6 +272,71 @@ def test_alias(ns_cache: atom.Atom[NamespaceMap]):
     assert None is ns1.get_alias(sym.symbol("n2"))
 
 
+class TestRequireDynamicNamespaces:
+    @pytest.fixture
+    def test_ns(self) -> str:
+        return "basilisp.require-dynamic-ns-test"
+
+    @pytest.fixture
+    def compiler_file_path(self) -> str:
+        return "require_dynamic_ns_test"
+
+    def test_dynamic_require_succeeds(self, lcompile: CompileFn):
+        lcompile(
+            """
+            (ns basilisp.dynamic-ns)
+
+            (defn hi [] :hi)"""
+        )
+
+        assert runtime.get_current_ns().name == "basilisp.dynamic-ns"
+
+        assert (
+            lcompile(
+                """
+                (in-ns 'basilisp.require-dynamic-ns-test)
+
+                (require '[basilisp.dynamic-ns :as dynamic])
+
+                (dynamic/hi)"""
+            )
+            == kw.keyword("hi")
+        )
+
+        # Dynamically created namespace modules are never inserted into `sys.modules`
+        # so they cannot be reloaded.
+        with pytest.raises(ImportError):
+            lcompile("(require '[basilisp.dynamic-ns :as dynamic] :reload)")
+
+    def test_dynamic_require_succeeds_with_file(
+        self, monkeypatch, lcompile: CompileFn, tmp_path
+    ):
+        dynamic_ns_code = """
+        (ns btest.dynamic-ns)
+
+        (defn hi [] :dynamic-with-file)"""
+
+        (tmp_path / "btest").mkdir()
+        (tmp_path / "btest" / "dynamic_ns.lpy").write_text(dynamic_ns_code)
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        lcompile(dynamic_ns_code)
+
+        assert runtime.get_current_ns().name == "btest.dynamic-ns"
+
+        assert (
+            lcompile(
+                """
+                (in-ns 'basilisp.require-dynamic-ns-test)
+
+                (require '[btest.dynamic-ns :as btdyn])
+
+                (btdyn/hi)"""
+            )
+            == kw.keyword("dynamic-with-file")
+        )
+
+
 class TestRequireAsAlias:
     @pytest.fixture
     def test_ns(self) -> str:
