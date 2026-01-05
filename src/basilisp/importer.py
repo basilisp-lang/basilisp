@@ -285,8 +285,19 @@ class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
                 return code[0]
 
     def create_module(self, spec: ModuleSpec) -> BasilispModule:
-        logger.debug(f"Creating Basilisp module '{spec.name}'")
-        mod = BasilispModule(spec.name)
+        # If a namespace was created dynamically before being require'd, then
+        # a module will already exist for the namespace. References may already
+        # have been made to the contents of that module. Reusing it rather than
+        # starting new allows both dynamically created namespaces and namespaces
+        # defined in files to coexist.
+        if (ns := runtime.Namespace.get(sym.symbol(demunge(spec.name)))) is not None:
+            logger.debug(f"Reusing existing module for namespace '{ns}'")
+            mod = ns.module
+            assert isinstance(mod, BasilispModule)
+        else:
+            logger.debug(f"Creating Basilisp module '{spec.name}'")
+            mod = BasilispModule(spec.name)
+
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
         mod.__package__ = spec.parent

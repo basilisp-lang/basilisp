@@ -728,18 +728,24 @@ class Namespace(ReferenceBase):
         try:
             ns_module = importlib.import_module(munge(ns_name))
         except ModuleNotFoundError as e:
-            raise ImportError(
-                f"Basilisp namespace '{ns_name}' not found",
-            ) from e
-        else:
-            assert isinstance(ns_module, BasilispModule)
-            ns_sym = sym.symbol(ns_name)
-            ns = self.get(ns_sym)
-            assert ns is not None, "Namespace must exist after being required"
-            self.add_alias(ns, ns_sym)
-            if aliases:
-                self.add_alias(ns, *aliases)
-            return ns_module
+            # Dynamically created namespaces won't have any on-disk modules to
+            # import, so loading them via the importer will fail. We can check
+            # for such a namespace here and return the generated module instead.
+            if (maybe_ns := self.get(sym.symbol(ns_name))) is not None:
+                ns_module = maybe_ns.module
+            else:
+                raise ImportError(
+                    f"Basilisp namespace '{ns_name}' not found",
+                ) from e
+
+        assert isinstance(ns_module, BasilispModule)
+        ns_sym = sym.symbol(ns_name)
+        ns = self.get(ns_sym)
+        assert ns is not None, "Namespace must exist after being required"
+        self.add_alias(ns, ns_sym)
+        if aliases:
+            self.add_alias(ns, *aliases)
+        return ns_module
 
     def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
         """Add Symbol aliases for the given Namespace."""
