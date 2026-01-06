@@ -41,6 +41,7 @@
 (deftest keyword-test
   (testing "name only"
     (are [res name] (= res (keyword name))
+      nil                              nil
       (keyword "")                     ""
       (keyword "/")                    "/"
       (keyword "" "/")                 "//"
@@ -51,7 +52,6 @@
       :ns/name                         'ns/name)
 
     (are [v] (thrown? python/TypeError (keyword v))
-      nil
       #'basilisp.core/map))
 
   (testing "name and namespace"
@@ -62,7 +62,6 @@
       :dotted.ns/name "dotted.ns" "name")
 
     (are [ns name] (thrown? python/TypeError (keyword ns name))
-      nil  nil
       :kw  :kw
       'sym 'sym)))
 

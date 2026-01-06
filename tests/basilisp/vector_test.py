@@ -123,7 +123,9 @@ def test_vector_callable():
     assert "b" == vec.v("a", "b")(-1)
 
 
-@pytest.mark.parametrize("v,idx", [(vec.v("a", "b"), 2), (vec.EMPTY, 0), (vec.EMPTY, 1), (vec.EMPTY, -1)])
+@pytest.mark.parametrize(
+    "v,idx", [(vec.v("a", "b"), 2), (vec.EMPTY, 0), (vec.EMPTY, 1), (vec.EMPTY, -1)]
+)
 def test_vector_callable_index_must_be_valid(v, idx):
     with pytest.raises(IndexError):
         v(idx)
