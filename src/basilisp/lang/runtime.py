@@ -1141,8 +1141,8 @@ def keyword_from_name(o: Any) -> NoReturn:
     raise TypeError(f"Cannot create keyword from '{type(o)}'")
 
 
-@keyword_from_name.register(type(None))
-def _keyword_from_name_keyword(_: None) -> None:
+@keyword_from_name.register(type(None))  # type: ignore[arg-type]
+def _keyword_from_name_none(_: None) -> None:
     return None
 
 

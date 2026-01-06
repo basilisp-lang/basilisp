@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable, Iterator
 from functools import cache
 from pathlib import Path
 from types import GeneratorType
-from typing import Optional
+from typing import Optional, cast
 
 import pytest
 
@@ -153,7 +153,7 @@ class FixtureManager:
             # arguments which they call to execute the tests. In our case, use
             # a threading.Event to wait until the function is called to proceed.
             evt = threading.Event()
-            fixture(lambda: evt.set())
+            cast(Callable[[Callable[[], None]], None], fixture)(lambda: evt.set())
             evt.wait()
             return None
 
