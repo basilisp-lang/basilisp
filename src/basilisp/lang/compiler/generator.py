@@ -3742,6 +3742,9 @@ def _py_const_to_py_ast(form: bool | None, _: GeneratorContext) -> ast.Constant:
 @_const_val_to_py_ast.register(float)
 @_simple_ast_generator
 def _float_const_to_py_ast(form: float, _: GeneratorContext) -> ast.expr:
+    # NaN gets written to AST as an actual float, not NaN, so it doesn't
+    # respect the expected properties of NaN (not equal to any other number
+    # or itself).
     if math.isnan(form):
         return ast.Call(
             func=ast.Name(id="float", ctx=ast.Load()),
