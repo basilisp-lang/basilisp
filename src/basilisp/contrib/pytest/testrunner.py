@@ -153,7 +153,7 @@ class FixtureManager:
             # arguments which they call to execute the tests. In our case, use
             # a threading.Event to wait until the function is called to proceed.
             evt = threading.Event()
-            cast(Callable[[Callable[[], None]], None], fixture)(lambda: evt.set())
+            cast(Callable[[Callable[[], None]], None], fixture)(evt.set)
             evt.wait()
             return None
 

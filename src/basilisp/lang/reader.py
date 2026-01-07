@@ -1527,7 +1527,7 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
 
 
 _NUMERIC_CONSTANTS = {
-    "NaN": float("nan"),
+    "NaN": math.nan,
     "Inf": math.inf,
     "-Inf": -math.inf,
 }
