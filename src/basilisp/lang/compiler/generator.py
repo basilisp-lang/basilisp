@@ -1,5 +1,4 @@
 # pylint: disable=too-many-lines
-
 import ast
 import base64
 import collections
@@ -7,6 +6,7 @@ import contextlib
 import functools
 import hashlib
 import logging
+import math
 import pickle  # nosec B403
 import re
 import uuid
@@ -3732,11 +3732,22 @@ def _const_meta_kwargs_ast(
 @_const_val_to_py_ast.register(bytes)
 @_const_val_to_py_ast.register(type(None))
 @_const_val_to_py_ast.register(complex)
-@_const_val_to_py_ast.register(float)
 @_const_val_to_py_ast.register(int)
 @_const_val_to_py_ast.register(str)
 @_simple_ast_generator
 def _py_const_to_py_ast(form: bool | None, _: GeneratorContext) -> ast.Constant:
+    return ast.Constant(form)
+
+
+@_const_val_to_py_ast.register(float)
+@_simple_ast_generator
+def _float_const_to_py_ast(form: float, _: GeneratorContext) -> ast.expr:
+    if math.isnan(form):
+        return ast.Call(
+            func=ast.Name(id="float", ctx=ast.Load()),
+            args=[ast.Constant("nan")],
+            keywords=[],
+        )
     return ast.Constant(form)
 
 
