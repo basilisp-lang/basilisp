@@ -1469,23 +1469,33 @@ def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
 
 
 @functools.singledispatch
-def contains(coll, k):
+def contains(coll, k) -> bool:
     """Return true if o contains the key k."""
     return k in coll
 
 
 @contains.register(type(None))
-def _contains_none(_, __):
+def _contains_none(_, __) -> bool:
     return False
 
 
+@contains.register(str)
+def _contains_str(s: str, k: Any) -> bool:
+    if isinstance(k, int):
+        return 0 <= k < len(s)
+    elif isinstance(k, str):
+        return k in s
+    else:
+        raise TypeError(f"contains? key must be a string; got '{type(k)}'")
+
+
 @contains.register(IAssociative)
-def _contains_iassociative(coll: IAssociative, k):
+def _contains_iassociative(coll: IAssociative, k) -> bool:
     return coll.contains(k)
 
 
 @contains.register(ITransientAssociative)
-def _contains_itransientassociative(coll: ITransientAssociative, k):
+def _contains_itransientassociative(coll: ITransientAssociative, k) -> bool:
     return coll.contains_transient(k)
 
 

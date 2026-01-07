@@ -7482,7 +7482,8 @@
                           (mapcat identity)
                           (apply hash-map)))
 
-              (contains? (.- new-rec#  ~'_recmap) f#)
+              (and (record? new-rec#)
+                   (contains? (.- new-rec#  ~'_recmap) f#))
               (recur r#
                      (->> (dissoc (.- new-rec# ~'_recmap) f#)
                           (evolve new-rec# "_recmap")))

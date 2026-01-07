@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from functools import total_ordering
-from typing import TypeVar, Union, cast, overload
+from typing import Any, TypeVar, Union, cast, overload
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
@@ -179,7 +179,9 @@ class PersistentVector(
     def assoc(self, *kvs: T) -> "PersistentVector[T]":
         return PersistentVector(self._inner.mset(*kvs), meta=self._meta)  # type: ignore[arg-type]
 
-    def contains(self, k: int) -> bool:
+    def contains(self, k: Any) -> bool:
+        if not isinstance(k, int):
+            return False
         return 0 <= k < len(self._inner)
 
     def entry(self, k: int) -> IMapEntry[int, T] | None:
