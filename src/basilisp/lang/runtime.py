@@ -1766,6 +1766,20 @@ def _divide_ints(x: int, y: LispNumber) -> LispNumber:
     return x / y
 
 
+@divide.register(float)
+def _divide_float(x: float, y: LispNumber) -> LispNumber:
+    if isinstance(y, decimal.Decimal):
+        return decimal.Decimal(x) / y
+    return x / y
+
+
+@divide.register(decimal.Decimal)
+def _divide_float(x: decimal.Decimal, y: LispNumber) -> LispNumber:
+    if isinstance(y, float):
+        return x / decimal.Decimal(y)
+    return x / y
+
+
 @functools.singledispatch
 def compare(x, y) -> int:
     """Return either -1, 0, or 1 to indicate the relationship between x and y.

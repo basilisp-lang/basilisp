@@ -26,7 +26,7 @@ CompilerOpts = IPersistentMap[kw.Keyword, bool]
 IterableLispForm = Union[
     llist.PersistentList, lmap.PersistentMap, lset.PersistentSet, vec.PersistentVector
 ]
-LispNumber = Union[int, float, Fraction]
+LispNumber = Union[int, float, Decimal, Fraction]
 LispForm = Union[
     bool,
     bytes,

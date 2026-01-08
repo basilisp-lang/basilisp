@@ -1532,7 +1532,8 @@
 (defn ^:inline seqable?
   "Return ``true`` if :lpy:fn:``seq`` is supported on``x``\\."
   [x]
-  (or (instance? basilisp.lang.interfaces/ISeqable x)
+  (or (nil? x)
+      (instance? basilisp.lang.interfaces/ISeqable x)
       (basilisp.lang.runtime/is-reiterable-iterable x)))
 
 (defn ^:inline sequential?
@@ -4370,13 +4371,6 @@
   ([s start]
    (subs s start nil))
   ([s start end]
-   (when (or (> start (count s)) (neg? start))
-     (throw (python/IndexError "Start index out of range")))
-   (when-not (nil? end)
-     (when (> end (count s))
-       (throw (python/IndexError "End index out of range")))
-     (when (> start end)
-       (throw (python/IndexError "Start index must be less than or equal to end index"))))
    (operator/getitem s (python/slice start end))))
 
 ;;;;;;;;;;;;;;;;;;;;
