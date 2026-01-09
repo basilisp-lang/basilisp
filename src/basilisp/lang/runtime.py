@@ -1266,7 +1266,7 @@ def nthnext(coll, i: int) -> ISeq | None:
     while True:
         if coll is None:
             return None
-        if i == 0:
+        if i <= 0:
             return to_seq(coll)
         i -= 1
         coll = next_(coll)
@@ -1774,7 +1774,7 @@ def _divide_float(x: float, y: LispNumber) -> LispNumber:
 
 
 @divide.register(decimal.Decimal)
-def _divide_float(x: decimal.Decimal, y: LispNumber) -> LispNumber:
+def _divide_decimal(x: decimal.Decimal, y: LispNumber) -> LispNumber:
     if isinstance(y, float):
         return x / decimal.Decimal(y)
     return x / y
