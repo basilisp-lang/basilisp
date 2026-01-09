@@ -3118,14 +3118,14 @@
 (defn cycle
   "Cycle the items in ``coll`` infinitely."
   [coll]
-  (let [coll (seq coll)
-        coll-cycle (fn coll-cycle
-                     [curr]
-                     (lazy-seq
-                      (if (seq curr)
-                        (cons (first curr) (coll-cycle (rest curr)))
-                        (coll-cycle coll))))]
-    (coll-cycle coll)))
+  (when-let [coll (seq coll)]
+    (let [coll-cycle (fn coll-cycle
+                       [curr]
+                       (lazy-seq
+                        (if (seq curr)
+                          (cons (first curr) (coll-cycle (rest curr)))
+                          (coll-cycle coll))))]
+      (coll-cycle coll))))
 
 (defn repeat
   "Repeat ``x`` infinitely or ``n`` many times if ``n`` is specified. Returns a lazy

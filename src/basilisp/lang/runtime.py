@@ -1750,6 +1750,13 @@ def equals(v1, v2) -> bool:
     return v1 == v2
 
 
+def _to_decimal(x: LispNumber) -> decimal.Decimal:
+    if isinstance(x, Fraction):
+        numerator, denominator = x.as_integer_ratio()
+        return decimal.Decimal(numerator) / decimal.Decimal(denominator)
+    return decimal.Decimal(x)
+
+
 @functools.singledispatch
 def divide(x: LispNumber, y: LispNumber) -> LispNumber:
     """Division reducer. If both arguments are integers, return a Fraction.
@@ -1775,8 +1782,13 @@ def _divide_float(x: float, y: LispNumber) -> LispNumber:
 
 @divide.register(decimal.Decimal)
 def _divide_decimal(x: decimal.Decimal, y: LispNumber) -> LispNumber:
-    if isinstance(y, float):
-        return x / decimal.Decimal(y)
+    return x / _to_decimal(y)
+
+
+@divide.register(Fraction)
+def _divide_fraction(x: Fraction, y: LispNumber) -> LispNumber:
+    if isinstance(y, decimal.Decimal):
+        return _to_decimal(x) / y
     return x / y
 
 
