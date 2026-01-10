@@ -2263,7 +2263,7 @@
   "Return a sequence of the elements of ``coll`` in reverse order in constant time.
   Only Vectors support this operation."
   [coll]
-  (.rseq coll))
+  (seq (.rseq coll)))
 
 (defn subvec
   "Return a vector of elements consisting of the elements of ``v`` from the index
@@ -3137,9 +3137,10 @@
   ([x]
    (lazy-seq (cons x (repeat x))))
   ([n x]
-   (lazy-seq
-    (when (> n 0)
-      (cons x (repeat (dec n) x))))))
+   (let [n (int n)]
+     (lazy-seq
+      (when (> n 0)
+        (cons x (repeat (dec n) x)))))))
 
 (defn repeatedly
   "Call ``f`` infinitely or ``n`` many times if ``n`` is specified. Returns a lazy
