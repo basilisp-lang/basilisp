@@ -1227,13 +1227,19 @@
 (defn rationalize
   "Return the lowest ratio of ``num``.
 
-  If ``num`` is an integer or simplifies to an integer, return that value."
-  [num]
-  (let [frac (fractions/Fraction num)]
-    (if #?(:lpy312+ (.is-integer frac) :lpy311- (= (denominator frac) 1))
-      (python/int frac)
-      (let [ratio (.as-integer-ratio frac)]
-        (fractions/Fraction (first ratio) (second ratio))))))
+  If ``num`` is an integer or simplifies to an integer, return that value.
+
+  If ``max-denominator`` is not ``nil``, return an approximate rationalization for
+  ``num`` with denominator at most ``max-denominator``. Default is 1000000."
+  ([num]
+   (rationalize num 1000000))
+  ([num max-denominator]
+   (let [frac (if max-denominator
+                (.limit-denominator (fractions/Fraction num) max-denominator)
+                (fractions/Fraction num))]
+     (if #?(:lpy312+ (.is-integer frac) :lpy311- (= (denominator frac) 1))
+       (python/int frac)
+       frac))))
 
 (defn ^:inline compare
   "Return either -1, 0, or 1 to indicate the relationship between ``x`` and ``y``\\.
