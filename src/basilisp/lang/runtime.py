@@ -1777,7 +1777,15 @@ def _divide_ints(x: int, y: LispNumber) -> LispNumber:
 def _divide_float(x: float, y: LispNumber) -> LispNumber:
     if isinstance(y, decimal.Decimal):
         return decimal.Decimal(x) / y
-    return x / y
+    try:
+        return x / y
+    except ZeroDivisionError:
+        if math.isnan(x):
+            return float("nan")
+        elif x >= 0:
+            return float("inf")
+        else:
+            return -float("inf")
 
 
 @divide.register(decimal.Decimal)
