@@ -2784,7 +2784,9 @@
   remaining functions."
   ([f]
    (fn [& args]
-     (some f args)))
+     (if-let [v (some f args)]
+       v
+       false)))
   ([f & fs]
    (let [comp-f (reduce* (fn [f g]
                            (fn [v]
@@ -2792,7 +2794,9 @@
                          f
                          fs)]
      (fn [& args]
-       (some comp-f args)))))
+       (if-let [v (some comp-f args)]
+         v
+         false)))))
 
 (def
   ^{:doc "Return ``true`` if no element in ``coll`` satisfies ``pred``\\."}
