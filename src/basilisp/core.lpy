@@ -2338,17 +2338,21 @@
 
 (defn get-in
   "Return the entry of an associative data structure addressed by the sequence of keys
-  ``ks`` or ``default`` (default: ``nil``\\) if the value is not found."
+  ``ks`` or ``default`` (default: ``nil``\\) if the value is not found.
+
+  If ``ks`` is empty, return ``m``."
   ([m ks]
    (get-in m ks nil))
   ([m ks default]
-   (let [fk  (first ks)
-         rks (rest ks)]
-     (if (seq rks)
-       (if-let [child-map (basilisp.lang.runtime/get m fk)]
-         (get-in child-map rks default)
-         default)
-       (basilisp.lang.runtime/get m fk default)))))
+   (if-let [ks (seq ks)]
+     (let [fk  (first ks)
+           rks (rest ks)]
+       (if (seq rks)
+         (if-let [child-map (basilisp.lang.runtime/get m fk)]
+           (get-in child-map rks default)
+           default)
+         (basilisp.lang.runtime/get m fk default)))
+     m)))
 
 (defn update
   "Updates the value for key ``k`` in associative data structure ``m`` with the return
