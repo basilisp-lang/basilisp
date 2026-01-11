@@ -1345,7 +1345,7 @@
 (defn ^:inline false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
   [x]
-  (operator/is- x false))
+  (and (boolean? x) (operator/is- x false)))
 
 (def ^{:doc "Return ``true`` if ``o`` is a :external:py:class:`float`\\.
 
@@ -1549,7 +1549,7 @@
   [x]
   (and (symbol? x) (nil? (namespace x))))
 
-(defn true?
+(defn ^:inline true?
   "Return ``true`` if ``x`` is ``true``\\, otherwise ``false``\\."
   [x]
   (and (boolean? x) (operator/is- x true)))

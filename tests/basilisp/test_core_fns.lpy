@@ -209,6 +209,28 @@
       'sym
       'ns/sym)))
 
+(deftest true?-test
+  (is (= true (true? true)))
+
+  (are [v] (= false (true? v))
+    false
+    1
+    1.0
+    nil
+    1N
+    1.0M))
+
+(deftest false?-test
+  (is (= true (false? false)))
+
+  (are [v] (= false (false? v))
+    true
+    0
+    0.0
+    nil
+    0N
+    0.0M))
+
 (deftest compare-test
   (testing "nil"
     (are [res x y] (= res (compare x y))
