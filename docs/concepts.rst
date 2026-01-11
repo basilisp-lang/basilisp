@@ -477,6 +477,12 @@ Like the built-in :lpy:fn:`map`, ``pmap`` executes the provided function across 
 
    For CPU bound tasks, consider binding :lpy:var:`*executor-pool*` to a process pool worker (an instance of ``basilisp.lang.futures.ProcessPoolExecutor``).
 
+.. warning::
+
+   Process pool executors can be used to parallelize CPU bound tasks, but they are of limited utility in Basilisp due to the limitation's of Python's :external:py:mod:`pickle` module, which cannot serialize anonymous functions.
+   Basilisp uses :lpy:fn:`bound-fn*` to wrap futures and ensure thread-bindings are propagated to new threads when executing futures.
+   However, since ``bound-fn*`` generates an anonymous function, rather than a top-level named function, it cannot be pickled and sent to another process.
+
 .. seealso::
 
    Using futures directly: :lpy:fn:`future`, :lpy:fn:`future-call`, :lpy:fn:`future-cancel`, :lpy:fn:`future?`, :lpy:fn:`future-cancelled?`, :lpy:fn:`future-done?`

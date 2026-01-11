@@ -1204,7 +1204,7 @@
   [x]
   (- x 1))
 
-(defn ^:inline min
+(defn min
   "Return the minimum of the arguments."
   [& args]
   (basilisp.lang.runtime/min-of args))
@@ -4373,7 +4373,7 @@
   ([fmt]
    fmt)
   ([fmt & args]
-   (if (= 1(count args))
+   (if (= 1 (count args))
      (let [arg (first args)]
        (if (or (map? arg) (py-dict? arg))
          (operator/mod fmt (python/dict arg))

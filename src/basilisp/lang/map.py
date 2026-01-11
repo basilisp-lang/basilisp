@@ -70,7 +70,7 @@ class TransientMap(ITransientMap[K, V]):
                 k, v = t
                 self._inner[k] = v
             else:
-                self._inner[t[0]] = None
+                self._inner[t[0]] = None  # type: ignore[assignment]
         return self
 
     def contains_transient(self, k: K) -> bool:

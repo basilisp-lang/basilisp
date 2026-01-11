@@ -85,6 +85,10 @@ def test_contains():
     assert False is vec.EMPTY.contains(0)
     assert False is vec.EMPTY.contains(1)
     assert False is vec.EMPTY.contains(-1)
+    assert False is vec.v("a", "b").contains(0.0)
+    assert False is vec.v("a", "b").contains("a")
+    assert False is vec.v("a", "b").contains(keyword("a"))
+    assert False is vec.v("a", "b").contains(vec.EMPTY)
 
 
 def test_py_contains():
