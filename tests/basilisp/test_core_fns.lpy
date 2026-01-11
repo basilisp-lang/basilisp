@@ -41,6 +41,7 @@
 (deftest keyword-test
   (testing "name only"
     (are [res name] (= res (keyword name))
+      nil                              nil
       (keyword "")                     ""
       (keyword "/")                    "/"
       (keyword "" "/")                 "//"
@@ -51,7 +52,6 @@
       :ns/name                         'ns/name)
 
     (are [v] (thrown? python/TypeError (keyword v))
-      nil
       #'basilisp.core/map))
 
   (testing "name and namespace"
@@ -62,7 +62,6 @@
       :dotted.ns/name "dotted.ns" "name")
 
     (are [ns name] (thrown? python/TypeError (keyword ns name))
-      nil  nil
       :kw  :kw
       'sym 'sym)))
 
@@ -209,6 +208,28 @@
       :ns/kw
       'sym
       'ns/sym)))
+
+(deftest true?-test
+  (is (= true (true? true)))
+
+  (are [v] (= false (true? v))
+    false
+    1
+    1.0
+    nil
+    1N
+    1.0M))
+
+(deftest false?-test
+  (is (= true (false? false)))
+
+  (are [v] (= false (false? v))
+    true
+    0
+    0.0
+    nil
+    0N
+    0.0M))
 
 (deftest compare-test
   (testing "nil"
@@ -457,7 +478,7 @@
     {}
     {:a 1 :b 2})
   (are [x y] (= x (rseq y))
-    '() []
+    nil []
     '(1) [1]
     '(2 1) [1 2]
     '(3 2 1) [1 2 3]
@@ -610,6 +631,12 @@
       (is (= {:a 1 :b 2 :c 3}
              (-> (assoc! tm :a 1)
                  (assoc! :b 2 :c 3)
+                 (persistent!)))))
+    ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
+    (let [tm (transient {})]
+      (is (= {:a 1 :b 2 :c nil}
+             (-> (assoc! tm :a 1)
+                 (assoc! :b 2 :c)
                  (persistent!))))))
 
   (testing "vectors"
@@ -618,6 +645,12 @@
              (-> (assoc! tv 0 :c)
                  (assoc! 1 :a 2 :b)
                  (assoc! 3 :d)
+                 (persistent!)))))
+    ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
+    (let [tv (transient [:a :b :c])]
+      (is (= [:c :a nil]
+             (-> (assoc! tv 0 :c)
+                 (assoc! 1 :a 2)
                  (persistent!)))))))
 
 (deftest conj!-test
@@ -710,6 +743,34 @@
 ;;;;;;;;;;;;;;;
 ;; Sequences ;;
 ;;;;;;;;;;;;;;;
+
+(deftest seqable?-test
+  (are [v] (seqable? v)
+    nil
+    ""
+    \a
+    "a"
+    []
+    #{}
+    {}
+    '()
+    (python/list)
+    (python/set)
+    (python/dict)
+    (python/tuple)
+    (python/frozenset))
+
+  (are [v] (not (seqable? v))
+    0
+    0.0
+    0M
+    0N
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    true
+    false))
 
 (deftest seq-iterable-test
   (testing "re-iterable"
@@ -979,9 +1040,10 @@
   (is (= 1 ((some-fn :a) {:a 1 :c 2})))
   (is (= 1 ((some-fn :a :b) {:a 1 :c 2})))
   (is (= 2 ((some-fn :a :b :c) {:d 4} {:c 2})))
-  (is (= nil ((some-fn :a :b :c) {})))
-  (is (= nil ((some-fn :a :b :c) {:e 5} {:d 4})))
-  (is (= nil ((some-fn :a :b :c) {:e 5 :d 4} {}))))
+  (is (= false ((some-fn :a) {})))
+  (is (= false ((some-fn :a :b :c) {})))
+  (is (= false ((some-fn :a :b :c) {:e 5} {:d 4})))
+  (is (= false ((some-fn :a :b :c) {:e 5 :d 4} {}))))
 
 (deftest map-test
   (testing "transducer"
@@ -1508,41 +1570,48 @@
   (is (thrown? python/TypeError (vec (keys [:a :b :c]))))
   (is (thrown? python/TypeError (vec (keys [[:a 1] [:b 2]]))))
 
+  (are [expected m] (= expected (keys m))
+    nil    nil
+    nil    {}
+    nil    '()
+    nil    []
+    nil    #{}
+    nil    ""
+    '(:a)  {:a 1}
+    '(:a)  {:a nil}
+    '("a") {"a" 1}
+    nil    (python/dict {})
+    '(:a)  (python/dict {:a 1}))
+
   (are [expected m] (= expected (set (keys m)))
-    #{}      {}
-    #{}      nil
-    #{}    '()
-    #{}    []
-    #{}    #{}
-    #{:a}    {:a 1}
-    #{:a}    {:a nil}
     #{:a :b} {:a 1 :b 2}
     #{:a :b} (seq {:a 1 :b 2})
-    #{:a :b} (vec {:a 1 :b 2})
-    #{"a"}   {"a" 1}
-    #{}      (python/dict {})
-    #{:a}    (python/dict {:a 1})))
+    #{:a :b} (vec {:a 1 :b 2})))
 
 (deftest vals-test
   (is (thrown? python/TypeError (vals :abc)))
+  (is (thrown? python/TypeError (vals "abc")))
   ;; use vec to actually realize the val sequence and trigger the error
   (is (thrown? python/TypeError (vec (vals [:a :b :c]))))
   (is (thrown? python/TypeError (vec (vals [[:a 1] [:b 2]]))))
 
+  (are [expected m] (= expected (vals m))
+    nil    nil
+    nil    {}
+    nil    '()
+    nil    []
+    nil    #{}
+    nil    ""
+    '(1)   {:a 1}
+    '(nil)   {:a nil}
+    '(1)   {"a" 1}
+    nil    (python/dict {})
+    '(1)   (python/dict {:a 1}))
+
   (are [expected m] (= expected (set (vals m)))
-    #{}    {}
-    #{}    nil
-    #{}    '()
-    #{}    []
-    #{}    #{}
-    #{1}   {:a 1}
-    #{nil} {:a nil}
     #{1 2} {:a 1 :b 2}
     #{1 2} (seq {:a 1 :b 2})
-    #{1 2} (vec {:a 1 :b 2})
-    #{1}   {"a" 1}
-    #{}    (python/dict {})
-    #{1}   (python/dict {:a 1})))
+    #{1 2} (vec {:a 1 :b 2})))
 
 (deftest find-test
   (are [expected m k] (= expected (find m k))
@@ -1565,6 +1634,15 @@
 (deftest str-test
   (is (= "" (str nil)))
   (is (= "ab" (str "a" nil "b"))))
+
+(deftest format-test
+  (is (= nil (format nil)))
+  (is (= "" (format "")))
+  (is (= "input string" (format "input string")))
+  (is (= "input string" (format "%s %s" "input" "string")))
+  (is (= "input string" (format "%s" "input string")))
+  (is (= "input string" (format "%(first)s %(second)s" {"first" "input" "second" "string"})))
+  (is (thrown? python/KeyError (format "%(val)s" {"s" "input string"}))))
 
 (deftest subs-test
   (is (= "" (subs "" 0)))

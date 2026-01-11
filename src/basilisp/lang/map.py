@@ -63,8 +63,14 @@ class TransientMap(ITransientMap[K, V]):
         return len(self._inner)
 
     def assoc_transient(self, *kvs) -> "TransientMap":
-        for k, v in partition(kvs, 2):
-            self._inner[k] = v
+        for t in partition(kvs, 2):
+            # Clojure allows assoc! to have odd numbers of arguments, setting nil for
+            # the missing value.
+            if len(t) == 2:
+                k, v = t
+                self._inner[k] = v
+            else:
+                self._inner[t[0]] = None  # type: ignore[assignment]
         return self
 
     def contains_transient(self, k: K) -> bool:

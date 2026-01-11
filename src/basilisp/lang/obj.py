@@ -278,11 +278,14 @@ def _lrepr_complex(o: complex, **_) -> str:
 
 
 @lrepr.register(float)
-def _lrepr_float(o: float, **_) -> str:
+def _lrepr_float(o: float, human_readable: bool = False, **_) -> str:
     if math.isinf(o):
-        return "##Inf" if o > 0 else "##-Inf"
+        if o > 0:
+            return "Infinity" if human_readable else "##Inf"
+        else:
+            return "-Infinity" if human_readable else "##-Inf"
     if math.isnan(o):
-        return "##NaN"
+        return "NaN" if human_readable else "##NaN"
     return repr(o)
 
 

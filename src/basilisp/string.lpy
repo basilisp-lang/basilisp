@@ -34,8 +34,7 @@
 (defn blank?
   "Returns ``true`` if ``s`` is ``nil``, empty, or contains only whitespace."
   [s]
-  (when s
-    (not (python/bool (.strip s)))))
+  (or (nil? s) (= "" s) (.isspace s)))
 
 (defn capitalize
   "Return a copy of the string ``s`` with the first character capitalized and the rest

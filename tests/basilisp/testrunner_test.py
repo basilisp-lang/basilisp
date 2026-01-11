@@ -180,8 +180,9 @@ def test_fixtures(pytester: pytest.Pytester):
     (def each-cleanup (volatile! 0))
 
     ;; return here rather than yielding
-    (defn once-fixture-no-cleanup []
-      (vswap! once-no-cleanup inc))
+    (defn once-fixture-no-cleanup [tests]
+      (vswap! once-no-cleanup inc)
+      (tests))
 
     (defn once-fixture-w-cleanup []
       (vswap! once-cleanup inc)

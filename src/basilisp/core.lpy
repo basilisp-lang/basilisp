@@ -1010,7 +1010,11 @@
   ([v]
    (basilisp.lang.atom/Atom v))
   ([v & kwargs]
-   (apply-kw basilisp.lang.atom/Atom v (apply hash-map kwargs))))
+   (let [opts (apply hash-map kwargs)]
+     (basilisp.lang.atom/Atom v
+                              **
+                              :meta (:meta opts)
+                              :validator (:validator opts)))))
 
 (defn ^:inline realized?
   "Return ``true`` if the delay, future, lazy sequence, or promise has been realized."
@@ -1178,8 +1182,22 @@
   [x]
   (+ x 1))
 
+(defn ^:inline inc'
+  "Increment the argument by 1.
+
+  Included for Clojure compatibility. Functionally identical to :lpy:fn:`inc`."
+  [x]
+  (+ x 1))
+
 (defn ^:inline dec
   "Decrement the argument by 1."
+  [x]
+  (- x 1))
+
+(defn ^:inline dec'
+  "Decrement the argument by 1.
+
+  Included for Clojure compatibility. Functionally identical to :lpy:fn:`dec`."
   [x]
   (- x 1))
 
@@ -1327,7 +1345,7 @@
 (defn ^:inline false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
   [x]
-  (operator/is- x false))
+  (and (boolean? x) (operator/is- x false)))
 
 (def ^{:doc "Return ``true`` if ``o`` is a :external:py:class:`float`\\.
 
@@ -1502,7 +1520,8 @@
 (defn ^:inline seqable?
   "Return ``true`` if :lpy:fn:``seq`` is supported on``x``\\."
   [x]
-  (or (instance? basilisp.lang.interfaces/ISeqable x)
+  (or (nil? x)
+      (instance? basilisp.lang.interfaces/ISeqable x)
       (basilisp.lang.runtime/is-reiterable-iterable x)))
 
 (defn ^:inline sequential?
@@ -1533,7 +1552,7 @@
 (defn ^:inline true?
   "Return ``true`` if ``x`` is ``true``\\, otherwise ``false``\\."
   [x]
-  (operator/is- x true))
+  (and (boolean? x) (operator/is- x true)))
 
 (defn ^:no-inline uuid?
   "Return ``true`` if ``x`` is a :external:py:class:`uuid.UUID`."
@@ -1991,7 +2010,14 @@
   Equivalent to Python's ``array[start:stop:step]`` extended indexing
   syntax. Use ``nil`` when omitting any of these fields."
   [array & stop-or-start-stop-step]
-  `(aget ~array (python/slice ~@stop-or-start-stop-step) ))
+  `(aget ~array (python/slice ~@stop-or-start-stop-step)))
+
+(def int-array object-array)
+(def long-array object-array)
+(def short-array object-array)
+(def float-array object-array)
+(def double-array object-array)
+(def bool-array object-array)
 
 (defn ^:inline booleans
   "Dummy cast to a Python list of booleans.
@@ -2136,8 +2162,8 @@
   "Return the bitwise and complement of ``x`` and ``args``\\."
   [x & args]
   (if-let [rest-arg (seq (rest args))]
-    (recur (operator/and- x (operator/not- (first args))) rest-arg)
-    (operator/and- x (operator/not- (first args)))))
+    (recur (operator/and- x (operator/invert (first args))) rest-arg)
+    (operator/and- x (operator/invert (first args)))))
 
 (defn ^:inline bit-clear
   "Clear the bit of ``x`` at index ``n``\\."
@@ -2157,7 +2183,7 @@
 (defn ^:inline bit-test
   "Test the bit of ``x`` at index ``n``\\."
   [x n]
-  (bit-and (bit-shift-right x n) 1))
+  (python/bool (bit-and (bit-shift-right x n) 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Collection Functions ;;
@@ -2223,7 +2249,7 @@
   "Return a sequence of the elements of ``coll`` in reverse order in constant time.
   Only Vectors support this operation."
   [coll]
-  (.rseq coll))
+  (seq (.rseq coll)))
 
 (defn subvec
   "Return a vector of elements consisting of the elements of ``v`` from the index
@@ -2298,17 +2324,21 @@
 
 (defn get-in
   "Return the entry of an associative data structure addressed by the sequence of keys
-  ``ks`` or ``default`` (default: ``nil``\\) if the value is not found."
+  ``ks`` or ``default`` (default: ``nil``\\) if the value is not found.
+
+  If ``ks`` is empty, return ``m``."
   ([m ks]
    (get-in m ks nil))
   ([m ks default]
-   (let [fk  (first ks)
-         rks (rest ks)]
-     (if (seq rks)
-       (if-let [child-map (basilisp.lang.runtime/get m fk)]
-         (get-in child-map rks default)
-         default)
-       (basilisp.lang.runtime/get m fk default)))))
+   (if-let [ks (seq ks)]
+     (let [fk  (first ks)
+           rks (rest ks)]
+       (if (seq rks)
+         (if-let [child-map (basilisp.lang.runtime/get m fk)]
+           (get-in child-map rks default)
+           default)
+         (basilisp.lang.runtime/get m fk default)))
+     m)))
 
 (defn update
   "Updates the value for key ``k`` in associative data structure ``m`` with the return
@@ -2740,7 +2770,9 @@
   remaining functions."
   ([f]
    (fn [& args]
-     (some f args)))
+     (if-let [v (some f args)]
+       v
+       false)))
   ([f & fs]
    (let [comp-f (reduce* (fn [f g]
                            (fn [v]
@@ -2748,7 +2780,9 @@
                          f
                          fs)]
      (fn [& args]
-       (some comp-f args)))))
+       (if-let [v (some comp-f args)]
+         v
+         false)))))
 
 (def
   ^{:doc "Return ``true`` if no element in ``coll`` satisfies ``pred``\\."}
@@ -4308,13 +4342,15 @@
 
 (defn format
   "Format a string as by Python's ``%`` operator."
-  [fmt & args]
-  (if (= 1 (count args))
-    (let [arg (first args)]
-      (if (or (map? arg) (py-dict? arg))
-        (operator/mod fmt (python/dict arg))
-        (operator/mod fmt arg)))
-    (operator/mod fmt (python/tuple args))))
+  ([fmt]
+   fmt)
+  ([fmt & args]
+   (if (= 1 (count args))
+     (let [arg (first args)]
+       (if (or (map? arg) (py-dict? arg))
+         (operator/mod fmt (python/dict arg))
+         (operator/mod fmt arg)))
+     (operator/mod fmt (python/tuple args)))))
 
 (defn subs
   "Return a substring of ``s`` from the index ``start`` (inclusive) to index ``end``
@@ -6566,7 +6602,7 @@
                        (cond-> protocol-name
                          doc (vary-meta assoc :doc doc))
                        assoc
-                       :protocol true
+                       :basilisp.core/protocol true
                        :redef true)
         interface-sym (gensym "interface-name")]
     `(do
@@ -7434,7 +7470,8 @@
                           (mapcat identity)
                           (apply hash-map)))
 
-              (contains? (.- new-rec#  ~'_recmap) f#)
+              (and (record? new-rec#)
+                   (contains? (.- new-rec#  ~'_recmap) f#))
               (recur r#
                      (->> (dissoc (.- new-rec# ~'_recmap) f#)
                           (evolve new-rec# "_recmap")))

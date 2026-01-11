@@ -1032,7 +1032,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     # this causes problems since we'll end up getting something like
     # `(quote ([] [v]))` rather than simply `([] [v])`.
     arglists_meta = def_meta.val_at(ARGLISTS_KW)
-    if isinstance(arglists_meta, llist.PersistentList):
+    if isinstance(arglists_meta, (llist.PersistentList, ISeq)):
         assert arglists_meta.first == SpecialForm.QUOTE
         var_meta = def_meta.update({ARGLISTS_KW: runtime.nth(arglists_meta, 1)})
     else:
@@ -2253,7 +2253,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
             )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
-        elif isinstance(name, (llist.PersistentList, vec.PersistentVector)):
+        elif isinstance(name, (llist.PersistentList, ISeq, vec.PersistentVector)):
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
@@ -2273,7 +2273,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
                 form=form,
             ) from e
 
-        if isinstance(arity_or_args, llist.PersistentList):
+        if isinstance(arity_or_args, (llist.PersistentList, ISeq)):
             arities = vec.vector(
                 map(
                     lambda form: __fn_method_ast(
@@ -2938,7 +2938,7 @@ def _letfn_ast(  # pylint: disable=too-many-locals
                     "letfn binding name must be a symbol", form=name
                 )
 
-            if not isinstance(value, llist.PersistentList):
+            if not isinstance(value, (llist.PersistentList, ISeq)):
                 raise ctx.AnalyzerException(
                     "letfn binding value must be a list", form=value
                 )

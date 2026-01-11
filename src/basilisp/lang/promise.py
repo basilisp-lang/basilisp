@@ -21,6 +21,8 @@ class Promise(IBlockingDeref[T], IPending):
                 self._value = value
                 self._condition.notify_all()
 
+    __call__ = deliver
+
     def deref(
         self, timeout: float | None = None, timeout_val: T | None = None
     ) -> T | None:

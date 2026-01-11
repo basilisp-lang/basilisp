@@ -38,12 +38,12 @@
     "abcdef")
 
   (are [x] (str/blank? x)
+    nil
     ""
+    "\u2007"
     "                     "
     "\n\r"
-    "\n")
-
-  (is (nil? (str/blank? nil))))
+    "\n"))
 
 (deftest capitalize-test
   (are [x y] (= y (str/capitalize x))
