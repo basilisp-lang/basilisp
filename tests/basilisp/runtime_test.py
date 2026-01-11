@@ -145,6 +145,10 @@ def test_rest():
 
 
 def test_nthrest():
+    assert lseq.sequence([1, 2, 3, 4, 5, 6]) == runtime.nthrest(
+        llist.l(1, 2, 3, 4, 5, 6), -1
+    )
+
     assert None is runtime.nthrest(None, 1)
 
     assert llist.EMPTY == runtime.nthrest(llist.EMPTY, 0)
@@ -175,6 +179,10 @@ def test_next():
 
 
 def test_nthnext():
+    assert lseq.sequence([1, 2, 3, 4, 5, 6]) == runtime.nthnext(
+        llist.l(1, 2, 3, 4, 5, 6), -1
+    )
+
     assert None is runtime.nthnext(None, 1)
 
     assert None is runtime.nthnext(llist.EMPTY, 0)

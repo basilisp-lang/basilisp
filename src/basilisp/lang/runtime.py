@@ -1141,6 +1141,11 @@ def keyword_from_name(o: Any) -> NoReturn:
     raise TypeError(f"Cannot create keyword from '{type(o)}'")
 
 
+@keyword_from_name.register(type(None))  # type: ignore[arg-type]
+def _keyword_from_name_none(_: None) -> None:
+    return None
+
+
 @keyword_from_name.register(kw.Keyword)
 def _keyword_from_name_keyword(o: kw.Keyword) -> kw.Keyword:
     return o
@@ -1244,7 +1249,7 @@ def nthrest(coll, i: int):
     while True:
         if coll is None:
             return None
-        if i == 0:
+        if i <= 0:
             return coll
         i -= 1
         coll = rest(coll)
@@ -1261,7 +1266,7 @@ def nthnext(coll, i: int) -> ISeq | None:
     while True:
         if coll is None:
             return None
-        if i == 0:
+        if i <= 0:
             return to_seq(coll)
         i -= 1
         coll = next_(coll)
@@ -1269,7 +1274,7 @@ def nthnext(coll, i: int) -> ISeq | None:
 
 @functools.singledispatch
 def _cons(seq, o) -> ISeq:
-    return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
+    return lseq.Cons(o, to_seq(seq))
 
 
 @_cons.register(type(None))
@@ -1279,7 +1284,7 @@ def _cons_none(_: None, o: T) -> ISeq[T]:
 
 @_cons.register(ISeq)
 def _cons_iseq(seq: ISeq, o) -> ISeq:
-    return seq.cons(o)
+    return lseq.Cons(o, seq)
 
 
 def cons(o, seq) -> ISeq:
@@ -1464,23 +1469,33 @@ def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
 
 
 @functools.singledispatch
-def contains(coll, k):
+def contains(coll, k) -> bool:
     """Return true if o contains the key k."""
     return k in coll
 
 
 @contains.register(type(None))
-def _contains_none(_, __):
+def _contains_none(_, __) -> bool:
     return False
 
 
+@contains.register(str)
+def _contains_str(s: str, k: Any) -> bool:
+    if isinstance(k, int):
+        return 0 <= k < len(s)
+    elif isinstance(k, str):
+        return k in s
+    else:
+        raise TypeError(f"contains? key must be a string; got '{type(k)}'")
+
+
 @contains.register(IAssociative)
-def _contains_iassociative(coll: IAssociative, k):
+def _contains_iassociative(coll: IAssociative, k) -> bool:
     return coll.contains(k)
 
 
 @contains.register(ITransientAssociative)
-def _contains_itransientassociative(coll: ITransientAssociative, k):
+def _contains_itransientassociative(coll: ITransientAssociative, k) -> bool:
     return coll.contains_transient(k)
 
 
@@ -1576,6 +1591,9 @@ def _keys_iterable(o: ISeqable | Iterable) -> ISeq | None:
 
 @keys.register(ISeq)
 def _keys_iseq(o: ISeq) -> ISeq | None:
+    if to_seq(o) is None:
+        return None
+
     def _key_seq(s: ISeq) -> ISeq | None:
         if to_seq(s) is not None:
             e = s.first
@@ -1612,6 +1630,9 @@ def _vals_iterable(o: ISeqable | Iterable) -> ISeq | None:
 
 @vals.register(ISeq)
 def _vals_iseq(o: ISeq) -> ISeq | None:
+    if to_seq(o) is None:
+        return None
+
     def _val_seq(s: ISeq) -> ISeq | None:
         if to_seq(s) is not None:
             e = s.first

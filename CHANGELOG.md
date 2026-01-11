@@ -9,15 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Python 3.14 (#1282)
  * Added support for Unicode escape sequences in string literals (#1295)
  * Added environment variable configurations for the PyTest testrunner to allow more specific test discovery (#1301)
+ * Added support for `clojure.test` style fixtures (#????)
+ * Added no-op Clojure compatibility functions: `inc'`, `dec'`, `int-array`, `long-array`, `short-array`, `float-array`, `double-array`, `bool-array` (#????)
 
 ### Changed
  * `try` and `catch` special form bodies may now be empty and will return `nil` when no expressions are given (#1294)
+ * `basilisp.str/blank?` now matches the behavior of Clojure, which returns true for `nil`, empty strings, and strings consisting of all whitespace (#????)
+ * String representations of infinity and NaN values now matches Clojure (#????)
+ * Promises can now be called to deliver the result (#????)
+ * Calling `keyword` on `nil` now returns `nil` (#????)
+ * `cons` always returns an `ISeq` now, not specifically a `PersistentList` (#????)
+ * `seqable?` now returns `true` for `nil` (#????)
+ * Calling a vector with an invalid index will now raise `IndexError` (#????)
+ * `keys` and `vals` now return `nil` rather than an empty seq if the input collection is empty (#????)
+ * `get-in` always returns the input mapping if no keys are given (#????)
+ * `assoc!` allows an odd number of arguments, substituting `nil` for the missing value (#????)
+ * `nthrest` and `nthnext` return the input collection unchanged if the index given is negative (#????)
 
 ### Fixed
  * Fix a bug where `import` refers would incorrectly be applied to all import modules in the same form (#1274)
  * Suppress pytest assertion rewrite warning for basilisp when running `basilisp test` (#1252)
  * Fix a bug where `+` characters were not allowed after the `e` in scientific notation literal numbers (#1292)
  * Fix a bug where namespaces created dynamically at the REPL could not be required from other namespaces in the REPL (#1302)
+ * Fix a bug where NaN floats were not properly represented in compiled code (#????)
 
 ### Removed
  * Removed support for Python 3.9 (#1283)

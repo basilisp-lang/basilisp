@@ -1,3 +1,5 @@
+import math
+
 import asyncio
 import datetime
 import decimal
@@ -287,6 +289,9 @@ class TestLiterals:
         assert lcompile("-1.332") == -1.332
         assert lcompile("-1.0") == -1.0
         assert lcompile("-0.332") == -0.332
+        assert math.isinf(lcompile("##Inf"))
+        assert math.isinf(lcompile("##-Inf"))
+        assert math.isnan(lcompile("##NaN"))
 
     def test_kw(self, lcompile: CompileFn):
         assert lcompile(":kw") == kw.keyword("kw")

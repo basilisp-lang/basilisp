@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from functools import total_ordering
-from typing import TypeVar, Union, cast, overload
+from typing import Any, TypeVar, Union, cast, overload
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
@@ -57,8 +57,14 @@ class TransientVector(ITransientVector[T]):
         return self
 
     def assoc_transient(self, *kvs: T) -> "TransientVector[T]":
-        for i, v in cast("Sequence[tuple[int, T]]", partition(kvs, 2)):
-            self._inner.set(i, v)
+        for t in cast("Sequence[tuple[int, T] | tuple[int]]", partition(kvs, 2)):
+            # Clojure allows assoc! to have odd numbers of arguments, setting nil for
+            # the missing value.
+            if len(t) == 2:
+                i, v = t
+                self._inner.set(i, v)
+            else:
+                self._inner.set(t[0], None)
         return self
 
     def contains_transient(self, k: int) -> bool:
@@ -134,8 +140,8 @@ class PersistentVector(
     def __len__(self):
         return len(self._inner)
 
-    def __call__(self, k: int, default: T | None = None) -> T | None:
-        return self.val_at(k, default=default)
+    def __call__(self, k: int) -> T | None:
+        return self._inner[k]
 
     def __lt__(self, other):
         """Return true if the `self` vector is shorter than the
@@ -179,7 +185,9 @@ class PersistentVector(
     def assoc(self, *kvs: T) -> "PersistentVector[T]":
         return PersistentVector(self._inner.mset(*kvs), meta=self._meta)  # type: ignore[arg-type]
 
-    def contains(self, k: int) -> bool:
+    def contains(self, k: Any) -> bool:
+        if not isinstance(k, int):
+            return False
         return 0 <= k < len(self._inner)
 
     def entry(self, k: int) -> IMapEntry[int, T] | None:

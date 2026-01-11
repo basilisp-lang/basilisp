@@ -1,18 +1,24 @@
 import threading
 import time
 
+import pytest
+
 from basilisp.lang import vector as vec
 from basilisp.lang.promise import Promise
 
 
-def test_promise():
+@pytest.mark.parametrize("use_call", [True, False])
+def test_promise(use_call):
     v = vec.v(1, 2, 3)
 
     p = Promise()
     assert False is p.is_realized
 
     def set_promise():
-        p.deliver(v)
+        if use_call:
+            p(v)
+        else:
+            p.deliver(v)
 
     assert "not set yet" == p.deref(timeout=0.2, timeout_val="not set yet")
     assert False is p.is_realized

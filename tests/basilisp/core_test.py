@@ -1141,6 +1141,20 @@ class TestAssociativeFunctions:
         assert False is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 3)
         assert False is core.contains__Q__(vec.v(1, 2, 3).to_transient(), -1)
 
+        assert False is core.contains__Q__("", "a")
+        assert False is core.contains__Q__("", 0)
+        assert False is core.contains__Q__("", 1)
+        assert True is core.contains__Q__("a", "a")
+        assert True is core.contains__Q__("a", 0)
+        assert False is core.contains__Q__("a", 1)
+        assert True is core.contains__Q__("abc", "a")
+        assert True is core.contains__Q__("abc", 0)
+        assert True is core.contains__Q__("abc", 1)
+        assert False is core.contains__Q__("abc", 4)
+
+        with pytest.raises(TypeError):
+            core.contains__Q__("abc", None)
+
     def test_disj(self):
         assert None is core.disj(None)
         assert None is core.disj(None, "a")
@@ -1236,6 +1250,12 @@ class TestAssociativeFunctions:
         )
 
     def test_get_in(self):
+        assert None is core.get_in(None, vec.v())
+        assert lmap.map({"a": 1}) == core.get_in(lmap.map({"a": 1}), None)
+        assert lmap.map({"a": 1}) == core.get_in(lmap.map({"a": 1}), vec.EMPTY)
+
+        assert "default" == core.get_in(lmap.EMPTY, vec.v(None), "default")
+
         assert 1 == core.get_in(lmap.map({"a": 1}), vec.v("a"))
         assert None is core.get_in(lmap.map({"a": 1}), vec.v("b"))
         assert 2 == core.get_in(lmap.map({"a": 1}), vec.v("b"), 2)
