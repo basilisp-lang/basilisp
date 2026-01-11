@@ -1204,15 +1204,15 @@
   [x]
   (- x 1))
 
-(defn min
+(defn ^:inline min
   "Return the minimum of the arguments."
   [& args]
-  (python/min args))
+  (basilisp.lang.runtime/min-of args))
 
-(defn max
+(defn ^:inline max
   "Return the maximum of the arguments."
   [& args]
-  (python/max args))
+  (basilisp.lang.runtime/max-of args))
 
 (defn ^:inline numerator
   "Return the numerator of a Fraction."

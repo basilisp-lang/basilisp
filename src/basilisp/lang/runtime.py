@@ -1750,6 +1750,26 @@ def equals(v1, v2) -> bool:
     return v1 == v2
 
 
+def max_of(it: Iterable[T]) -> T:
+    """Return the max of an iterable of arguments.
+
+    Unlike in Python, if any value is NaN return NaN."""
+    for v in it:
+        if isinstance(v, numbers.Real) and math.isnan(v):
+            return v
+    return max(it)
+
+
+def min_of(it: Iterable[T]) -> T:
+    """Return the min of an iterable of arguments.
+
+    Unlike in Python, if any value is NaN return NaN."""
+    for v in it:
+        if isinstance(v, numbers.Real) and math.isnan(v):
+            return v
+    return min(it)
+
+
 def _to_decimal(x: LispNumber) -> decimal.Decimal:
     if isinstance(x, Fraction):
         numerator, denominator = x.as_integer_ratio()
