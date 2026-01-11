@@ -1603,7 +1603,7 @@
     nil    #{}
     nil    ""
     '(1)   {:a 1}
-    '(1)   {:a nil}
+    '(nil)   {:a nil}
     '(1)   {"a" 1}
     nil    (python/dict {})
     '(1)   (python/dict {:a 1}))
