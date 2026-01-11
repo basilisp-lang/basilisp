@@ -456,7 +456,7 @@
     {}
     {:a 1 :b 2})
   (are [x y] (= x (rseq y))
-    '() []
+    nil []
     '(1) [1]
     '(2 1) [1 2]
     '(3 2 1) [1 2 3]
@@ -609,8 +609,9 @@
       (is (= {:a 1 :b 2 :c 3}
              (-> (assoc! tm :a 1)
                  (assoc! :b 2 :c 3)
-                 (persistent!))))
-      ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
+                 (persistent!)))))
+    ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
+    (let [tm (transient {})]
       (is (= {:a 1 :b 2 :c nil}
              (-> (assoc! tm :a 1)
                  (assoc! :b 2 :c)
@@ -622,8 +623,9 @@
              (-> (assoc! tv 0 :c)
                  (assoc! 1 :a 2 :b)
                  (assoc! 3 :d)
-                 (persistent!))))
-      ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
+                 (persistent!)))))
+    ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
+    (let [tv (transient [:a :b :c])]
       (is (= [:c :a :b nil]
              (-> (assoc! tv 0 :c)
                  (assoc! 1 :a 2 :b)
@@ -1571,7 +1573,7 @@
   (is (thrown? python/TypeError (vec (vals [:a :b :c]))))
   (is (thrown? python/TypeError (vec (vals [[:a 1] [:b 2]]))))
 
-  (are [expected m] (= expected (keys m))
+  (are [expected m] (= expected (vals m))
     nil    nil
     nil    {}
     nil    '()
