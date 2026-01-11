@@ -1209,7 +1209,7 @@
   [& args]
   (basilisp.lang.runtime/min-of args))
 
-(defn ^:inline max
+(defn max
   "Return the maximum of the arguments."
   [& args]
   (basilisp.lang.runtime/max-of args))
@@ -1355,7 +1355,7 @@
     (throw (python/TypeError #f"Argument must be an integer: {x}"))
     (if (= 0 (mod x 2)) true false)))
 
-(defn false?
+(defn ^:inline false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
   [x]
   (and (boolean? x) (operator/is- x false)))
@@ -1567,7 +1567,7 @@
   [x]
   (and (symbol? x) (nil? (namespace x))))
 
-(defn true?
+(defn ^:inline true?
   "Return ``true`` if ``x`` is ``true``\\, otherwise ``false``\\."
   [x]
   (and (boolean? x) (operator/is- x true)))
