@@ -64,7 +64,7 @@ class TransientVector(ITransientVector[T]):
                 i, v = t
                 self._inner.set(i, v)
             else:
-                self._inner.set(t[0], None)
+                self._inner.set(t[0], None)  # type: ignore[arg-type]
         return self
 
     def contains_transient(self, k: int) -> bool:
