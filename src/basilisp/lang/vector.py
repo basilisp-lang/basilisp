@@ -57,8 +57,14 @@ class TransientVector(ITransientVector[T]):
         return self
 
     def assoc_transient(self, *kvs: T) -> "TransientVector[T]":
-        for i, v in cast("Sequence[tuple[int, T]]", partition(kvs, 2)):
-            self._inner.set(i, v)
+        for t in cast("Sequence[tuple[int, T] | tuple[int]]", partition(kvs, 2)):
+            # Clojure allows assoc! to have odd numbers of arguments, setting nil for
+            # the missing value.
+            if len(t) == 2:
+                i, v = t
+                self._inner.set(i, v)
+            else:
+                self._inner.set(t[0], None)
         return self
 
     def contains_transient(self, k: int) -> bool:
