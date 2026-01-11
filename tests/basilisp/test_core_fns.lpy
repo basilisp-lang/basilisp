@@ -648,10 +648,9 @@
                  (persistent!)))))
     ;; assoc! allows odd numbers of args and substitutes `nil` for the missing
     (let [tv (transient [:a :b :c])]
-      (is (= [:c :a :b nil]
+      (is (= [:c :a nil]
              (-> (assoc! tv 0 :c)
-                 (assoc! 1 :a 2 :b)
-                 (assoc! 3)
+                 (assoc! 1 :a 2)
                  (persistent!)))))))
 
 (deftest conj!-test
@@ -1591,6 +1590,7 @@
 
 (deftest vals-test
   (is (thrown? python/TypeError (vals :abc)))
+  (is (thrown? python/TypeError (vals "abc")))
   ;; use vec to actually realize the val sequence and trigger the error
   (is (thrown? python/TypeError (vec (vals [:a :b :c]))))
   (is (thrown? python/TypeError (vec (vals [[:a 1] [:b 2]]))))

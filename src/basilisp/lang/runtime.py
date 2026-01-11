@@ -1622,6 +1622,13 @@ def _vals_none(_: None) -> None:
     return None
 
 
+@vals.register(str)
+def _vals_str(o: str) -> None:
+    if to_seq(o) is None:
+        return None
+    raise TypeError(f"Object of type {type(o)} cannot be coerced to a value sequence")
+
+
 @keys.register(collections.abc.Iterable)
 @vals.register(ISeqable)
 def _vals_iterable(o: ISeqable | Iterable) -> ISeq | None:
