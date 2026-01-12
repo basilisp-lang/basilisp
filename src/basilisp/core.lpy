@@ -5699,6 +5699,28 @@
             (instance? python/type parent)
             (python/issubclass tag parent)))))
 
+(defn ^:private -check-global-hierarchy-tag-and-parent
+  [tag parent]
+  (when-not (qualified-ident? parent)
+    (throw (ex-info "Parent must be a qualified keyword or symbol"
+                    {:tag tag
+                     :parent parent})))
+  (when-not (or (qualified-ident? tag) (class? tag))
+    (throw (ex-info "Tag must be a valid Python type or a qualified keyword or symbol"
+                    {:tag tag
+                     :parent parent}))))
+
+(defn ^:private -check-hierarchy-tag-and-parent
+  [tag parent]
+  (when-not (ident? parent)
+    (throw (ex-info "Parent must be a keyword or symbol"
+                    {:tag tag
+                     :parent parent})))
+  (when-not (or (ident? tag) (class? tag))
+    (throw (ex-info "Tag must be a valid Python type or a keyword or symbol"
+                    {:tag tag
+                     :parent parent}))))
+
 (defn derive
   "Derive a parent/child relationship between ``tag`` and ``parent``\\.
 
@@ -5711,15 +5733,27 @@
 
   Relationships may be removed via :lpy:fn:`underive`."
   ([tag parent]
-   (alter-var-root #'global-hierarchy derive tag parent))
+   (-check-global-hierarchy-tag-and-parent tag parent)
+   (alter-var-root #'global-hierarchy derive tag parent)
+   nil)
   ([h tag parent]
-   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
-   (assert (or (qualified-ident? tag)
-               (class? tag))
-           "Tag must be a valid Python type or a qualified keyword or symbol")
-
+   (when-not (and (map? h) (:parents h) (:ancestors h) (:descendants h))
+     (throw
+      (ex-info "hierarchy must be a value returned by make-hierarchy"
+               {:hierarchy h})))
+   (when (= tag parent)
+     (throw
+      (ex-info "tag must be different from parent"
+               {:tag    tag
+                :parent parent})))
+   (-check-hierarchy-tag-and-parent tag parent)
    (let [parent-ancestors (get-in h [:ancestors parent] #{})
          cur-descendants  (get-in h [:descendants tag] #{})]
+     (when (contains? parent-ancestors tag)
+       (throw
+        (ex-info (str "cyclic derivation: " parent " has " tag " as an ancestor")
+                 {:tag    tag
+                  :parent parent})))
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (conj $ parent)
                      (assoc (:parents h) tag $))
@@ -5749,13 +5783,13 @@
   ``h`` must be a hierarchy returned by :lpy:fn:`make-hierarchy`. If ``h`` is not
   supplied, the global hierarchy will be used."
   ([tag parent]
-   (alter-var-root #'global-hierarchy underive tag parent))
+   (alter-var-root #'global-hierarchy underive tag parent)
+   nil)
   ([h tag parent]
-   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
-   (assert (or (qualified-ident? tag)
-               (class? tag))
-           "Tag must be a valid Python type or a qualified keyword or symbol")
-
+   (when-not (and (map? h) (:parents h) (:ancestors h) (:descendants h))
+     (throw
+      (ex-info "hierarchy must be a value returned by make-hierarchy"
+               {:hierarchy h})))
    (let [tag-parents (-> (get-in h [:parents tag] #{})
                          (disj parent))
          new-parents (if (seq tag-parents)
