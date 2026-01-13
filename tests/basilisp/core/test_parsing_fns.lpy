@@ -1,0 +1,102 @@
+(ns tests.basilisp.core.test-parsing-fns
+  (:require
+   [basilisp.test :refer [deftest are]]))
+
+(deftest parse-double-test
+  (are [x] (thrown? python/TypeError (parse-double x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-double x))
+    nil   ""
+    nil   "strang"
+    nil   "--13.6"
+    0.0   "0"
+    0.0   "0.0"
+    14.0  " 14"
+    3.14  "3.14     "
+    14.0  "  14  "
+    -15.6 " -15.6"
+    -15.6 "-15.6   "))
+
+(deftest parse-long-test
+  (are [x] (thrown? python/TypeError (parse-long x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-long x))
+    nil   ""
+    nil   "strang"
+    nil   "--13"
+    nil   "0.0"
+    0     "0"
+    14    " 14"
+    83    "  83     "
+    -15   " -15"
+    -15   "-15    "))
+
+(deftest parse-boolean-test
+  (are [x] (thrown? python/TypeError (parse-boolean x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-boolean x))
+    nil   ""
+    nil   "1"
+    nil   "strang"
+    nil   "--13.6"
+    nil   "True"
+    nil   "False"
+    nil   "TRUE"
+    nil   "FALSE"
+    true  "true"
+    false "false"))
+
+(deftest parse-uuid-test
+  (are [x] (thrown? python/TypeError (parse-uuid x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-uuid x))
+    nil                                          ""
+    nil                                          "1"
+    nil                                          "strang"
+    #uuid "529f77ae-bf6e-43e0-92a4-798e3ce4d35e" "529f77ae-bf6e-43e0-92a4-798e3ce4d35e"
+    nil                                          "529f77ae-bf6e-43e0-92a4-798e3ce4d35"
+    nil                                          "529f77ae-bf6-43e0-92a4-798e3ce4d35e"
+    #uuid "67209b54-9668-4656-8cf9-94ee70ed6ba8" "67209B54-9668-4656-8CF9-94EE70ED6BA8"
+    nil                                          "67209B54-9668-4656-8CF9-94EE70ED6BA"
+    nil                                          "67209B5-9668-4656-8CF9-94EE70ED6BA8"))
+

@@ -1,0 +1,25 @@
+(ns tests.basilisp.core.test-string-fns
+  (:require
+   [basilisp.test :refer [deftest is]]))
+
+(deftest str-test
+  (is (= "" (str nil)))
+  (is (= "ab" (str "a" nil "b"))))
+
+(deftest format-test
+  (is (= nil (format nil)))
+  (is (= "" (format "")))
+  (is (= "input string" (format "input string")))
+  (is (= "input string" (format "%s %s" "input" "string")))
+  (is (= "input string" (format "%s" "input string")))
+  (is (= "input string" (format "%(first)s %(second)s" {"first" "input" "second" "string"})))
+  (is (thrown? python/KeyError (format "%(val)s" {"s" "input string"}))))
+
+(deftest subs-test
+  (is (= "" (subs "" 0)))
+  (is (thrown? python/IndexError (subs "" 3)))
+  (is (thrown? python/IndexError (subs "hello" 6)))
+  (is (= "lo world" (subs "hello world" 3)))
+  (is (thrown? python/IndexError (subs "hello world" 3 12)))
+  (is (= "lo w" (subs "hello world" 3 7)))
+  (is (thrown? python/IndexError (subs "hello world" 12 3))))

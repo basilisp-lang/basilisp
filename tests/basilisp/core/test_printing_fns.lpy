@@ -1,0 +1,119 @@
+(ns tests.basilisp.core.test-printing-fns
+  (:import os)
+  (:require
+   [basilisp.string :as str]
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest pr-test
+  (testing "is dynamic"
+    (is (= '(1) (binding [pr (fn [& more] more)] (pr 1)))))
+
+  (testing "*print-level* support"
+    (let [v-str (pr-str (range 100))]
+      (is (str/ends-with? v-str " 99)") v-str))
+
+    (binding [*print-length* 4]
+      (is (= "(0 1 2 3 ...)" (pr-str (range 5))))))
+
+  (testing "with *print-namespace-maps*"
+    (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* false] (pr-str #py {:a/x 5}))))
+    (is (= "#py #:a{:x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
+
+    (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
+      #{"{:a/x 5}"} {:a/x 5} false
+      #{"#:a{:x 5}"} {:a/x 5} true
+      #{"{:x 5}"} {:x 5} true
+      #{"{1 2}"} {1 2} false
+      #{"{1 2}"} {1 2} true
+      #{"{:a/y 6 :a/x 5}" "{:a/x 5 :a/y 6}"} {:a/x 5 :a/y 6} false
+      #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"} {:a/x 5 :a/y 6} true
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} false
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} true
+      #{"{:a/x 5 :b/y 6}" "{:b/y 6 :a/x 5}"} {:a/x 5 :b/y 6} true
+      #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"} {'a/x 5 'a/y 6} true
+      #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"} {:a/x 5 'a/y 6} true
+      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"} {:a/x 5 'y 6} true)
+
+    (are [res m pnm pm] (= res (binding [*print-namespace-maps* pnm
+                                         *print-meta*           pm]
+                                 (pr-str m)))
+      "^{:m 1} {:a/x 5}"     ^{:m 1} {:a/x 5}   false true
+      "^{:m 1} #:a{:x 5}"    ^{:m 1} {:a/x 5}   true true
+      "^#:l{:m 1} #:a{:x 5}" ^{:l/m 1} {:a/x 5} true true)
+
+    (are [res m pl] (= res (binding [*print-namespace-maps* true
+                                     *print-meta*           true
+                                     *print-level* pl]
+                             (pr-str m)))
+      "#"                                ^{:m 1} {:a/x 5} 0
+      "^{:m 1} #:a{:x 5}"                ^{:m 1} {:a/x 5} 1
+      "^{:m 1} #:a{:x #}"                ^{:m 1} {:a/x ^{:x 22} {:b 36}} 1
+      "^{:m 1} #:a{:x ^{:x 22} {:b 36}}" ^{:m 1} {:a/x ^{:x 22} {:b 36}} 2)))
+
+(defn- bio-write
+  "Helper fn to write the ``strings`` to the ByteIO buffer ``bio``
+  and return the contents of the buffer."
+  [bio & strings]
+  (.write bio (python/bytes (apply str strings) "UTF-8"))
+  (.getvalue bio))
+
+(deftest flush-on-newline-test
+  ;; :line-buffering false :newline ""
+  ;;
+  ;;   the above options instruct the TextIOWrapper to internally
+  ;;   disable (1) flushing on newlines and (2) universal newlines
+  ;;   mode.
+
+  (testing "prn newline flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* true]
+        (prn)
+        (is (= (bio-write expected os/linesep) (.getvalue bio)))
+        (prn "ab")
+        (is (= (bio-write expected "\"ab\"" os/linesep) (.getvalue bio)))
+        (prn "ab" 1)
+        (is (= (bio-write expected "\"ab\"" " " 1 os/linesep) (.getvalue bio))))))
+
+  (testing "prn newline not flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* false]
+        (prn)
+        (is (= #b "" (.getvalue bio)))
+        (prn "ab")
+        (is (= #b "" (.getvalue bio)))
+        (prn "ab" 1)
+        (is (= #b "" (.getvalue bio)))
+        (.flush *out*)
+        (is (= (bio-write expected os/linesep "\"ab\"" os/linesep "\"ab\"" " " 1 os/linesep)
+               (.getvalue bio))))))
+
+  (testing "println newline flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* true]
+        (println)
+        (is (= (bio-write expected os/linesep) (.getvalue bio)))
+        (println "ab")
+        (is (= (bio-write expected "ab" os/linesep) (.getvalue bio)))
+        (println "ab" 1)
+        (is (= (bio-write expected "ab" " " 1 os/linesep) (.getvalue bio))))))
+
+  (testing "println newline not flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* false]
+        (println)
+        (is (= #b "" (.getvalue bio)))
+        (println "ab")
+        (is (= #b "" (.getvalue bio)))
+        (println "ab" 1)
+        (is (= #b "" (.getvalue bio)))
+        (.flush *out*)
+        (is (= (bio-write expected os/linesep "ab" os/linesep "ab" " " 1 os/linesep)
+               (.getvalue bio)))))))

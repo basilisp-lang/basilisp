@@ -1,4 +1,4 @@
-(ns tests.basilisp.test-core-async-macros
+(ns tests.basilisp.core.test-async-macros
   (:import asyncio contextlib)
   (:require
    [basilisp.test :refer [deftest is are testing]]))
