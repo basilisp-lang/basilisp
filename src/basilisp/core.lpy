@@ -1687,10 +1687,10 @@
     true))
 
 (defn byte
-  "Coerce ``x`` to a byte."
+  "Coerce ``x`` to a byte (an integer between -128 and 127)."
   [x]
-  (let [b (python/bytes [x])]
-    (if (= 1 (python/len b))
+  (let [b (python/int x)]
+    (if (operator/contains (python/range -128 128) b)
       b
       (throw
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
