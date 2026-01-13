@@ -2278,14 +2278,18 @@
   ([v start]
    (subvec v start nil))
   ([v start end]
-   (when (> start (count v))
-     (throw (python/IndexError "Start index out of range")))
-   (when-not (nil? end)
-     (when (> end (count v))
-       (throw (python/IndexError "End index out of range")))
-     (when (> start end)
-       (throw (python/IndexError "Start index must be less than or equal to end index"))))
-   (operator/getitem v (python/slice start end))))
+   (let [start (int start)
+         end   (when end (int end))]
+     (when (> start (count v))
+       (throw (python/IndexError "Start index out of range")))
+     (when-not (nil? end)
+       (when (> end (count v))
+         (throw (python/IndexError "End index out of range")))
+       (when (> start end)
+         (throw (python/IndexError "Start index must be less than or equal to end index"))))
+     (when-not (vector? v)
+       (throw (python/TypeError #f "Expected vector; got {(type v)}")))
+     (operator/getitem v (python/slice start end)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
