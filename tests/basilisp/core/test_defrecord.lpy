@@ -1,4 +1,4 @@
-(ns tests.basilisp.test-defrecord
+(ns tests.basilisp.core.test-defrecord
   (:import abc)
   (:require
    [basilisp.test :refer [deftest is testing are]]))
@@ -15,11 +15,11 @@
       :dot        (InvokeConstructorsType.))))
 
 (deftest deftype-constructors
-  (let [elems [(tests.basilisp.test-defrecord.Square. 1)
+  (let [elems [(tests.basilisp.core.test-defrecord.Square. 1)
                (Square. 1)
-               (new tests.basilisp.test-defrecord.Square 1)
+               (new tests.basilisp.core.test-defrecord.Square 1)
                (new Square 1)
-               (tests.basilisp.test-defrecord/Square 1)]]
+               (tests.basilisp.core.test-defrecord/Square 1)]]
     (is (apply = elems)))
   (testing "can invoke own constructors"
     (let [invoke (->InvokeConstructorsType)]
@@ -29,11 +29,11 @@
 
 (deftest deftype-reader-form
   (testing "type"
-    (is (= (->Square 5) #tests.basilisp.test-defrecord.Square[5])))
+    (is (= (->Square 5) #tests.basilisp.core.test-defrecord.Square[5])))
 
   (testing "illegal other forms"
     (is (thrown? basilisp.lang.reader/SyntaxError
-                 (read-string "#tests.basilisp.test-defrecord.Square{:dim 5}")))))
+                 (read-string "#tests.basilisp.core.test-defrecord.Square{:dim 5}")))))
 
 (defrecord Point [x y z])
 
@@ -194,19 +194,19 @@
       (is (= {:tag Point} (meta (with-meta p {:tag Point})))))
 
     (testing "repr"
-      (is (contains? #{"#tests.basilisp.test-defrecord.Point{:x 1 :y 2 :z 3}"
-                       "#tests.basilisp.test-defrecord.Point{:y 2 :z 3 :x 1}"
-                       "#tests.basilisp.test-defrecord.Point{:z 3 :x 1 :y 2}"
-                       "#tests.basilisp.test-defrecord.Point{:y 2 :x 1 :z 3}"
-                       "#tests.basilisp.test-defrecord.Point{:x 1 :z 3 :y 2}"
-                       "#tests.basilisp.test-defrecord.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"#tests.basilisp.core.test-defrecord.Point{:x 1 :y 2 :z 3}"
+                       "#tests.basilisp.core.test-defrecord.Point{:y 2 :z 3 :x 1}"
+                       "#tests.basilisp.core.test-defrecord.Point{:z 3 :x 1 :y 2}"
+                       "#tests.basilisp.core.test-defrecord.Point{:y 2 :x 1 :z 3}"
+                       "#tests.basilisp.core.test-defrecord.Point{:x 1 :z 3 :y 2}"
+                       "#tests.basilisp.core.test-defrecord.Point{:z 3 :y 2 :x 1}"}
                      (repr p)))
-      (is (contains? #{"^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:x 1 :y 2 :z 3}"
-                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:y 2 :z 3 :x 1}"
-                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:z 3 :x 1 :y 2}"
-                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:y 2 :x 1 :z 3}"
-                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:x 1 :z 3 :y 2}"
-                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:x 1 :y 2 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:y 2 :z 3 :x 1}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:z 3 :x 1 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:y 2 :x 1 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:x 1 :z 3 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:z 3 :y 2 :x 1}"}
                      (binding [*print-meta* true]
                        (repr (with-meta p {:interesting :yes}))))))))
 
@@ -229,11 +229,11 @@
       :dot        (InvokeConstructorsRecord.))))
 
 (deftest defrecord-constructors
-  (let [elems [(tests.basilisp.test-defrecord.Circle. 1)
+  (let [elems [(tests.basilisp.core.test-defrecord.Circle. 1)
                (Circle. 1)
-               (new tests.basilisp.test-defrecord.Circle 1)
+               (new tests.basilisp.core.test-defrecord.Circle 1)
                (new Circle 1)
-               (tests.basilisp.test-defrecord/Circle 1)]]
+               (tests.basilisp.core.test-defrecord/Circle 1)]]
     (is (apply = elems)))
   (testing "can invoke own constructors"
     (let [invoke (->InvokeConstructorsRecord)]
@@ -254,13 +254,13 @@
       (is (instance? Shape c1)))
 
     (testing "repr"
-      (is (= "#tests.basilisp.test-defrecord.Circle{:radius 1}"
+      (is (= "#tests.basilisp.core.test-defrecord.Circle{:radius 1}"
              (repr c)))
-      (is (= "^{:interesting :yes} #tests.basilisp.test-defrecord.Circle{:radius 1}"
+      (is (= "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Circle{:radius 1}"
              (binding [*print-meta* true]
                (pr-str (with-meta c {:interesting :yes})))))
-      (is (contains? #{"#tests.basilisp.test-defrecord.Circle{:radius 1 :name \"Kurt\"}"
-                       "#tests.basilisp.test-defrecord.Circle{:name \"Kurt\" :radius 1}"}
+      (is (contains? #{"#tests.basilisp.core.test-defrecord.Circle{:radius 1 :name \"Kurt\"}"
+                       "#tests.basilisp.core.test-defrecord.Circle{:name \"Kurt\" :radius 1}"}
                      (repr c1))))
 
     (testing "str"
@@ -292,7 +292,7 @@
       (is (= p1 (eval (read-string (repr p1)))))
       (is (= p2 (eval (read-string (repr p2)))))
       (is (= p3 (eval (read-string (repr p3)))))
-      (is (= p #tests.basilisp.test-defrecord.Point[1 2 3]))))
+      (is (= p #tests.basilisp.core.test-defrecord.Point[1 2 3]))))
 
   (testing "record with methods"
     (let [c  (->Circle 1)
@@ -301,13 +301,13 @@
       (is (= c (eval (read-string (repr c)))))
       (is (= c1 (eval (read-string (repr c1)))))
       (is (= c2 (eval (read-string (repr c2)))))
-      (is (= c #tests.basilisp.test-defrecord.Circle[1]))))
+      (is (= c #tests.basilisp.core.test-defrecord.Circle[1]))))
 
   (testing "illegal other forms"
     (is (thrown? basilisp.lang.reader/SyntaxError
-                 (read-string "#tests.basilisp.test-defrecord.Circle#{1}")))
+                 (read-string "#tests.basilisp.core.test-defrecord.Circle#{1}")))
     (is (thrown? basilisp.lang.reader/SyntaxError
-                 (read-string "#tests.basilisp.test-defrecord.Point(1 2 3)")))))
+                 (read-string "#tests.basilisp.core.test-defrecord.Point(1 2 3)")))))
 
 (deftest defrecord-field-restrictions
   (testing "attrs does not strip prefixes"

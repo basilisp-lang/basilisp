@@ -1,0 +1,83 @@
+(ns tests.basilisp.core.test-futures
+  (:import time)
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(def ^:dynamic *thread-value* 4)
+
+(deftest futures-test
+  (testing "successful future"
+    (let [fut (future 1)]
+      (is (= 1 @fut))
+      (is (= 1 @fut))
+      (is (= false (future-cancel fut)))
+      (is (= false (future-cancelled? fut)))
+      (is (= true (future-done? fut)))
+      (is (= true (realized? fut)))))
+
+  (testing "timed deref of future"
+    (let [pre (time/perf-counter)
+          fut (future (time/sleep 3))
+          start (time/perf-counter)
+          ;; block for 100ms
+          ret (deref fut 100 :timed-out)
+          end (time/perf-counter)
+          diff (- end start)]
+      (is (= :timed-out ret))
+      ;; The lower bound is set to 95ms instead of 100ms due to an
+      ;; unexplained discrepancy observed on GitHub CI, where `deref`
+      ;; returned a few milliseconds before the time-out period
+      ;; elapsed.
+      ;;
+      ;; https://github.com/basilisp-lang/basilisp/issues/1184
+      (is (< 0.095 diff 0.5) (str "deref timeout outside of [95ms, 500ms] range: " diff "s"
+                                  " -- :pre " pre " :start " start " :end " end))
+      (is (= false (future-cancelled? fut)))
+      (is (= false (future-done? fut)))
+      ;; can't always cancel a sleep-ed Future
+      (future-cancel fut)))
+
+  (testing "binding conveyance"
+    (let [fut (future *thread-value*)]
+      (is (= 4 @fut)))
+
+    (let [fut (binding [*thread-value* 3]
+                (future *thread-value*))]
+      (is (= 3 @fut)))))
+
+(deftest pmap-test
+  (binding [*pmap-cpu-count* 2]
+    (let [slow (fn slow [x]
+                 (time/sleep 0.5)
+                 (+ x 10))]
+      (is (= [] (vec (pmap slow []))))
+      (is (= [11] (vec (pmap slow [1]))))
+      (is (= [11 12 13 14 15 16 17 18 19]
+             (vec (pmap slow (range 1 10))))))))
+
+(deftest pcalls-test
+  (binding [*pmap-cpu-count* 2]
+    (let [slow (fn slow [x]
+                 (time/sleep 0.5)
+                 (+ x 10))]
+      (is (= [] (vec (pcalls))))
+      (is (= [11] (vec (pcalls #(slow 1)))))
+      (is (= [11 12 13 14]
+             (vec (pcalls #(slow 1)
+                          #(slow 2)
+                          #(slow 3)
+                          #(slow 4))))))))
+
+(deftest pvalues-test
+  (binding [*pmap-cpu-count* 2]
+    (let [slow (fn slow [x]
+                 (time/sleep 0.5)
+                 (+ x 10))]
+      (is (= [] (vec (pvalues))))
+      (is (= [11] (vec (pvalues (slow 1)))))
+      (is (= [11 12 13 14]
+             (vec (pvalues (slow 1)
+                           (slow 2)
+                           (slow 3)
+                           (slow 4))))))))
+

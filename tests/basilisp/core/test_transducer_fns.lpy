@@ -1,0 +1,109 @@
+(ns tests.basilisp.core.test-transducer-fns
+  "Tests for tranducer-specific functions.
+
+  Tests for transducer arities of core higher-order functions should be colocated
+  with other tests for the corresponding function."
+  (:require
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest reduced-test
+  (is (not (reduced? [])))
+  (is (reduced? (reduced [])))
+  (is (= [] @(reduced [])))
+
+  (testing "ensure-reduced"
+    (is (reduced? (ensure-reduced [])))
+    (is (reduced? (ensure-reduced (reduced []))))
+    (is (not (reduced? @(ensure-reduced (reduced []))))))
+
+  (testing "unreduced"
+    (is (not (reduced? (unreduced (reduced [])))))
+    (is (= [] (unreduced (reduced []))))))
+
+(deftest eduction-test
+  (is (= '(1 9 49 81)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        [(range 5) (range 6 10)]))))
+  (is (= '(1 9 25 49 81)
+         (seq (eduction (map inc)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        (range)))))
+  (is (= '(1 9 49 81 121)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        [(range 5) (range 6 10) (range 11 20)]))))
+  (is (= '(1 9 49 81 121 169 225 289 361)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        [(range 5) (range 6 10) (range 11 20)])))))
+
+(deftest halt-when-test
+  (is (= 5 (transduce (comp (map inc)
+                            (halt-when #(>= % 5)))
+                      +
+                      0
+                      (range))))
+  (is (= 10 (transduce (comp (map inc)
+                             (halt-when #(>= % 5)
+                                        (fn [result _] result)))
+                       +
+                       0
+                       (range)))))
+
+(deftest sequence-test
+  (testing "single arity"
+    (are [x y] (= x (sequence y))
+      '() '()
+      '() []
+      '() #{}
+      '() {}
+      '(0 1 2 3) [0 1 2 3]
+      '(0 1 2 3) '(0 1 2 3)
+      '(0 1 2 3) (range 4)))
+
+  (testing "tranducer with one coll"
+    (is (= '(1 2 3 4 5 6 7 8 9)
+           (sequence (comp (mapcat vector) cat) [[1 2 3] [4 5 6] [7 8 9]])))
+    (is (= '(1 2 3 4 5 6 7 8 9)
+           (sequence (mapcat identity) [[1 2 3] [4 5 6] [7 8 9]])))
+    (is (= '(1 9 25 49 81)
+           (sequence (comp (map inc)
+                           (filter odd?)
+                           (map (fn [x] (* x x)))
+                           (take 5))
+                     (range))))
+    (is (= '(1 9 49 81)
+           (sequence (comp  (mapcat identity)
+                            (filter odd?)
+                            (map (fn [x] (* x x)))
+                            (take 5))
+                     [(range 5) (range 6 10)]))))
+
+  (testing "transducer with multiple colls"
+    (is (= '([1 4 7] [2 5 8] [3 6 9])
+           (sequence (map vector) [1 2 3] [4 5 6] [7 8 9])))
+    (is (= '(1 4 7 2 5 8 3 6 9)
+           (sequence (mapcat vector) [1 2 3] [4 5 6] [7 8 9])))
+    (is (= '(1 49 9 81)
+           (sequence (comp  (mapcat vector)
+                            (filter odd?)
+                            (map (fn [x] (* x x)))
+                            (take 5))
+                     (range 5)
+                     (range 6 10))))
+    (is (= '(121 1 49 169 9)
+           (sequence (comp  (mapcat vector)
+                            (filter odd?)
+                            (map (fn [x] (* x x)))
+                            (take 5))
+                     (range 5)
+                     (range 6 10)
+                     (range 11 16))))))

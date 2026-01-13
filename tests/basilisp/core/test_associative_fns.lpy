@@ -1,0 +1,101 @@
+(ns tests.basilisp.core.test-associative-fns
+  (:require
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest replace-test
+  (testing "transducer"
+    (are [smap input res] (= res (into [] (replace smap) input))
+      '{0 ZERO, 1 ONE, 2 TWO}                 '(This is the code 0 1 2 0) '[This is the code ZERO ONE TWO ZERO]
+      {2 :two, 4 :four}                       [4 2 3 4 5 6 2]             [:four :two 3 :four 5 6 :two]
+      [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
+      [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth]))
+
+  (testing "higher order function"
+    (are [smap input res] (= res (replace smap input))
+      '{0 ZERO, 1 ONE, 2 TWO}                 '(This is the code 0 1 2 0) '(This is the code ZERO ONE TWO ZERO)
+      {2 :two, 4 :four}                       [4 2 3 4 5 6 2]             [:four :two 3 :four 5 6 :two]
+      [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
+      [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth])))
+
+(deftest update-keys-test
+  (are [res start] (and (= res (update-keys start name))
+                        (= (meta res) (meta start)))
+    {}                                             {}
+    ^:cool {}                                      ^:cool {}
+    {"a" "a"}                                      {:a "a"}
+    ^:neat {"a" "a"}                               ^:neat {:a "a"}
+    {"a" "a" "b" 2}                                {:a "a" 'b 2}
+    ^{:good :yes :great :also-yes} {"a" "a" "b" 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
+
+(deftest update-vals-test
+  (are [res start] (and (= res (update-vals start #(cond-> % (string? %) (.upper))))
+                        (= (meta res) (meta start)))
+    {}                                           {}
+    ^:cool {}                                    ^:cool {}
+    {:a "A"}                                     {:a "a"}
+    ^:neat {:a "A"}                              ^:neat {:a "a"}
+    {:a "A" 'b 2}                                {:a "a" 'b 2}
+    ^{:good :yes :great :also-yes} {:a "A" 'b 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
+
+(deftest keys-test
+  (is (thrown? python/TypeError (keys :abc)))
+  ;; use vec to actually realize the key sequence and trigger the error
+  (is (thrown? python/TypeError (vec (keys [:a :b :c]))))
+  (is (thrown? python/TypeError (vec (keys [[:a 1] [:b 2]]))))
+
+  (are [expected m] (= expected (keys m))
+    nil    nil
+    nil    {}
+    nil    '()
+    nil    []
+    nil    #{}
+    nil    ""
+    '(:a)  {:a 1}
+    '(:a)  {:a nil}
+    '("a") {"a" 1}
+    nil    (python/dict {})
+    '(:a)  (python/dict {:a 1}))
+
+  (are [expected m] (= expected (set (keys m)))
+    #{:a :b} {:a 1 :b 2}
+    #{:a :b} (seq {:a 1 :b 2})
+    #{:a :b} (vec {:a 1 :b 2})))
+
+(deftest vals-test
+  (is (thrown? python/TypeError (vals :abc)))
+  (is (thrown? python/TypeError (vals "abc")))
+  ;; use vec to actually realize the val sequence and trigger the error
+  (is (thrown? python/TypeError (vec (vals [:a :b :c]))))
+  (is (thrown? python/TypeError (vec (vals [[:a 1] [:b 2]]))))
+
+  (are [expected m] (= expected (vals m))
+    nil    nil
+    nil    {}
+    nil    '()
+    nil    []
+    nil    #{}
+    nil    ""
+    '(1)   {:a 1}
+    '(nil)   {:a nil}
+    '(1)   {"a" 1}
+    nil    (python/dict {})
+    '(1)   (python/dict {:a 1}))
+
+  (are [expected m] (= expected (set (vals m)))
+    #{1 2} {:a 1 :b 2}
+    #{1 2} (seq {:a 1 :b 2})
+    #{1 2} (vec {:a 1 :b 2})))
+
+(deftest find-test
+  (are [expected m k] (= expected (find m k))
+    nil      {}                   :a
+    nil      nil                  nil
+    nil      nil                  :a
+    [:a 1]   {:a 1}               :a
+    nil      {:a 1}               :b
+    [:a nil] {:a nil}             :a
+    [:b 2]   {:a 1 :b 2}          :b
+    ["a" 1]  {"a" 1}              "a"
+    nil      (python/dict {})     :a
+    nil      (python/dict {})     nil
+    [:a 1]   (python/dict {:a 1}) :a))

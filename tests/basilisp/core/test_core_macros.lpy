@@ -1,4 +1,4 @@
-(ns tests.basilisp.test-core-macros
+(ns tests.basilisp.core.test-core-macros
   (:import asyncio contextlib inspect os socket tempfile)
   (:require
    [basilisp.string :as str]

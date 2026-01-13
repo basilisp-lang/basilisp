@@ -1,0 +1,16 @@
+(ns tests.basilisp.core.test-insts
+  (:import datetime)
+  (:require
+   [basilisp.test :refer [deftest is]]))
+
+(deftest inst?-test
+  (is (inst? (datetime.datetime/now)))
+  (is (not (inst? (datetime.date/today))))
+  (is (not (inst? (datetime/time))))
+  (is (not (inst? (python/object)))))
+
+(deftest inst-ms-test
+  (is (= 0 (inst-ms
+            (datetime.datetime/fromtimestamp 0 datetime.timezone/utc))))
+  (is (= 1723235558968
+         (inst-ms #inst "2024-08-09T20:32:38.968-00:00"))))
