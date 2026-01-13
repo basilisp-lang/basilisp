@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Python 3.14 (#1282)
  * Added support for Unicode escape sequences in string literals (#1295)
  * Added environment variable configurations for the PyTest testrunner to allow more specific test discovery (#1301)
- * Added support for `clojure.test` style fixtures (#1305)
  * Added no-op Clojure compatibility functions: `inc'`, `dec'`, `int-array`, `long-array`, `short-array`, `float-array`, `double-array`, `bool-array` (#1305)
 
 ### Changed
