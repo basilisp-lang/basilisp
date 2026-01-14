@@ -751,15 +751,11 @@ class TestNumericPredicates:
         assert False is core.double__Q__(complex_number)
         assert False is core.float__Q__(complex_number)
 
-    def test_even_nums_are_even(self, even_int):
-        assert True is core.even__Q__(even_int)
+    def test_even_nums_are_even(self, even_number):
+        assert True is core.even__Q__(even_number)
 
-    def test_even_pred_throws_on_floats(self, even_float):
-        with pytest.raises(TypeError):
-            core.even__Q__(even_float)
-
-    def test_odd_nums_are_not_even(self, odd_int):
-        assert False is core.even__Q__(odd_int)
+    def test_odd_nums_are_not_even(self, odd_number):
+        assert False is core.even__Q__(odd_number)
 
     def test_is_int(self, int_number):
         assert True is core.integer__Q__(int_number)
@@ -861,15 +857,11 @@ class TestNumericPredicates:
     def test_complex_is_not_fraction(self, complex_number):
         assert False is core.ratio__Q__(complex_number)
 
-    def test_odd_nums_are_odd(self, odd_int):
-        assert True is core.odd__Q__(odd_int)
+    def test_odd_nums_are_odd(self, odd_number):
+        assert True is core.odd__Q__(odd_number)
 
-    def test_even_nums_are_not_odd(self, even_int):
-        assert False is core.odd__Q__(even_int)
-
-    def test_odd_pred_throws_on_floats(self, odd_float):
-        with pytest.raises(TypeError):
-            core.odd__Q__(odd_float)
+    def test_even_nums_are_not_odd(self, even_number):
+        assert False is core.odd__Q__(even_number)
 
     def test_fraction_is_rational(self, fraction):
         assert True is core.rational__Q__(fraction)
@@ -1399,11 +1391,11 @@ class TestComplement:
     def is_even(self):
         return core.complement(core.odd__Q__)
 
-    def test_evens_are_even(self, is_even, even_int):
-        assert True is is_even(even_int)
+    def test_evens_are_even(self, is_even, even_number):
+        assert True is is_even(even_number)
 
-    def test_odds_are_not_even(self, is_even, odd_int):
-        assert False is is_even(odd_int)
+    def test_odds_are_not_even(self, is_even, odd_number):
+        assert False is is_even(odd_number)
 
 
 def test_comp():
