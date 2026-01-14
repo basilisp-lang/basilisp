@@ -1,0 +1,682 @@
+(ns tests.basilisp.core.test-higher-order-fns
+  (:require
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest apply-kw-test
+  (let [kwargs ^{:kwargs :collect} (fn [x] x)]
+    (are [expected x] (= expected (apply-kw kwargs x))
+      {:test 1} {:test 1}
+      {}        {}
+      {}        nil)))
+
+(deftest run!-test
+  (testing "empty collection"
+    (let [a (atom 0)]
+      (run! #(swap! a + %) [])
+      (is (= @a 0))))
+
+  (testing "non-empty collection"
+    (let [a (atom 0)]
+      (run! #(swap! a + %) (range 5))
+      (is (= @a 10)))))
+
+(deftest range-test
+  (testing "0-arity"
+    (is (= '(0 1 2 3 4) (take 5 (range)))))
+
+  (testing "1-arity"
+    (is (= '() (range 0)))
+    (is (= '(0 1 2) (take 5 (range 3))))
+    (is (= '(0 1 2) (range 3)))
+    (is (= '(0 1 2 3 4) (take 5 (range 10)))))
+
+  (testing "2-arity"
+    (is (= '() (range 3 3)))
+    (is (= '(1 2 3) (range 1 4)))
+    (is (= '(1 2 3 4 5) (take 5 (range 1 10)))))
+
+  (testing "3-arity"
+    (is (= '() (range 3 3 2)))
+    (is (= '(1 4 7) (range 1 10 3)))
+    (is (= '(3 2 1) (range 3 0 -1)))
+    (is (= '(10 7 4 1) (range 10 0 -3)))))
+
+(deftest partial-test
+  (testing "no arguments"
+    (let [f-no-args (fn [] :no-args)]
+      (is (identical? f-no-args (partial f-no-args)))))
+
+  (testing "with arguments"
+    (let [f ^{:meta-tag :value}
+          (fn
+            ([] :no-args)
+            ([a b] [a b])
+            ([a b c d & rest]
+             [a b c d rest]))]
+      (is (= #{0 2 4 :rest} (.-arities f)))
+      (is (= {:meta-tag :value} (meta f)))
+
+      (let [new-f      (partial f :a)
+            new-f-meta (with-meta new-f {:different-tag :yes})]
+        (is (= #{1 3 :rest} (.-arities new-f)))
+        (is (nil? (meta new-f)))
+        (is (= {:different-tag :yes} (meta new-f-meta)))
+        (is (= [:a :c] (new-f-meta :c)))
+
+        (let [partial-of-partial (partial new-f-meta :b)]
+          (is (= #{2 :rest} (.-arities partial-of-partial)))
+          (is (nil? (meta partial-of-partial)))
+          (is (= [:a :b :e :f '(:g :h)] (partial-of-partial :e :f :g :h))))))))
+
+(deftest reduce-test
+  (testing "with no init"
+    (are [coll f res] (= res (reduce f coll))
+      nil                               + 0
+      []                                + 0
+      [1]                               + 1
+      [1 2 3]                           + 6
+      (filter odd? [1 2 3 4 5 6 7 8 9]) + 25))
+
+  (testing "with an init"
+    (are [coll f init res] (= res (reduce f init coll))
+      nil                               + 45 45
+      []                                + 45 45
+      [1]                               + 45 46
+      [1 2 3]                           + 45 51
+      (filter odd? [1 2 3 4 5 6 7 8 9]) + 25 50))
+
+  (testing "return early"
+    (let [f (fn []
+              (let [idx (volatile! 0)]
+                (fn
+                  ([x] x)
+                  ([x y]
+                   (let [new-idx (vswap! idx inc)]
+                     (if (> new-idx 3)
+                       (reduced x)
+                       (+ x y)))))))]
+      (is (= 6 (reduce (f) (range))))
+      (is (= 9 (reduce (f) 6 (range)))))))
+
+(defrecord ReduceKVRecord [a b c])
+
+(deftest reduce-kv-test
+  (testing "reduce-kv does not execute f if no elems in coll"
+    (let [a (atom false)]
+      (is (= {:init true}
+             (reduce-kv (fn [_ _ _]
+                          (reset! a true))
+                        {:init true}
+                        [])))))
+
+  (testing "reduce-kv"
+    (is (= {1 :a, 2 :b, 3 :c}
+           (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3}))))
+
+  (testing "return early"
+    (let [idx (volatile! 0)
+          f   (fn
+                [m k v]
+                (let [new-idx (vswap! idx inc)]
+                  (if (> new-idx 3)
+                    (reduced m)
+                    (assoc m k v))))]
+      (is (= 3 (count (reduce-kv f {} {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6}))))))
+
+  (testing "works on vectors as well"
+    (is (= {:ks [0 1 2] :vs [:a :b :c]}
+           (reduce-kv
+             (fn [acc i v]
+               (-> acc
+                   (update :ks conj i)
+                   (update :vs conj v)))
+             {:ks [] :vs []}
+             [:a :b :c]))))
+
+  (testing "works on records"
+    (is (= :reduced (reduce-kv (fn [acc k v]
+                                 (reduced :reduced))
+                               {:ks #{} :vs #{}}
+                               (->ReduceKVRecord 1 2 3))))
+
+    (let [rec (reduce-kv
+               (fn [acc k v]
+                 (assoc acc k v))
+               (->ReduceKVRecord 0 1 2)
+               {:d 4 :e 5})]
+      (is (record? rec))
+      (is (instance? ReduceKVRecord rec)))
+
+    (are [res input] (= res (reduce-kv
+                             (fn [acc k v]
+                               (-> acc
+                                   (update :ks conj k)
+                                   (update :vs conj v)))
+                             {:ks #{} :vs #{}}
+                             input))
+      {:ks #{:a :b :c} :vs #{1 2 3}}           (->ReduceKVRecord 1 2 3)
+      {:ks #{:a :b :c :d :e} :vs #{1 2 3 4 5}} (assoc (->ReduceKVRecord 1 2 3) :d 4 :e 5))))
+
+(deftest fnil-test
+  (let [f (fnil (fn [x] x) :yes)]
+    (is (= :yes (f nil)))
+    (is (= :no (f :no))))
+
+  (let [f (fnil (fn [x y] [x y]) :yes :no)]
+    (is (= [:yes :yes] (f nil :yes)))
+    (is (= [:no :no] (f :no nil)))
+    (is (= [:yes :no] (f nil nil))))
+
+  (let [f (fnil (fn [x y z] [x y z]) :yes :no :maybe)]
+    (is (= [:yes :yes :yes] (f nil :yes :yes)))
+    (is (= [:yes :no :yes] (f nil nil :yes)))
+    (is (= [:no :no :no] (f :no nil :no)))
+    (is (= [:no :no :maybe] (f :no nil nil)))
+    (is (= [:maybe :maybe :maybe] (f :maybe :maybe nil)))
+    (is (= [:yes :maybe :maybe] (f nil :maybe nil)))
+    (is (= [:yes :no :maybe] (f nil nil nil))))
+
+  (let [f (fnil (fn [x & rest] [x rest]) :a)]
+    (is (= [:a '(:b :c)] (f nil :b :c))))
+
+  (let [f (fnil (fn [x y & rest] [x y rest]) :a :b)]
+    (is (= [:a :b '(:c :d)] (f nil nil :c :d))))
+
+  (let [f (fnil (fn [x y z & rest] [x y z rest]) :a :b :c)]
+    (is (= [:a :b :c '(:d :e)] (f nil nil nil :d :e)))))
+
+(deftest every-pred-test
+  (is (= true ((every-pred odd?) 3 5 9)))
+  (is (= true ((every-pred odd? int?) 3 5 9 17)))
+  (is (= false ((every-pred odd? neg? int?) -3 -2)))
+  (is (= false ((every-pred odd? neg? int?) -3 -1 7)))
+  (is (= false ((every-pred odd? neg? int?) -3 -1 -3.0))))
+
+(deftest some-fn-test
+  (is (= 1 ((some-fn :a) {:a 1 :c 2})))
+  (is (= 1 ((some-fn :a :b) {:a 1 :c 2})))
+  (is (= 2 ((some-fn :a :b :c) {:d 4} {:c 2})))
+  (is (= false ((some-fn :a) {})))
+  (is (= false ((some-fn :a :b :c) {})))
+  (is (= false ((some-fn :a :b :c) {:e 5} {:d 4})))
+  (is (= false ((some-fn :a :b :c) {:e 5 :d 4} {}))))
+
+(deftest map-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (map inc) input))
+      []           []
+      [6 7 8 9 10] (range 5 10))
+
+    (is (= '([1 4] [2 5] [3 6])
+           (vec (sequence (map vector) [1 2 3] [4 5 6])))))
+
+  (testing "higher order function"
+    (are [res s] (= res s)
+      '()      (map identity [])
+      '(1 2 3) (map identity [1 2 3])
+      '(2 3 4) (map inc [1 2 3])
+      '(5 7 9) (map + [1 2 3] [4 5 6])
+      '(5 7 9) (map + [1 2 3] (range 4 10)))))
+
+(deftest map-indexed-test
+  (testing "transducer"
+    (= [[0 1] [1 2] [2 3]]
+       (into [] (map-indexed vector) [1 2 3])))
+
+  (testing "higher order function"
+    (is (= '([0 1] [1 2] [2 3]) (map-indexed vector [1 2 3])))))
+
+(deftest mapcat-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (mapcat #(vector % (inc %))) input))
+      []            []
+      [1 2 2 3 3 4] [1 2 3])
+
+    #_(is (= '(1 4 7 2 5 8 3 6 9)
+           (sequence (mapcat vector) [1 2 3] [4 5 6] [7 8 9]))))
+
+  (testing "higher order function"
+    (are [res input] (= res (mapcat #(vector % (inc %)) input))
+      '()            []
+      '(1 2 2 3 3 4) [1 2 3])
+
+    (is (= [1 4 2 5 3 6] (mapcat vector [1 2 3] [4 5 6])))))
+
+(deftest filter-test
+  (testing "transducer"
+    (are [res f input] (= res (into [] (filter f) input))
+      [1 3 5] odd? [1 2 3 4 5]
+      [1 3 5] odd? [1 2 3 4 5 6]))
+
+  (testing "higher order function"
+    (are [res f input] (= res (filter f input))
+      '()        identity []
+      '(1 2 3 4) identity [1 2 3 4]
+      '(1 3)     odd?     [1 2 3 4]
+      '(1 3 5)   odd?     [1 2 3 4 5])))
+
+(deftest remove-test
+  (testing "transducer"
+    (are [res f input] (= res (into [] (remove f) input))
+      [2 4]   odd? [1 2 3 4 5]
+      [2 4 6] odd? [1 2 3 4 5 6]))
+
+  (testing "higher order function"
+    (are [res f input] (= res (remove f input))
+      '()      identity []
+      '()      identity [1 2 3 4]
+      '(2 4)   odd?     [1 2 3 4]
+      '(2 4 6) odd?     [1 2 3 4 5 6])))
+
+(deftest keep-test
+  (let [transform (fn [x] (when x (-> x name symbol)))]
+    (testing "transducer"
+      (are [res input] (= res (into [] (keep transform) input))
+        '[]        []
+        '[a b c]   [:a :b :c]
+        '[a b c]   [:a :b nil :c]
+        '[a b c]   [:a :b nil nil :c]
+        '[a b c d] [:a :b nil :c nil nil :d]))
+
+    (testing "higher order function"
+      (are [res input] (= res (keep transform input))
+        '()        []
+        '(a b c)   [:a :b :c]
+        '(a b c)   [:a :b nil :c]
+        '(a b c)   [:a :b nil nil :c]
+        '(a b c d) [:a :b nil :c nil nil :d]))
+
+    (testing "lazy"
+      (let [counter (atom 0)
+            vals    (keep (partial swap! counter +) (repeat 1 10))]
+        (is (= 0 @counter))
+        (seq vals)
+        (is (= 10 @counter))))))
+
+(deftest keep-indexed-test
+  (let [f (fn [i x] (when x [i (-> x name symbol)]))]
+    (testing "transducer"
+      (are [res input] (= res (into [] (keep-indexed f) input))
+        '[]                        []
+        '[[0 a] [1 b] [2 c]]       [:a :b :c]
+        '[[0 a] [1 b] [3 c]]       [:a :b nil :c]
+        '[[0 a] [1 b] [4 c]]       [:a :b nil nil :c]
+        '[[0 a] [1 b] [3 c] [6 d]] [:a :b nil :c nil nil :d]))
+
+    (testing "higher order function"
+      (are [res input] (= res (keep-indexed f input))
+        '()                        []
+        '([0 a] [1 b] [2 c])       [:a :b :c]
+        '([0 a] [1 b] [3 c])       [:a :b nil :c]
+        '([0 a] [1 b] [4 c])       [:a :b nil nil :c]
+        '([0 a] [1 b] [3 c] [6 d]) [:a :b nil :c nil nil :d]))
+
+    (testing "lazy"
+      (let [counter (atom 0)
+            vals    (keep-indexed (fn [i x] (swap! counter + x)) (repeat 1 10))]
+        (is (= 0 @counter))
+        (seq vals)
+        (is (= 10 @counter))))))
+
+(deftest take-test
+  (testing "transducer"
+    (are [res n input] (= res (into [] (take n) input))
+      []      3 []
+      []      0 [1 2 3]
+      [1]     1 [1 2 3]
+      [1 2]   2 [1 2 3]
+      [1 2 3] 3 [1 2 3]))
+
+  (testing "higher order function"
+    (are [res n input] (= res (take n input))
+      '()      3 []
+      '()      0 [1 2 3]
+      '(1)     1 [1 2 3]
+      '(1 2)   2 [1 2 3]
+      '(1 2 3) 3 [1 2 3])))
+
+(deftest take-while-test
+  (testing "transducer"
+    (are [res f input] (= res (into [] (take-while f) input))
+      []        odd?  []
+      []        even? [1 3 5 7]
+      []        odd?  [2 3 5 7]
+      [1 3 5]   odd?  [1 3 5 2]
+      [1 3 5 7] odd?  [1 3 5 7]
+      [1]       odd?  [1 2 3 4]))
+
+  (testing "higher order function"
+    (are [res f input] (= res (take-while f input))
+      '()        odd?  []
+      '()        even? [1 3 5 7]
+      '()        odd?  [2 3 5 7]
+      '(1 3 5)   odd?  [1 3 5 2]
+      '(1 3 5 7) odd?  [1 3 5 7]
+      '(1)       odd?  [1 2 3 4])))
+
+(deftest drop-test
+  (testing "transducer"
+    (are [res n input] (= res (into [] (drop n) input))
+      []      3 []
+      []      3 [1 2 3]
+      [1 2 3] 0 [1 2 3]
+      [2 3]   1 [1 2 3]
+      [3]     2 [1 2 3]
+      [4]     3 [1 2 3 4]))
+
+  (testing "higher order function"
+    (are [res n input] (= res (drop n input))
+      '()      3 []
+      '()      3 [1 2 3]
+      '(1 2 3) 0 [1 2 3]
+      '(2 3)   1 [1 2 3]
+      '(3)     2 [1 2 3]
+      '(4)     3 [1 2 3 4])))
+
+(deftest drop-while-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (drop-while odd?) input))
+      []        []
+      []        [1 3 5 7]
+      [2]       [1 3 5 2]
+      [2 3 4]   [1 2 3 4]
+      [2 4 6 8] [2 4 6 8]))
+
+  (testing "higher order function"
+    (are [res input] (= res (drop-while odd? input))
+      '()        []
+      '()        [1 3 5 7]
+      '(2)       [1 3 5 2]
+      '(2 3 4)   [1 2 3 4]
+      '(2 4 6 8) [2 4 6 8])))
+
+(deftest take-nth-test
+  (testing "transducer"
+    (are [res n input] (= res (into [] (take-nth n) input))
+      []          0 []
+      [1]         0 [1]
+      [1]         0 [1 2 3]
+      [1 2 3 4 5] 1 [1 2 3 4 5]
+      [1 3 5]     2 [1 2 3 4 5]
+      [1 4]       3 [1 2 3 4 5]))
+
+  (testing "higher order function"
+    (are [res input] (= res (take 1 (take-nth 0 input)))
+      '()  []
+      '(1) [1]
+      '(1) [1 2 3])
+    (are [res n input] (= res (take-nth n input))
+      '(1 2 3 4 5) 1 [1 2 3 4 5]
+      '(1 3 5)     2 [1 2 3 4 5]
+      '(1 4)       3 [1 2 3 4 5])))
+
+(deftest frequencies-test
+  (are [res input] (= res (frequencies input))
+    {}               '()
+    {}               []
+    {:a 1}           '(:a)
+    {:a 1}           [:a]
+    {:a 3 :b 1}      '(:a :a :a :b)
+    {:a 3 :b 1}      [:a :a :a :b]
+    {:a 4 :b 1 :c 2} '(:a :a :a :b :c :c :a)
+    {:a 4 :b 1 :c 2} [:a :a :a :b :c :c :a]))
+
+(deftest interpose-test
+  (testing "transducer"
+    (are [input sep res] (= res (into [] (interpose sep) input))
+      []             "," []
+      ["hi"]         "," ["hi"]
+      ["hi" "there"] "," ["hi" "," "there"]))
+
+  (testing "higher order function"
+    (are [input sep res] (= res (interpose sep input))
+      []             "," '()
+      ["hi"]         "," '("hi")
+      ["hi" "there"] "," '("hi" "," "there"))))
+
+(deftest interleave-test
+  (is (= '() (interleave)))
+  (is (= '(1 2 3) (interleave [1 2 3])))
+  (is (= '(1 :a 2 :b 3 :c) (interleave [1 2 3] [:a :b :c])))
+  (is (= '(1 :a d 2 :b e 3 :c f)
+         (interleave [1 2 3] [:a :b :c] ['d 'e 'f])))
+  (is (= '(1 :a d 2 :b e)
+         (interleave [1 2 3] [:a :b] ['d 'e 'f]))))
+
+(deftest partition-all-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (partition-all 3) input))
+      [[1]]                 [1]
+      [[0 1 2] [3 4 5]]     (range 6)
+      [[0 1 2] [3 4 5] [6]] (range 7)))
+
+  (testing "no step"
+    (are [res n coll] (= res (partition-all n coll))
+      '((1 2) (3 4) (5 6)) 2 (range 1 7)
+      '((1 2 3) (4 5 6))   3 (range 1 7)))
+
+  (testing "with step"
+    (are [res n step coll] (= res (partition-all n step coll))
+      '((1 2 3 4 5) (11 12 13 14 15) (21 22 23)) 5 10 (range 1 24)
+      '((1 2 3 4 5) (11 12 13 14 15) (21 22 23 24 25) 5 10 (range 1 26)))))
+
+(deftest partition-by-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (partition-by odd?) input))
+      [[1]]                 [1]
+      [[1 3 5 7 9 11]]      [1 3 5 7 9 11]
+      [[1 1 1] [2 2] [3 3]] [1 1 1 2 2 3 3]))
+
+  (testing "higher order function"
+    (are [res coll] (= res (partition-by odd? coll))
+      '()                    []
+      '((1 1 1) (2 2) (3 3)) [1 1 1 2 2 3 3])))
+
+(deftest distinct-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (distinct) input))
+      []         []
+      [:a]       [:a]
+      [:a :b]    [:a :b]
+      [:a :b :c] [:a :b :c]
+      [:a :b :c] [:a :a :a :b :c]
+      [:a :b :c] [:a :a :a :b :c :a]))
+
+  (testing "higher order function"
+    (are [res input] (= res (distinct input))
+      '()         []
+      '(:a)       [:a]
+      '(:a :b)    [:a :b]
+      '(:a :b :c) [:a :b :c]
+      '(:a :b :c) [:a :a :a :b :c]
+      '(:a :b :c) [:a :a :a :b :c :a])))
+
+(deftest dedupe-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (dedupe) input))
+      []            []
+      [:a]          [:a]
+      [:a :b]       [:a :b]
+      [:a :b :c]    [:a :b :c]
+      [:a :b :c]    [:a :a :a :b :c]
+      [:a :b :c :a] [:a :a :a :b :c :a]
+      [:a :b :c :a] [:a :a :a :b :c :c :a]))
+
+  (testing "higher order function"
+    (are [res input] (= res (dedupe input))
+      '()            []
+      '(:a)          [:a]
+      '(:a :b)       [:a :b]
+      '(:a :b :c)    [:a :b :c]
+      '(:a :b :c)    [:a :a :a :b :c]
+      '(:a :b :c :a) [:a :a :a :b :c :a]
+      '(:a :b :c :a) [:a :a :a :b :c :c :a])))
+
+(deftest flatten-test
+  (are [x y] (= x (flatten y))
+    '() 1
+    '() :a
+    '() ""
+    '() "a string"
+    '(1) [1]
+    '(1) [[1]]
+    '(1) [[[1]]]
+    '(1 2 3) [[[1]] 2 [3]]))
+
+(deftest take-last-test
+  (are [res n coll] (= res (take-last n coll))
+    [:c :d] 2  [:a :b :c :d]
+    [:a]    2  [:a]
+    nil     2  []
+    nil     2  nil
+    nil     0  [:a]
+    nil     -1 [:a]))
+
+(deftest min-key-test
+  (is (= "dsd" (max-key count "asd" "bsd" "dsd")))
+  (is (= "long word" (max-key count "asd" "bsd" "dsd" "long word")))
+  (is (= "long word" (max-key count "long word" "asd" "bsd" "dsd"))))
+
+(deftest max-key-test
+  (is (= "dsd" (min-key count "asd" "bsd" "dsd")))
+  (is (= "dsd" (min-key count "asd" "bsd" "dsd" "long word")))
+  (is (= "a" (min-key count "a" "bsd" "dsd" "long word"))))
+
+(deftest sort-test
+  (testing "no cmp function"
+    (is (= '() (sort [])))
+    (is (= '(1 2 3 4 5) (sort [5 3 4 1 2])))
+    (is (= '([:a] [5 5] [1 2 3])
+           (sort [[1 2 3] [:a] [5 5]]))))
+
+  (testing "with cmp function"
+    (let [cmp (fn [v1 v2] (< v2 v1))]
+      (is (= '() (sort cmp [])))
+      (is (= '([1 2 3] [5 5] [:a])
+             (sort cmp [[1 2 3] [:a] [5 5]]))))
+
+    ;; taken from clojuredocs
+    (is (= '(:d :c :b :a) (sort #(compare %2 %1) '(:a :b :c :d)))))
+
+  (testing "sorting vectors"
+    (are [res v] (= res (sort v))
+      '([1] [3] [1 2]) [[1] [1 2] [3]]
+      '([1] [1 2] [1 3]) [[1 3] [1] [1 2]]
+      '([1] [0 1] [0 1]) [[0 1] [1] [0 1] ]))
+
+  (testing "sorting sequences"
+    (are [res v] (= res (sort v))
+      '() (seq [])
+      '(1 2 3) (seq [2 3 1])))
+
+  (testing "sorting maps"
+    (are [res v] (= res (sort v))
+      '() {}
+      '([:3 18] [:5 28] [:9 23]) {:9 23 :3 18 :5 28})))
+
+(deftest sort-by-test
+  (testing "no cmp function"
+    (is (= '() (sort-by count [])))
+    (is (= '([:a] [5 5] [1 2 3])
+           (sort-by count [[1 2 3] [:a] [5 5]]))))
+
+  (testing "with cmp function"
+    (let [cmp (fn [v1 v2] (- v2 v1))]
+      (is (= '() (sort-by count cmp [])))
+      (is (= '([1 2 3] [5 5] [:a])
+             (sort-by count cmp [[1 2 3] [:a] [5 5]])))))
+
+  (testing "sorting vectors"
+    (are [res v] (= res (sort-by identity v))
+      '([1] [3] [1 2]) [[1] [1 2] [3]]
+      '([1] [1 2] [1 3]) [[1 3] [1] [1 2]]
+      '([1] [0 1] [0 1]) [[0 1] [1] [0 1] ])
+
+    ;; taken from clojuredocs
+    (is (= '([1 2] [2 2] [2 3]) (sort-by first [[1 2] [2 2] [2 3]])))
+    (is (= '([2 2] [2 3] [1 2]) (sort-by first > [[1 2] [2 2] [2 3]]) )))
+
+  (testing "sorting seqs"
+    (are [res v] (= res (sort-by second > v))
+      '() (seq [])
+      '([1 7] [3 4] [2 1]) (seq [[2 1] [3 4] [1 7]])))
+
+  (testing "sorting maps"
+    (are [res v] (= res (sort-by identity v))
+      '() {}
+      '([:3 18] [:5 28] [:9 23]) {:9 23 :3 18 :5 28})
+
+    ;; taken from clojuredocs
+    (is (= '({:rank 1} {:rank 2} {:rank 3}) (sort-by :rank [{:rank 2} {:rank 3} {:rank 1}])))
+    (let [x [{:foo 2 :bar 11}
+             {:bar 99 :foo 1}
+             {:bar 55 :foo 2}
+             {:foo 1 :bar 77}]
+          order [55 77 99 11]]
+      (is (= '({:foo 1, :bar 77} {:bar 99, :foo 1} {:foo 2, :bar 11} {:bar 55, :foo 2})
+             (sort-by (juxt :foo :bar) x)))
+      (is (= '({:bar 55, :foo 2} {:foo 1, :bar 77} {:bar 99, :foo 1} {:foo 2, :bar 11})
+             (sort-by
+              #((into {} (map-indexed (fn [i e] [e i]) order)) (:bar %))
+              x))))
+    (is (= '([:foo 7] [:baz 5] [:bar 3]) (sort-by val > {:foo 7, :bar 3, :baz 5})))
+    (is (= '({:value 1, :label "a"} {:value 2, :label "b"} {:value 3, :label "c"})
+           (sort-by :value [{:value 1 :label "a"} {:value 3 :label "c"} {:value 2 :label "b"}])))
+    (is (= '({:value 3 :label "c"} {:value 2, :label "b"} {:value 1, :label "a"})
+           (sort-by :value #(> %1 %2) [{:value 1 :label "a"} {:value 3 :label "c"} {:value 2 :label "b"}])))
+    (is (= '({:label "c"} {:value 1, :label "a"} {:value 2, :label "b"})
+           (sort-by :value [{:value 1 :label "a"} {:label "c"} {:value 2 :label "b"}])))))
+
+(deftest zipmap-test
+  (are [x y z] (= x (zipmap y z))
+    {} [] []
+    {} [:a] []
+    {} [] [1]
+    {:a 1} [:a] [1]
+    {:a 1 :b 2} [:a :b] [1 2]
+    {:a 1 :b 2} [:a :b :c] [1 2]
+    {:a 1 :b 2} [:a :b] [1 2]
+    {:a 0 :b 1} [:a :b] (range)))
+
+(deftest merge-with-test
+  (is (= nil (merge-with conj)))
+  (is (= nil (merge-with str nil)))
+  (is (= {:a 0 :b "235" :c "46" :d 7 :z 8} (merge-with str {:a 0 :b 2} {:b 3 :c 4 :z 8} {:b 5 :c 6 :d 7})))
+  (is (= {:a 0 :b [2 5] :c 7} (merge-with conj {:a 0 :b [2]} nil {:b 5 :c 7}))))
+
+(deftest trampoline-test
+  (let [a (atom [])]
+    (trampoline (fn [v]
+                  (swap! a conj :a)
+                  (fn []
+                    (swap! a conj :b)))
+                "idiot")
+    (is (= [:a :b] @a))))
+
+(deftest tree-seq-test
+  (are [res branch? children root] (= res (tree-seq branch? children root))
+    '(((1 2 (3)) (4)) (1 2 (3)) 1 2 (3) 3 (4) 4)                             seq? identity '((1 2 (3)) (4))
+    '((:A (:B (:D) (:E)) (:C (:F))) (:B (:D) (:E)) (:D) (:E) (:C (:F)) (:F)) next rest     '(:A (:B (:D) (:E)) (:C (:F)))))
+
+(deftest memoize-test
+  (testing "single args"
+    (let [m1 (memoize (fn [a] (str a (random-uuid))))
+          a1 (m1 :a)
+          a2 (m1 :b)
+          an (m1 nil)]
+      (is (= a1 (m1 :a)))
+      (is (= a2 (m1 :b)))
+      (is (= an (m1 nil)))
+      (is (distinct? a1 a2 an))))
+
+  (testing "variadic"
+    (let [m1 (memoize (fn [& more] (str more (random-uuid))))
+          a0 (m1)
+          a1 (m1 :a)
+          a2 (m1 :a '(xyz))
+          an (m1 nil)]
+      (is (= a0 (m1)))
+      (is (= a1 (m1 :a)))
+      (is (= a2 (m1 :a '(xyz))))
+      (is (= an (m1 nil)))
+      (is (distinct? a0 a1 a2 an)))))

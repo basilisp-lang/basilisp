@@ -1,0 +1,14 @@
+(ns tests.basilisp.core.test-volatiles
+  (:require
+   [basilisp.test :refer [deftest is]]))
+
+(deftest volatile-test
+  (let [v (volatile! :a)]
+    (is (not (volatile? :a)))
+    (is (not (volatile? (atom :a))))
+    (is (volatile? v))
+    (is (= :a @v))
+    (is (= :b (vreset! v :b)))
+    (is (= :b @v))
+    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
+    (is (= :b/a @v))))

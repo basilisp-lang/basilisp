@@ -1,0 +1,145 @@
+(ns tests.basilisp.core.test-collection-fns
+  (:require
+   [basilisp.test :refer [deftest is are]]))
+
+(deftest vec-test
+  (is (= #{[:a 1] [:b 2]} (set (vec {:a 1 :b 2}))))
+  (is (= #{:a :b :c} (set (vec #{:a :b :c}))))
+
+  (are [res v] (= res (vec v))
+    []            nil
+    []            '()
+    []            []
+    []            #{}
+    []            {}
+    [:a :b :c]    [:a :b :c]
+    [:a :b :c]    '(:a :b :c)
+    ["a" "b" "c"] "abc"
+    [[:a 1]]      {:a 1}))
+
+(deftest set-test
+  (are [res v] (= res (set v))
+    #{}              nil
+    #{}              '()
+    #{}              []
+    #{}              #{}
+    #{}              {}
+    #{:a :b :c}      [:a :b :c]
+    #{:a :b :c}      '(:a :b :c)
+    #{:a :b :c}      #{:a :b :c}
+    #{"a" "b" "c"}   "abc"
+    #{[:a 1]}        {:a 1}
+    #{[:a 1] [:b 2]} {:a 1 :b 2}))
+
+(deftest fnext-test
+  (is (= nil (fnext [])))
+  (is (= nil (fnext [1])))
+  (is (= nil (fnext [1 nil])))
+
+  (is (= 2 (fnext [1 2])))
+  (is (= [2] (fnext [1 [2] 3]))))
+
+(deftest bounded-count-test
+  (are [x n y] (= x (bounded-count n y))
+    0 5 []
+    0 5 '()
+    0 5 {}
+    0 5 #{}
+
+    1 5 [:a]
+    1 5 '(:a)
+    1 5 {:a 1}
+    1 5 #{:a}
+    5 5 (range 5)
+
+    4 2 [:a :b :c :d]
+    2 2 '(:a :b :c :d)
+    4 2 {:a 1 :b 2 :c 3 :d 4}
+    4 2 #{:a :b :c :d}
+    2 2 (range 5)))
+
+(deftest not-empty-test
+  (are [x] (nil? (not-empty x))
+    []
+    '()
+    #{}
+    {})
+  (are [x] (= x (not-empty x))
+    [:a]
+    [:a :b :c]
+    '(:a)
+    '(:a :b :c)
+    #{:a}
+    #{:a :b :c}
+    {:a 1}
+    {:a 1 :b 2 :c :3}))
+
+(deftest peek-test
+  (are [x] (nil? (peek x))
+    []
+    '()
+    nil)
+  (are [x y] (= x (peek y))
+    :a '(:a)
+    :a '(:a :b :c)
+    :a [:a]
+    :c [:a :b :c]))
+
+(deftest pop-test
+  (is (thrown? python/IndexError (pop '())))
+  (is (thrown? python/IndexError (pop [])))
+  (are [x y] (= x (pop y))
+    '() '(:a)
+    '(:b :c) '(:a :b :c)
+    [] [:a]
+    [:a :b] [:a :b :c]
+    nil nil))
+
+(deftest reverse-test
+  (are [x y] (= x (reverse y))
+    '() []
+    '(1) [1]
+    '(2 1) [1 2]
+    '(1 2 3 4 5) [5 4 3 2 1]
+    '(4 3 2 1) (range 1 5)))
+
+(deftest reversible?-test
+  (is (reversible? []))
+  (is (reversible? [1 2 3 4]))
+  (are [x] (not (reversible? x))
+    '()
+    '(1 2 3 4)
+    #{}
+    #{1 2 3 4}
+    {}
+    {:a 1 :b 2}))
+
+(deftest rseq-test
+  (are [x] (thrown? python/AttributeError (rseq x))
+    '()
+    '(1 2 3 4)
+    #{}
+    #{1 2 3 4}
+    {}
+    {:a 1 :b 2})
+  (are [x y] (= x (rseq y))
+    nil []
+    '(1) [1]
+    '(2 1) [1 2]
+    '(3 2 1) [1 2 3]
+    '(4 3 2 1) [1 2 3 4]
+    '(:d :c :b :a) [:a :b :c :d]))
+
+(deftest rand-nth-test
+  (is (= nil (rand-nth nil)))
+  (is (= 1 (rand-nth [1])))
+  (is (#{1 2} (rand-nth [1 2]))))
+
+(deftest subvec-test
+  (is (= [] (subvec [] 0)))
+  (is (thrown? python/IndexError (subvec [] 3)))
+  (is (thrown? python/IndexError (subvec [1 2 3 4 5] 6)))
+  (is (= [:l :o :w :o :r :l :d] (subvec [:h :e :l :l :o :w :o :r :l :d] 3)))
+  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 3 12)))
+  (is (= [:l :o :w :o] (subvec [:h :e :l :l :o :w :o :r :l :d] 3 7)))
+  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 12 3))))

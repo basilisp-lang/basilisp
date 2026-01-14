@@ -1,0 +1,530 @@
+(ns tests.basilisp.core.test-core-fns
+  "Tests for ``basilisp.core`` functions which don't obviously belong in a more
+  specific test file.
+
+  If there are many tests for a single category of functions, ideally those should
+  be moved out into a new file."
+  (:import shutil
+           time)
+  (:require
+   [basilisp.io :as bio]
+   [basilisp.set :as set]
+   [basilisp.string :as str]
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest boolean-test
+  (testing "logical false values"
+    (are [v] (false? (boolean v))
+      false
+      nil))
+
+  (testing "logical true values"
+    (are [v] (true? (boolean v))
+      true
+      1
+      0
+      -1
+      1.0
+      0.0
+      -1.0
+      ""
+      "false"
+      []
+      [false]
+      #{}
+      #{false}
+      {}
+      {false false}
+      '()
+      '(false false)
+      :kw
+      :ns/kw
+      'sym
+      'ns/sym)))
+
+(deftest keyword-test
+  (testing "name only"
+    (are [res name] (= res (keyword name))
+      nil                              nil
+      (keyword "")                     ""
+      (keyword "/")                    "/"
+      (keyword "" "/")                 "//"
+      :name                            "name"
+      :ns/name                         "ns/name"
+      (keyword "ns" "name/with-slash") "ns/name/with-slash"
+      :ns/name                         :ns/name
+      :ns/name                         'ns/name)
+
+    (are [v] (thrown? python/TypeError (keyword v))
+      #'basilisp.core/map))
+
+  (testing "name and namespace"
+    (are [res ns name] (= res (keyword ns name))
+      (keyword "" "") ""          ""
+      :name           nil         "name"
+      :ns/name        "ns"        "name"
+      :dotted.ns/name "dotted.ns" "name")
+
+    (are [ns name] (thrown? python/TypeError (keyword ns name))
+      :kw  :kw
+      'sym 'sym)))
+
+(deftest symbol-test
+  (testing "name only"
+    (are [res name] (= res (symbol name))
+      (symbol "")                     ""
+      (symbol "/")                    "/"
+      (symbol "" "/")                 "//"
+      'name                           "name"
+      'ns/name                        "ns/name"
+      (symbol "ns" "name/with-slash") "ns/name/with-slash"
+      'ns/name                        :ns/name
+      'ns/name                        'ns/name
+      'basilisp.core/map              #'basilisp.core/map)
+
+    (are [v] (thrown? python/TypeError (symbol v))
+      nil))
+
+  (testing "name and namespace"
+    (are [res ns name] (= res (symbol ns name))
+      (symbol "" "")  ""          ""
+      'name           nil         "name"
+      'ns/name        "ns"        "name"
+      'dotted.ns/name "dotted.ns" "name")
+
+    (are [ns name] (thrown? python/TypeError (symbol ns name))
+      nil  nil
+      :kw  :kw
+      'sym 'sym)))
+
+(deftest vary-meta-test
+  (testing "with lists"
+    (let [l  '(:list)
+          lm (with-meta '(:list) {:list true})]
+      (is (nil? (meta l)))
+      (is (= {:list true} (meta lm)))
+
+      (let [l1 (vary-meta lm assoc :tag list)]
+        (is (= lm l1))
+        (is (= {:list true :tag list} (meta l1)))
+
+        (let [l2 (vary-meta l1 dissoc :list)]
+          (is (= l1 l2))
+          (is (= {:tag list} (meta l2)))))))
+
+  (testing "with maps"
+    (let [m {:map true}
+          mm ^:map {:map true}]
+      (is (nil? (meta m)))
+      (is (= {:map true} (meta mm)))
+
+      (let [m1 (vary-meta mm assoc :tag map)]
+        (is (= mm m1))
+        (is (= {:map true :tag map} (meta m1)))
+
+        (let [m2 (vary-meta m1 dissoc :map)]
+          (is (= m1 m2))
+          (is (= {:tag map} (meta m2)))))))
+
+  (testing "with sets"
+    (let [s  #{:set}
+          sm ^:set #{:set}]
+      (is (nil? (meta s)))
+      (is (= {:set true} (meta sm)))
+
+      (let [s1 (vary-meta sm assoc :tag set)]
+        (is (= sm s1))
+        (is (= {:set true :tag set} (meta s1)))
+
+        (let [s2 (vary-meta s1 dissoc :set)]
+          (is (= s1 s2))
+          (is (= {:tag set} (meta s2)))))))
+
+  (testing "with symbols"
+    (let [s  'sym
+          sm (with-meta 'sym {:symbol true})]
+      (is (nil? (meta s)))
+      (is (= {:symbol true} (meta sm)))
+
+      (let [s1 (vary-meta sm assoc :tag symbol)]
+        (is (= sm s1))
+        (is (= {:symbol true :tag symbol} (meta s1)))
+
+        (let [s2 (vary-meta s1 dissoc :symbol)]
+          (is (= s1 s2))
+          (is (= {:tag symbol} (meta s2)))))))
+
+  (testing "with vectors"
+    (let [v  [:vec]
+          vm ^:vector [:vec]]
+      (is (nil? (meta v)))
+      (is (= {:vector true} (meta vm)))
+
+      (let [v1 (vary-meta vm assoc :tag vector)]
+        (is (= vm v1))
+        (is (= {:tag vector :vector true} (meta v1)))
+
+        (let [v2 (vary-meta v1 dissoc :vector)]
+          (is (= v1 v2))
+          (is (= {:tag vector} (meta v2))))))))
+
+(deftest compare-test
+  (testing "nil"
+    (are [res x y] (= res (compare x y))
+      0  nil nil
+      -1 nil "a"
+      1  "a" nil))
+
+  (testing "boolean"
+    (are [res x y] (= res (compare x y))
+      0  true  true
+      0  false false
+      -1 false true
+      1  true  false))
+
+  (testing "numbers"
+    (are [res x y] (= res (compare x y))
+      1  ##NaN nil
+      -1 nil   ##NaN
+
+      0 ##NaN ##NaN
+      0 ##NaN 1
+      0 ##NaN 3.14
+      0 ##NaN 22/7
+      0 ##NaN 3.07M
+      0 3.07M ##NaN
+      0 1     ##NaN
+      0 3.14  ##NaN
+      0 3.14  ##NaN
+      0 22/7  ##NaN
+
+      0 1    1
+      0 1    1.0
+      0 1    1M
+      0 2    10/5
+      0 1.0  1
+      0 1.0  1M
+      0 1.0  1.0
+      0 2.0  10/5
+      0 1M   1M
+      0 1M   1
+      0 1M   1.0
+      0 2M   10/5
+      0 10/5 2
+      0 10/5 2.0
+      0 10/5 2M
+      0 10/5 10/5
+
+      1 3     1
+      1 3     1.07
+      1 3     2/5
+      1 3     1.07M
+      1 3.33  1.07
+      1 3.33  1
+      1 3.33  2/5
+      1 3.33  1.07M
+      1 3.33M 1.07M
+      1 3.33M 1
+      1 3.33M 1.07
+      1 3.33M 10/5
+      1 10/5  1
+      1 10/5  1.0
+      1 10/5  1.07M
+      1 10/5  2/5
+
+      -1 1     3
+      -1 1.07  3
+      -1 2/5   3
+      -1 1.07M 3
+      -1 1.07  3.33
+      -1 1     3.33
+      -1 2/5   3.33
+      -1 1.07M 3.33
+      -1 1.07M 3.33M
+      -1 1     3.33M
+      -1 1.07  3.33M
+      -1 10/5  3.33M
+      -1 1     10/5
+      -1 1.07  10/5
+      -1 1.07M 10/5
+      -1 2/5   10/5))
+
+  (testing "strings"
+    (are [res x y] (= res (compare x y))
+      0  "a" "a"
+      -1 "a" "b"
+      1  "b" "a"))
+
+  (testing "keywords"
+    (are [res x y] (= res (compare x y))
+      0  :a :a
+      -1 :a :b
+      1  :b :a
+
+      1  :a/b :b
+      -1 :b   :a/b
+
+      -1 :a/b :a/c
+      -1 :a/b :b/b
+      0  :a/b :a/b
+      1  :a/c :a/b
+      1  :b/b :a/b))
+
+  (testing "symbols"
+    (are [res x y] (= res (compare x y))
+      0  'a 'a
+      -1 'a 'b
+      1  'b 'a
+
+      1  'a/b 'b
+      -1 'b   'a/b
+
+      -1 'a/b 'a/c
+      -1 'a/b 'b/b
+      0  'a/b 'a/b
+      1  'a/c 'a/b
+      1  'b/b 'a/b))
+
+  (testing "vectors"
+    (are [res x y] (= res (compare x y))
+      0  []  []
+      -1 []  [1]
+      1  [1] []
+
+      0  [0 1 2] [0 1 2]
+      -1 [0 1 2] [1 1 2]
+      1  [2 55] [1 99]
+      1  [1 1 2] [0 1 2]))
+
+  (testing "un-comparables"
+    (are [x y] (thrown? python/TypeError (compare x y))
+      :a  'a
+      :a  "a"
+      'a  "a"
+      'a  :a
+      "a" 'a
+      "a" :a
+
+      [] '()
+
+      '()      '()
+      '(1 2 3) '(1 2 3)
+      '(1 2 3) '(4 5 6)
+
+      #{}      #{}
+      #{1 2 3} #{1 2 3}
+      #{1 2 3} #{4 5 6}
+
+      {}          {}
+      {:a 1 :b 2} {:a 1 :b 2}
+      {:a 1 :b 2} {:c 3 :d 4})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; State Management Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest promises-test
+  (testing "timeout expires on time"
+    (let [p (promise)
+          start (time/perf-counter)
+          ;; block for 100ms
+          ret (deref p 100 :timed-out)
+          end (time/perf-counter)
+          diff (- end start)]
+      (is (= :timed-out ret))
+      (is (< 0.1 diff 0.5) (str "deref timeout is outside of [100ms, 500ms] range: " diff "s")))))
+
+;;;;;;;;;;;;;;;;
+;; Interfaces ;;
+;;;;;;;;;;;;;;;;
+
+(deftest gen-interface-test
+  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
+    (gen-interface :name "TestInterface"
+                   :methods '[(method [thing])
+                              (method [other-thing])])
+    (gen-interface :name "TestInterface"
+                   :methods '[(method [thing & args])
+                              (method [& args])])
+    (gen-interface :name "TestInterface"
+                   :methods '[(method [thing1 thing2])
+                              (method [& args])]))
+
+  (is (not (nil? (gen-interface :name "TestInterface"))))
+
+  (are [arity-names methods] (let [interface (gen-interface :name "TestInterface"
+                                                            :methods methods)]
+                               (set/superset? (set (python/dir interface))
+                                              (set arity-names)))
+    [] []
+
+    ["method"]
+    '[(method [arg])]
+
+    ["method" "_method_arity1" "_method_arity2"]
+    '[(method [arg]) (method [arg1 arg2])]
+
+    ["method" "other" "_other_arity1" "_other_arity3" "_other_arity_rest"]
+    '[(method [arg])
+      (other [arg])
+      (other [arg1 arg2 arg3])
+      (other [arg1 arg2 arg3 & rest-arg])]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stateful Iteration ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest iteration-test
+  (letfn [(range-chunk [n]
+            (vec (range n (+ n 3))))]
+    (is (= '([0 1 2] [2 3 4])
+           (take 2 (iteration range-chunk :kf last :initk 0))))
+    (is (= '([5 6 7] [7 8 9] [9 10 11])
+           (take 3 (iteration range-chunk :kf last :initk 5))))
+    (is (= '(5 7 9)
+           (take 3 (iteration range-chunk :vf first :kf last :initk 5))))
+    (is (= '(18 24 30)
+           (take 3 (iteration range-chunk :vf (partial apply +) :kf last :initk 5))))
+    (is (= '(0 1 2 3 4 5 6 7 8)
+           (sequence
+            cat
+            (iteration range-chunk :somef (partial some #(< % 7)) :kf (comp inc last) :initk 0))))))
+
+;;;;;;;;;;
+;; Eval ;;
+;;;;;;;;;;
+
+(deftest eval-test
+  (testing "can ns after in-ns"
+    (binding [*ns* *ns*]
+      (eval '(in-ns 'test-core-fns.ns-after-in-ns))
+      (eval '(ns test-core-fns.ns-after-in-ns))
+      (is (= *ns* (the-ns 'test-core-fns.ns-after-in-ns)))))
+
+  (testing "eval ns with import aliases"
+    (binding [*ns* *ns*]
+      (eval '(ns test-core-fns.ns-with-import (:import [time :as time-alias])))
+      (is (= *ns* (the-ns 'test-core-fns.ns-with-import)))
+      (is (= "Thu Jan  1 00:00:01 1970" (eval '(time-alias/asctime (time-alias/gmtime 1))))))))
+
+;;;;;;;;;;
+;; Read ;;
+;;;;;;;;;;
+
+(deftest read-seq-test
+  (testing "read-seq plain"
+    (with [stream (io/StringIO "(+ 1 2)\n(+ 4 \n5)")]
+          (let [[l1 l2] (read-seq stream)
+                {l1-l  :basilisp.lang.reader/line
+                 l1-el :basilisp.lang.reader/end-line
+                 l1-c  :basilisp.lang.reader/col
+                 l1-ec :basilisp.lang.reader/end-col} (meta l1)
+                {l2-l  :basilisp.lang.reader/line
+                 l2-el :basilisp.lang.reader/end-line
+                 l2-c  :basilisp.lang.reader/col
+                 l2-ec :basilisp.lang.reader/end-col} (meta l2)]
+            (is (= '(+ 1 2) l1))
+            (is (= '(+ 4 5) l2))
+            (is (= [1 1 0 7] [l1-l l1-el l1-c l1-ec]))
+            (is (= [2 3 0 2] [l2-l l2-el l2-c l2-ec])))))
+
+  (testing "read-seq with specified line and col numbers"
+      (with [stream (io/StringIO "(+ 1 2)\n(+ 4 \n5)")]
+            (let [[l1 l2] (read-seq {:init-line 10 :init-column 15} stream)
+                  {l1-l  :basilisp.lang.reader/line
+                   l1-el :basilisp.lang.reader/end-line
+                   l1-c  :basilisp.lang.reader/col
+                   l1-ec :basilisp.lang.reader/end-col} (meta l1)
+                  {l2-l  :basilisp.lang.reader/line
+                   l2-el :basilisp.lang.reader/end-line
+                   l2-c  :basilisp.lang.reader/col
+                   l2-ec :basilisp.lang.reader/end-col} (meta l2)]
+              (is (= '(+ 1 2) l1))
+              (is (= '(+ 4 5) l2))
+              (is (= [10 10 15 22] [l1-l l1-el l1-c l1-ec]))
+              (is (= [11 12 0 2] [l2-l l2-el l2-c l2-ec]))))))
+
+
+;;;;;;;;;;
+;; Load ;;
+;;;;;;;;;;
+
+(deftest load-test
+  (let [load-dir-test      (str "tests/basilisp/core/corpus")
+        load-dir-filepath  (str load-dir-test "/core_load_1.lpy")
+        load-dir-otherfile (str load-dir-test "/core_load_2.lpy")]
+    (try
+      (when (bio/exists? load-dir-test)
+        (shutil/rmtree load-dir-test))
+      (bio/make-parents load-dir-filepath)
+      (spit load-dir-filepath  "(print :core-load-1) :core-load-1")
+      (spit load-dir-otherfile "(print :core-load-2) :core-load-2")
+
+      (testing "relative load path"
+        (let [output (with-out-str (load "corpus/core-load-1"))]
+          (is (= ":core-load-1" output))))
+
+      (testing "absolute (/) load path"
+        ;; pytest add the top basilisp directory to the classpath
+        (let [output (with-out-str (load "/tests/basilisp/core/corpus/core-load-1"))]
+          (is (= ":core-load-1" output))))
+
+      (testing "non-existent load path"
+        (is (thrown? python/FileNotFoundError (load "corpus/core-load-99"))))
+
+      (testing "load multiple files"
+        (let [output (with-out-str (load "corpus/core-load-1"
+                                         "corpus/core-load-2"))]
+          (is (= ":core-load-1:core-load-2" output))))
+
+      (testing "return last form"
+        (let [output (load "corpus/core-load-1")]
+          (is (= :core-load-1 output)))
+        (let [output (load "corpus/core-load-1" "corpus/core-load-2")]
+          (is (= :core-load-2 output))))
+
+      (testing "load ns form before reading more"
+        (let [ns     (-> *ns* name symbol)
+              file   (str load-dir-test "/core_load_before_read.lpy")
+              sub-ns 'tests.basilisp.corpus.core-load-before-read]
+          (spit file
+                (str "(ns " sub-ns
+                     ") (defmacro a [] 1) (defmacro b [] `(a)) (b)"))
+          (try
+            (= 1 (load "corpus/core-load-before-read"))
+            (finally
+              (remove-ns sub-ns)
+              (in-ns ns)))))
+
+      (finally
+        (when (bio/exists? load-dir-test)
+          (shutil/rmtree load-dir-test))))))
+
+;;;;;;;;;;;;;;;;
+;; Arithmetic ;;
+;;;;;;;;;;;;;;;;
+
+(deftest arithmetic-equality-test
+  (testing "int and float type equality"
+    (is (not= 1 1.00001))
+    (is (= 1 1.0000000000000000000000009)))
+
+  (testing "== is an alias of ="
+    (let [f 1.0000000000000000000000009]
+      (is (= 1 f))
+      (is (== 1 f)))))
+
+(deftest rationalize-test
+  (are [res v] (= res (rationalize v))
+    0    0
+    0    0.0
+    1    1
+    1    1.0
+    -1   -1
+    -1   -1.0
+    2    4/2
+    -2   -4/2
+    3/2  1.5
+    -3/2 -1.5
+    3/2  6/4
+    -3/2 -6/4))

@@ -1,4 +1,4 @@
-(ns tests.basilisp.test-proxies
+(ns tests.basilisp.core.test-proxies
   (:require
    [basilisp.test :as test :refer [deftest is are testing]]))
 

@@ -1,0 +1,34 @@
+(ns tests.basilisp.core.test-var-fns
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest var-test
+  (testing "calling vars"
+    (is (= '(1 2) (#'basilisp.core/list 1 2)))))
+
+(def test-var-unadorned 7)
+(def ^:redef test-var-redef 19)
+(def ^:dynamic test-var-dynamic 23)
+
+(deftest test-alter-var-root
+  (testing "on unadorned var"
+    (is (= 8 (alter-var-root #'test-var-unadorned inc)))
+    ;; Basilisp Direct Linking Optimization side effect: altering the
+    ;; root var on variables is not reflected back to the code ...
+    (is (= 7 test-var-unadorned))
+    ;; ... unless the var is referenced explicitly.
+    (is (= 8 @#'test-var-unadorned)))
+
+  (testing "on ^:redef var"
+    (is (= 20 (alter-var-root #'test-var-redef inc)))
+    ;; altering the root is reflected in the code because the variable
+    ;; was defined with ^:redef.
+    (is (= 20 test-var-redef))
+    (is (= 20 @#'test-var-redef)))
+
+  (testing "on dynamic var"
+    (is (= 24 (alter-var-root #'test-var-dynamic inc)))
+    ;; altering the root is reflected in the code because the variable
+    ;; is dynamic.
+    (is (= 24 test-var-dynamic))
+    (is (= 24 @#'test-var-dynamic))))

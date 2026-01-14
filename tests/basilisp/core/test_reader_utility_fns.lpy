@@ -1,4 +1,4 @@
-(ns tests.basilisp.test-core-reader-utility-fns
+(ns tests.basilisp.core.test-reader-utility-fns
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
