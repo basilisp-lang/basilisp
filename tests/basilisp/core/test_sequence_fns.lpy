@@ -1,0 +1,98 @@
+(ns tests.basilisp.core.test-sequence-fns
+  (:import os)
+  (:require
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest seqable?-test
+  (are [v] (seqable? v)
+    nil
+    ""
+    \a
+    "a"
+    []
+    #{}
+    {}
+    '()
+    (python/list)
+    (python/set)
+    (python/dict)
+    (python/tuple)
+    (python/frozenset))
+
+  (are [v] (not (seqable? v))
+    0
+    0.0
+    0M
+    0N
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    true
+    false))
+
+(deftest seq-iterable-test
+  (testing "re-iterable"
+    (let [re-iterable (python/range 3)]
+      (is (= 3 (count re-iterable)))
+      (is (= 0 (first re-iterable)))
+      (is (= '(1 2) (rest re-iterable)))
+      (is (= [0 1 2] (seq re-iterable)))
+      (is (= [0 1 2] (iterator-seq re-iterable)))
+      (is (= false (seq? re-iterable)))
+      (is (= true (seqable? re-iterable)))
+      (is (not (empty? re-iterable)))
+      (is (seq re-iterable))))
+
+  (testing "single-use"
+    ;; single use iterators are not seq's or seqable
+    (let [single-use (os/scandir)]
+      (is (thrown? python/TypeError (seq single-use)))
+      (is (thrown? python/TypeError (first single-use)))
+      (is (thrown? python/TypeError (rest single-use)))
+      (is (thrown? python/TypeError (empty? single-use)))
+      (is (= false (seq? single-use)))
+      (is (= false (seqable? single-use)))
+      ;; they can't even be counted
+      (is (thrown? python/TypeError (count single-use)))
+      ;; it can be though explicitly converted to a seq
+      (let [it-seq (iterator-seq single-use)
+            ;; it is now a seq, can be reused
+            it-seq-count1 (count it-seq)
+            it-seq-count2 (count it-seq)
+            ;; it's elements is consumed once iterated, here we
+            ;; consumed everything with `count`
+            it-exhausted (iterator-seq single-use)]
+        (is (< 0 it-seq-count1))
+        (is (= it-seq-count1 it-seq-count2))
+        (is (not (empty? it-seq)))
+        (is (empty? it-exhausted))))))
+
+(def primes
+  (remove
+   (fn [x] (some #(zero? (mod x %)) primes))
+   (iterate inc 2)))
+
+(deftest lazy-seq-test
+  (testing "is collection"
+    (are [x] (coll? x)
+      (lazy-seq)
+      (empty (lazy-seq))
+      (cons nil (lazy-seq))
+      (cons nil (empty (lazy-seq)))
+      (empty (cons nil (lazy-seq)))))
+
+  (testing "conj"
+    (are [expected form] (= expected form)
+      '()          (lazy-seq)
+      '()          (conj (lazy-seq))
+      '(0 1 2)     (conj (lazy-seq '(2)) 1 0)
+      '(0 1 2)     (conj (conj (lazy-seq '(2)) 1) 0)
+      '(1 2 3)     (conj (lazy-seq) 3 2 1)
+      '(0 1 2 3 4) (conj (lazy-seq '(1 2 3 4)) 0)))
+
+  (testing "corecursion"
+    ;; here we're just generally checking that we don't blow the stack, so
+    ;; 50 is an arbitrarily chosen limit which hopefully tests that adequately
+    (is (= '(2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97 101 103 107 109 113 127 131 137 139 149 151 157 163 167 173 179 181 191 193 197 199 211 223 227 229)
+           (take 50 primes)))))

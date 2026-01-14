@@ -1,0 +1,25 @@
+(ns tests.basilisp.core.test-predicates
+  (:require
+   [basilisp.test :refer [deftest is are]]))
+
+(deftest true?-test
+  (is (= true (true? true)))
+
+  (are [v] (= false (true? v))
+    false
+    1
+    1.0
+    nil
+    1N
+    1.0M))
+
+(deftest false?-test
+  (is (= true (false? false)))
+
+  (are [v] (= false (false? v))
+    true
+    0
+    0.0
+    nil
+    0N
+    0.0M))
