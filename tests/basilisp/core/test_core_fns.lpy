@@ -4,8 +4,7 @@
 
   If there are many tests for a single category of functions, ideally those should
   be moved out into a new file."
-  (:import os
-           shutil
+  (:import shutil
            time)
   (:require
    [basilisp.io :as bio]
