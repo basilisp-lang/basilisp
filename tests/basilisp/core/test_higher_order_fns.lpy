@@ -196,7 +196,7 @@
   (is (= :hi ((comp) :hi)))
   (is (true? ((comp odd?) 3)))
   (is (false? ((comp odd?) 2)))
-  (is (= 7 ((comp inc inc dec (partial * 2))) 3)))
+  (is (= 7 ((comp inc inc dec (partial * 2)) 3))))
 
 (deftest complement-test
   (is (true? ((complement odd?) 2)))
