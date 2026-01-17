@@ -116,3 +116,43 @@
                               (float? v)))
     0.3333333333333333 [1/3 1.0]
     0.3333333333333333 [1.0 1/3]))
+
+(deftest divide-test
+  (are [expected tp args] (= [expected tp] (let [v (apply / args)]
+                                             [v (type v)]))
+    1    python/int         [1]
+    1/2  fractions/Fraction [2]
+    1.0  python/float       [1.0]
+    0.5  python/float       [2.0]
+    1.0M decimal/Decimal    [1.0M]
+    0.5M decimal/Decimal    [2.0M]
+    3/2  fractions/Fraction [2/3]
+
+    -1.0 python/float [1 -1.0]
+    -1.0 python/float [1.0 -1]
+    -1.0 python/float [-1.0 1]
+    -1.0 python/float [-1 1.0]
+
+    ;; division of floats and decimals yields a float
+    -1.0 python/float [1.0 -1.0M]
+    -1.0 python/float [1.0M -1.0]
+    -1.0 python/float [-1.0 1.0M]
+    -1.0 python/float [-1.0M 1.0]
+
+    -1.0M decimal/Decimal [-1.0M 1.0M]
+    -1.0M decimal/Decimal [-1 1.0M]
+    -1.0M decimal/Decimal [-1.0M 1]
+    -1.0M decimal/Decimal [-2/2 1.0M]
+    -1.0M decimal/Decimal [-1.0M 2/2]
+
+    1/4  fractions/Fraction [1/3 4/3]
+    1/2  fractions/Fraction [1/3 2/3]
+    1/6  fractions/Fraction [1/3 2]
+    3    python/int         [1 1/3]
+    -1/2 fractions/Fraction [1/3 -2/3])
+
+  (are [expected args] (let [v (apply / args)]
+                         (and (math/isclose expected v)
+                              (float? v)))
+    0.16666666666666666 [1/3 2.0]
+    6.0                 [2.0 1/3]))

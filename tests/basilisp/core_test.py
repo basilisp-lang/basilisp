@@ -343,18 +343,6 @@ class TestArithmetic:
         with pytest.raises(ZeroDivisionError):
             core.__DIV__(3, 0)
 
-        assert -1 == core.__DIV__(-1)
-        assert 1 == core.__DIV__(1)
-        assert Fraction(1, 2) == core.__DIV__(2)
-        assert 0.5 == core.__DIV__(2.0)
-        assert Fraction(1, 2) == core.__DIV__(1, 2)
-        assert 0.5 == core.__DIV__(1.0, 2)
-        assert 0.125 == core.__DIV__(1, 2, 4.0)
-        assert Fraction(-1, 120) == core.__DIV__(1, 2, 3, 4, -5)
-        assert 0.008_333_333_333_333_333 == core.__DIV__(1, 2, 3, 4, 5.0)
-        assert Fraction(-1, 120) == core.__DIV__(-1, -2, -3, -4, -5)
-        assert -0.008_333_333_333_333_333 == core.__DIV__(-1, -2, -3, -4, -5.0)
-
     @pytest.mark.parametrize(
         "result,x,y",
         [
