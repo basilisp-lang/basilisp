@@ -1,6 +1,6 @@
 (ns tests.basilisp.core.test-var-fns
   (:require
-   [basilisp.test :refer [deftest is testing]]))
+   [basilisp.test :refer [deftest is are testing]]))
 
 (deftest var-test
   (testing "calling vars"

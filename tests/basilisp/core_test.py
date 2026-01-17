@@ -1367,42 +1367,6 @@ def test_range():
     assert 9999 == len(core.vec(core.range_(1, 10000)))
 
 
-def test_constantly():
-    f = core.constantly("hi")
-    assert "hi" == f()
-    assert "hi" == f(1)
-    assert "hi" == f("what will", "you", "return?")
-
-
-class TestComplement:
-    @pytest.fixture(scope="class")
-    def is_even(self):
-        return core.complement(core.odd__Q__)
-
-    def test_evens_are_even(self, is_even, even_number):
-        assert True is is_even(even_number)
-
-    def test_odds_are_not_even(self, is_even, odd_number):
-        assert False is is_even(odd_number)
-
-
-def test_comp():
-    assert 1 == core.comp()(1)
-    assert "hi" == core.comp()("hi")
-    assert True is core.comp(core.odd__Q__)(3)
-    assert False is core.comp(core.odd__Q__)(2)
-    assert 7 == core.comp(core.inc, core.inc, core.dec, lambda v: core.__STAR__(2, v))(
-        3
-    )
-
-
-def test_juxt():
-    assert vec.v(True) == core.juxt(core.odd__Q__)(3)
-    assert vec.v(True, False, 4, 2) == core.juxt(
-        core.odd__Q__, core.even__Q__, core.inc, core.dec
-    )(3)
-
-
 def test_partial_kw():
     assert {"value": 3} == core.partial_kw(dict)(value=3)
     assert {"value": 82} == core.partial_kw(dict, lmap.map({kw.keyword("value"): 3}))(

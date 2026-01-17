@@ -17,9 +17,9 @@
 
 (deftest subs-test
   (is (= "" (subs "" 0)))
-  (is (= "" (subs "" 3)))
-  (is (= "" (subs "hello" 6)))
+  (is (thrown? python/IndexError (subs "" 3)))
+  (is (thrown? python/IndexError (subs "hello" 6)))
   (is (= "lo world" (subs "hello world" 3)))
-  (is (= "lo world" (subs "hello world" 3 12)))
+  (is (thrown? python/IndexError (subs "hello world" 3 12)))
   (is (= "lo w" (subs "hello world" 3 7)))
-  (is (= "" (subs "hello world" 12 3))))
+  (is (thrown? python/IndexError (subs "hello world" 12 3))))

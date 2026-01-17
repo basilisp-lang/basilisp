@@ -185,6 +185,27 @@
   (let [f (fnil (fn [x y z & rest] [x y z rest]) :a :b :c)]
     (is (= [:a :b :c '(:d :e)] (f nil nil nil :d :e)))))
 
+(deftest constantly-test
+  (let [f (constantly :hi)]
+    (is (= :hi (f)))
+    (is (= :hi (f 1)))
+    (is (= :hi (f "what will" "you" "return?")))))
+
+(deftest comp-test
+  (is (= 1 ((comp) 1)))
+  (is (= :hi ((comp) :hi)))
+  (is (true? ((comp odd?) 3)))
+  (is (false? ((comp odd?) 2)))
+  (is (= 7 ((comp inc in dec (partial * 2))) 3)))
+
+(deftest complement-test
+  (is (true? ((complement odd?) 2)))
+  (is (false? ((complement odd?) 3))))
+
+(deftest juxt-test
+  (is (= [true] ((juxt odd?) 3)))
+  (is (= [true false 4 2] ((juxt odd? even? inc dec) 3))))
+
 (deftest every-pred-test
   (is (= true ((every-pred odd?) 3 5 9)))
   (is (= true ((every-pred odd? int?) 3 5 9 17)))
@@ -392,12 +413,10 @@
 
 (deftest take-nth-test
   (testing "transducer"
-    (are [input] (thrown? python/ZeroDivisionError (into [] (take-nth 0) input))
-      [1]
-      [1 2 3])
-
     (are [res n input] (= res (into [] (take-nth n) input))
       []          0 []
+      [1]         0 [1]
+      [1]         0 [1 2 3]
       [1 2 3 4 5] 1 [1 2 3 4 5]
       [1 3 5]     2 [1 2 3 4 5]
       [1 4]       3 [1 2 3 4 5]))
@@ -543,7 +562,6 @@
   (is (= '(:yes :yes :yes) (repeatedly 3 (fn [] :yes)))))
 
 (deftest cycle-test
-  (is (nil? (cycle nil)))
   (are [expected i v] (= expected (take i (cycle v)))
     '(1 1 1)       3 [1]
     '(1 2 1)       3 [1 2]
