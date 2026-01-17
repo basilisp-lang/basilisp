@@ -185,7 +185,7 @@ jobs:
           echo ::deps $DEPENDENCY_REGEX
           sed -i -E 's/('$DEPENDENCY_REGEX')( = )(|\{ version = )"(\^|>=)([0-9])/\1\2\3"==\5/' pyproject.toml
           git diff
-          tox run-parallel -p 2
+          tox run -- -n auto
 
   report-coverage:
     runs-on: ubuntu-latest
