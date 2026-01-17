@@ -1012,18 +1012,6 @@ class TestIsUUID:
         assert False is core.uuid_like__Q__(lisp_value)
 
 
-def test_is_var():
-    assert True is core.var__Q__(
-        runtime.Var.find(sym.symbol("list", ns="basilisp.core"))
-    )
-    assert False is core.var__Q__(core.list_)
-
-
-def test_is_var_callable():
-    varlist = runtime.Var.find(sym.symbol("list", ns="basilisp.core"))
-    assert llist.l(2, 3) == varlist(2, 3)
-
-
 class TestExceptionData:
     def test_ex_cause_for_non_exception(self):
         assert None is core.ex_cause("a string")
@@ -1385,42 +1373,6 @@ def test_range():
     assert llist.l(1, 3, 5, 7, 9) == core.range_(1, 11, 2)
     assert llist.l(1, -1, -3, -5, -7, -9) == core.range_(1, -10, -2)
     assert 9999 == len(core.vec(core.range_(1, 10000)))
-
-
-def test_constantly():
-    f = core.constantly("hi")
-    assert "hi" == f()
-    assert "hi" == f(1)
-    assert "hi" == f("what will", "you", "return?")
-
-
-class TestComplement:
-    @pytest.fixture(scope="class")
-    def is_even(self):
-        return core.complement(core.odd__Q__)
-
-    def test_evens_are_even(self, is_even, even_int):
-        assert True is is_even(even_int)
-
-    def test_odds_are_not_even(self, is_even, odd_int):
-        assert False is is_even(odd_int)
-
-
-def test_comp():
-    assert 1 == core.comp()(1)
-    assert "hi" == core.comp()("hi")
-    assert True is core.comp(core.odd__Q__)(3)
-    assert False is core.comp(core.odd__Q__)(2)
-    assert 7 == core.comp(core.inc, core.inc, core.dec, lambda v: core.__STAR__(2, v))(
-        3
-    )
-
-
-def test_juxt():
-    assert vec.v(True) == core.juxt(core.odd__Q__)(3)
-    assert vec.v(True, False, 4, 2) == core.juxt(
-        core.odd__Q__, core.even__Q__, core.inc, core.dec
-    )(3)
 
 
 def test_partial_kw():

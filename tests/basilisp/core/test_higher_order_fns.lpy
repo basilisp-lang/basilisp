@@ -185,6 +185,27 @@
   (let [f (fnil (fn [x y z & rest] [x y z rest]) :a :b :c)]
     (is (= [:a :b :c '(:d :e)] (f nil nil nil :d :e)))))
 
+(deftest constantly-test
+  (let [f (constantly :hi)]
+    (is (= :hi (f)))
+    (is (= :hi (f 1)))
+    (is (= :hi (f "what will" "you" "return?")))))
+
+(deftest comp-test
+  (is (= 1 ((comp) 1)))
+  (is (= :hi ((comp) :hi)))
+  (is (true? ((comp odd?) 3)))
+  (is (false? ((comp odd?) 2)))
+  (is (= 7 ((comp inc inc dec (partial * 2)) 3))))
+
+(deftest complement-test
+  (is (true? ((complement odd?) 2)))
+  (is (false? ((complement odd?) 3))))
+
+(deftest juxt-test
+  (is (= [true] ((juxt odd?) 3)))
+  (is (= [true false 4 2] ((juxt odd? even? inc dec) 3))))
+
 (deftest every-pred-test
   (is (= true ((every-pred odd?) 3 5 9)))
   (is (= true ((every-pred odd? int?) 3 5 9 17)))
