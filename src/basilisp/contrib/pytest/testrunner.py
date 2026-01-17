@@ -3,13 +3,11 @@ import inspect
 import os
 import re
 import sys
-import threading
 import traceback
 from collections.abc import Callable, Iterable, Iterator
 from functools import cache
 from pathlib import Path
 from types import GeneratorType
-from typing import Any, Generator, Optional, cast
 
 import pytest
 
@@ -123,7 +121,7 @@ class TestFailuresInfo(Exception):
 
 TestFunction = Callable[[], lmap.PersistentMap]
 FixtureTeardown = Iterator[None]
-FixtureFunction = Callable[[], Optional[FixtureTeardown]]
+FixtureFunction = Callable[[], FixtureTeardown | None]
 
 
 class FixtureManager:

@@ -3,6 +3,7 @@ import builtins
 import collections.abc
 import contextlib
 import decimal
+import fractions
 import functools
 import graphlib
 import importlib.metadata
@@ -1777,6 +1778,27 @@ def min_of(it: Iterable[T]) -> T:
     return min(it)
 
 
+def _normalize_fraction_result(
+    f: Callable[[LispNumber, LispNumber], LispNumber],
+) -> Callable[[LispNumber, LispNumber], LispNumber]:
+    """
+    Decorator for arithmetic operations to simplify `fractions.Fraction` values with
+    a denominator of 1 to an integer.
+    """
+
+    @functools.wraps(f)
+    def _normalize(x: LispNumber, y: LispNumber) -> LispNumber:
+        result = f(x, y)
+        # fractions.Fraction.is_integer() wasn't added until 3.12
+        return (
+            result.numerator
+            if isinstance(result, fractions.Fraction) and result.denominator == 1
+            else result
+        )
+
+    return _normalize
+
+
 def _to_decimal(x: LispNumber) -> decimal.Decimal:
     if isinstance(x, Fraction):
         numerator, denominator = x.as_integer_ratio()
@@ -1785,6 +1807,7 @@ def _to_decimal(x: LispNumber) -> decimal.Decimal:
 
 
 @functools.singledispatch
+@_normalize_fraction_result
 def divide(x: LispNumber, y: LispNumber) -> LispNumber:
     """Division reducer. If both arguments are integers, return a Fraction.
     Otherwise, return the true division of x and y."""
@@ -1792,39 +1815,121 @@ def divide(x: LispNumber, y: LispNumber) -> LispNumber:
 
 
 @divide.register(int)
+@_normalize_fraction_result
 def _divide_ints(x: int, y: LispNumber) -> LispNumber:
     if isinstance(y, int):
-        frac = Fraction(x, y)
-        # fractions.Fraction.is_integer() wasn't added until 3.12
-        return frac.numerator if frac.denominator == 1 else frac
+        return Fraction(x, y)
     return x / y
 
 
 @divide.register(float)
+@_normalize_fraction_result
 def _divide_float(x: float, y: LispNumber) -> LispNumber:
     if isinstance(y, decimal.Decimal):
-        return decimal.Decimal(x) / y
+        return float(decimal.Decimal(x) / y)
     try:
         return x / y
     except ZeroDivisionError:
         if math.isnan(x):
-            return float("nan")
+            return math.nan
         elif x >= 0:
-            return float("inf")
+            return math.inf
         else:
-            return -float("inf")
+            return -math.inf
 
 
 @divide.register(decimal.Decimal)
+@_normalize_fraction_result
 def _divide_decimal(x: decimal.Decimal, y: LispNumber) -> LispNumber:
-    return x / _to_decimal(y)
+    v = x / _to_decimal(y)
+    return float(v) if isinstance(y, float) else v
 
 
 @divide.register(Fraction)
+@_normalize_fraction_result
 def _divide_fraction(x: Fraction, y: LispNumber) -> LispNumber:
     if isinstance(y, decimal.Decimal):
         return _to_decimal(x) / y
     return x / y
+
+
+@functools.singledispatch
+@_normalize_fraction_result
+def subtract(x: LispNumber, y: LispNumber) -> LispNumber:
+    return x - y
+
+
+@subtract.register(float)
+@_normalize_fraction_result
+def _subtract_float(x: float, y: LispNumber) -> LispNumber:
+    if isinstance(y, decimal.Decimal):
+        return float(decimal.Decimal(x) - y)
+    return x - y
+
+
+@subtract.register(decimal.Decimal)
+@_normalize_fraction_result
+def _subtract_decimal(x: decimal.Decimal, y: LispNumber) -> LispNumber:
+    v = x - _to_decimal(y)
+    return float(v) if isinstance(y, float) else v
+
+
+@subtract.register(Fraction)
+@_normalize_fraction_result
+def _subtract_fraction(x: Fraction, y: LispNumber) -> LispNumber:
+    if isinstance(y, decimal.Decimal):
+        return _to_decimal(x) - y
+    return x - y
+
+
+@functools.singledispatch
+@_normalize_fraction_result
+def multiply(x: LispNumber, y: LispNumber) -> LispNumber:
+    return x * y
+
+
+@multiply.register(float)
+@_normalize_fraction_result
+def _multiply_float(x: float, y: LispNumber) -> LispNumber:
+    if isinstance(y, decimal.Decimal):
+        return float(decimal.Decimal(x) * y)
+    return x * y
+
+
+@multiply.register(decimal.Decimal)
+@_normalize_fraction_result
+def _multiply_decimal(x: decimal.Decimal, y: LispNumber) -> LispNumber:
+    v = x * _to_decimal(y)
+    return float(v) if isinstance(y, float) else v
+
+
+@multiply.register(Fraction)
+@_normalize_fraction_result
+def _multiply_fraction(x: Fraction, y: LispNumber) -> LispNumber:
+    if isinstance(y, decimal.Decimal):
+        return _to_decimal(x) * y
+    return x * y
+
+
+@functools.singledispatch
+def trunc(x: LispNumber) -> LispNumber:
+    return x
+
+
+@trunc.register(float)
+def _trunc_float(x: float) -> LispNumber:
+    return float(math.trunc(x))
+
+
+@trunc.register(decimal.Decimal)
+def _trunc_decimal(x: decimal.Decimal) -> LispNumber:
+    return decimal.Decimal(math.trunc(x))
+
+
+@trunc.register(Fraction)
+def _trunc_fraction(x: Fraction) -> LispNumber:
+    v = fractions.Fraction(math.trunc(x))
+    return v.numerator if v.denominator == 1 else v
 
 
 @functools.singledispatch

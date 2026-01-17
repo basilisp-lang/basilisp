@@ -1129,24 +1129,24 @@
   "Subtract the arguments. If one argument given, returns the negation of that
   argument."
   ([x] (operator/neg x))
-  ([x y] (operator/sub x y))
+  ([x y] (basilisp.lang.runtime/subtract x y))
   ([x y & args]
    (if (seq args)
-     (recur (operator/sub x y) (first args) (rest args))
-     (operator/sub x y))))
+     (recur (basilisp.lang.runtime/subtract x y) (first args) (rest args))
+     (basilisp.lang.runtime/subtract x y))))
 
 (defn *
   "Multiply the arguments. If no arguments given, returns 1."
   ([] 1)
   ([x] x)
-  ([x y] (operator/mul x y))
+  ([x y] (basilisp.lang.runtime/multiply x y))
   ([x y & args]
    (if (seq args)
-     (recur (operator/mul x y) (first args) (rest args))
-     (operator/mul x y))))
+     (recur (basilisp.lang.runtime/multiply x y) (first args) (rest args))
+     (basilisp.lang.runtime/multiply x y))))
 
 (defn /
-  "Divide the arguments. If no arguments given, returns the inverse of the argument."
+  "Divide the arguments. If only one argument is given, returns the inverse of the argument."
   ([x] (basilisp.lang.runtime/divide 1 x))
   ([x y] (basilisp.lang.runtime/divide x y))
   ([x y & args]
@@ -1159,26 +1159,27 @@
   [x]
   (python/abs x))
 
-(defn ^:inline mod
+(defn quot
+  "Returns the quotient of ``num`` and ``div``\\.
+
+  The division result is rounded towards zero."
+  [num div]
+  (basilisp.lang.runtime/trunc (/ num div)))
+
+(defn rem
+  "Returns the remainder of ``num`` and ``div``\\."
+  [num div]
+  (let [m (- num (* div (quot num div)))]
+    (if (and (< num 0 div) (> m 0))
+      (- m)
+      m)))
+
+(defn mod
   "Returns the modulo of ``num`` and ``div``\\.
 
   It uses floored division for calculating the quotient."
   [num div]
-  (operator/mod num div))
-
-(defn ^:inline quot
-  "Returns the quotient of ``num`` and ``div``\\.
-
-  The division result is truncated."
-  [num div]
-  (int (/ num div)))
-
-(defn ^:inline rem
-  "Returns the remainder of ``num`` and ``div``\\.
-
-  It uses truncated division for calculating the quotient."
-  [num div]
-  (- num (* div (int (/ num div)))))
+  (- num (* div (math/floor (/ num div)))))
 
 (defn ^:inline inc
   "Increment the argument by 1."

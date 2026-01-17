@@ -1423,12 +1423,6 @@ def test_juxt():
     )(3)
 
 
-def test_partial():
-    assert 3 == core.partial(core.__PLUS__)(3)
-    assert 6 == core.partial(core.__PLUS__, 3)(3)
-    assert 10 == core.partial(core.__PLUS__, 3, 4)(3)
-
-
 def test_partial_kw():
     assert {"value": 3} == core.partial_kw(dict)(value=3)
     assert {"value": 82} == core.partial_kw(dict, lmap.map({kw.keyword("value"): 3}))(
@@ -1561,99 +1555,6 @@ class TestRandom:
         assert set(coll) == set(core.shuffle(coll))
 
 
-def test_string_format():
-    assert "Hello, Chris!" == core.format_("Hello, %s!", "Chris")
-    assert "Hello, Chris and Rich!" == core.format_(
-        "Hello, %s and %s!", "Chris", "Rich"
-    )
-    assert "Hello, Chris and Rich!" == core.format_(
-        "Hello, %(first)s and %(second)s!", {"first": "Chris", "second": "Rich"}
-    )
-
-
-def test_merge():
-    assert None is core.merge()
-    assert lmap.EMPTY == core.merge(lmap.EMPTY)
-    assert lmap.map({kw.keyword("a"): 1}) == core.merge(lmap.map({kw.keyword("a"): 1}))
-    assert lmap.map({kw.keyword("a"): 53, kw.keyword("b"): "hi"}) == core.merge(
-        lmap.map({kw.keyword("a"): 1, kw.keyword("b"): "hi"}),
-        lmap.map({kw.keyword("a"): 53}),
-    )
-
-
-def test_split_at():
-    assert vec.v(llist.EMPTY, llist.EMPTY) == core.split_at(3, vec.EMPTY)
-    assert vec.v(llist.EMPTY, llist.l(1, 2, 3)) == core.split_at(0, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_at(1, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2), llist.l(3)) == core.split_at(2, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2, 3), llist.EMPTY) == core.split_at(3, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2, 3), llist.EMPTY) == core.split_at(4, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2, 3), llist.l(4)) == core.split_at(3, vec.v(1, 2, 3, 4))
-
-
-def test_split_with():
-    assert vec.v(llist.EMPTY, llist.EMPTY) == core.split_with(core.odd__Q__, vec.EMPTY)
-    assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_with(
-        core.odd__Q__, vec.v(1, 2, 3)
-    )
-    assert vec.v(llist.l(1, 3, 5, 7), llist.EMPTY) == core.split_with(
-        core.odd__Q__, vec.v(1, 3, 5, 7)
-    )
-    assert vec.v(llist.EMPTY, llist.l(2, 4, 6, 8)) == core.split_with(
-        core.odd__Q__, vec.v(2, 4, 6, 8)
-    )
-
-
-def test_group_by():
-    assert lmap.EMPTY == core.group_by(core.inc, vec.EMPTY)
-    assert lmap.map({True: vec.v(1, 3), False: vec.v(2, 4)}) == core.group_by(
-        core.odd__Q__, vec.v(1, 2, 3, 4)
-    )
-
-
-def test_cycle():
-    assert llist.l(1, 1, 1) == core.take(3, core.cycle(vec.v(1)))
-    assert llist.l(1, 2, 1) == core.take(3, core.cycle(vec.v(1, 2)))
-    assert llist.l(1, 2, 3) == core.take(3, core.cycle(vec.v(1, 2, 3)))
-    assert llist.l(1, 2, 3, 1, 2, 3) == core.take(6, core.cycle(vec.v(1, 2, 3)))
-
-
-def test_repeat():
-    assert llist.l(1, 1, 1) == core.take(3, core.repeat(1))
-    assert llist.l(1, 1, 1, 1, 1, 1) == core.take(6, core.repeat(1))
-    assert llist.l(1, 1, 1) == core.repeat(3, 1)
-
-
-def test_repeatedly():
-    assert llist.l("yes", "yes", "yes") == core.take(3, core.repeatedly(lambda: "yes"))
-    assert llist.l("yes", "yes", "yes") == core.repeatedly(3, lambda: "yes")
-
-
-def test_partition():
-    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition(
-        2, core.range_(1, 7)
-    )
-    assert llist.l(llist.l(1, 2, 3), llist.l(4, 5, 6)) == core.partition(
-        3, core.range_(1, 7)
-    )
-
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15)
-    ) == core.partition(5, 10, core.range_(1, 24))
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
-    ) == core.partition(5, 10, core.range_(1, 26))
-
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5),
-        llist.l(11, 12, 13, 14, 15),
-        llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a")),
-    ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
-    ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
-
-
 class TestPrintFunctions:
     def test_pr_str(self):
         assert "" == core.pr_str()
@@ -1681,35 +1582,4 @@ class TestPrintFunctions:
         assert ":kw" + os.linesep == core.println_str(kw.keyword("kw"))
         assert ":hi there 3" + os.linesep == core.println_str(
             kw.keyword("hi"), "there", 3
-        )
-
-
-class TestRegexFunctions:
-    def test_re_find(self):
-        assert None is core.re_find(re.compile(r"\d+"), "abcdef")
-        assert "12345" == core.re_find(re.compile(r"\d+"), "abc12345def")
-        assert vec.v("word then number ", "word then number ", None) == core.re_find(
-            re.compile(r"(\D+)|(\d+)"), "word then number 57"
-        )
-        assert vec.v("57", None, "57") == core.re_find(
-            re.compile(r"(\D+)|(\d+)"), "57 number then word"
-        )
-        assert vec.v("lots", "", "l") == core.re_find(
-            re.compile(r"(\d*)(\S)\S+"), "lots o' digits 123456789"
-        )
-
-    def test_re_matches(self):
-        assert None is core.re_matches(re.compile(r"hello"), "hello, world")
-        assert "hello, world" == core.re_matches(re.compile(r"hello.*"), "hello, world")
-        assert vec.v("hello, world", "world") == core.re_matches(
-            re.compile(r"hello, (.*)"), "hello, world"
-        )
-
-    def test_re_seq(self):
-        assert None is core.seq(core.re_seq(re.compile(r"[a-zA-Z]+"), "134325235234"))
-        assert llist.l("1", "1", "0") == core.re_seq(
-            re.compile(r"\d+"), "Basilisp 1.1.0"
-        )
-        assert llist.l("the", "man", "who", "sold", "the", "world") == core.re_seq(
-            re.compile(r"\w+"), "the man who sold the world"
         )

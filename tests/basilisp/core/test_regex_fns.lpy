@@ -1,0 +1,23 @@
+(ns tests.basilisp.core.test-regex-fns
+  (:require
+   [basilisp.test :refer [deftest are is]]))
+
+(deftest re-find-test
+  (is (nil? (re-find #"\d+" "abcdef")))
+  (are [expected p s] (= expected (re-find p s))
+    "12345"                                       #"\d+"          "abc12345def"
+    ["word then number " "word then number " nil] #"(\D+)|(\d+)"  "word then number 57"
+    ["57" nil "57"]                               #"(\D+)|(\d+)"  "57 number then word"
+    ["lots" "" "l"]                               #"(\d*)(\S)\S+" "lots o' digits 123456789"))
+
+(deftest re-matches-test
+  (is (nil? (re-matches #"hello" "hello, world")))
+  (are [expected p s] (= expected (re-matches p s))
+    "hello, world"           #"hello.*"     "hello, world"
+    ["hello, world" "world"] #"hello, (.*)" "hello, world"))
+
+(deftest re-seq-test
+  (is (nil? (seq (re-seq #"[a-zA-Z]+" "134325235234"))))
+  (are [expected p s] (= expected (re-seq p s))
+    '("1" "1" "0")                            #"\d+" "Basilisp 1.1.0"
+    '("the" "man" "who" "sold" "the" "world") #"\w+" "the man who sold the world"))
