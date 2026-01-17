@@ -1553,33 +1553,3 @@ class TestRandom:
 
     def test_shuffle(self, coll):
         assert set(coll) == set(core.shuffle(coll))
-
-
-class TestPrintFunctions:
-    def test_pr_str(self):
-        assert "" == core.pr_str()
-        assert '""' == core.pr_str("")
-        assert ":kw" == core.pr_str(kw.keyword("kw"))
-        assert ':hi "there" 3' == core.pr_str(kw.keyword("hi"), "there", 3)
-
-    def test_prn_str(self):
-        assert os.linesep == core.prn_str()
-        assert '""' + os.linesep == core.prn_str("")
-        assert ":kw" + os.linesep == core.prn_str(kw.keyword("kw"))
-        assert ':hi "there" 3' + os.linesep == core.prn_str(
-            kw.keyword("hi"), "there", 3
-        )
-
-    def test_print_str(self):
-        assert "" == core.print_str()
-        assert "" == core.print_str("")
-        assert ":kw" == core.print_str(kw.keyword("kw"))
-        assert ":hi there 3" == core.print_str(kw.keyword("hi"), "there", 3)
-
-    def test_println_str(self):
-        assert os.linesep == core.println_str()
-        assert os.linesep == core.println_str("")
-        assert ":kw" + os.linesep == core.println_str(kw.keyword("kw"))
-        assert ":hi there 3" + os.linesep == core.println_str(
-            kw.keyword("hi"), "there", 3
-        )

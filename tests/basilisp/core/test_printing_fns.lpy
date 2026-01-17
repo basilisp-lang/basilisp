@@ -8,6 +8,14 @@
   (testing "is dynamic"
     (is (= '(1) (binding [pr (fn [& more] more)] (pr 1)))))
 
+  (testing "basic pr-str"
+    (is (= "" (pr-str)))
+
+    (are [expected args] (= expected (apply pr-str args))
+      "\"\""            [""]
+      ":kw"             [:kw]
+      ":hi \"there\" 3" [:hi "there" 3]))
+
   (testing "*print-level* support"
     (let [v-str (pr-str (range 100))]
       (is (str/ends-with? v-str " 99)") v-str))
@@ -20,35 +28,59 @@
     (is (= "#py #:a{:x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
 
     (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
-      #{"{:a/x 5}"} {:a/x 5} false
-      #{"#:a{:x 5}"} {:a/x 5} true
-      #{"{:x 5}"} {:x 5} true
-      #{"{1 2}"} {1 2} false
-      #{"{1 2}"} {1 2} true
+      #{"{:a/x 5}"}                          {:a/x 5}        false
+      #{"#:a{:x 5}"}                         {:a/x 5}        true
+      #{"{:x 5}"}                            {:x 5}          true
+      #{"{1 2}"}                             {1 2}           false
+      #{"{1 2}"}                             {1 2}           true
       #{"{:a/y 6 :a/x 5}" "{:a/x 5 :a/y 6}"} {:a/x 5 :a/y 6} false
-      #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"} {:a/x 5 :a/y 6} true
-      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} false
-      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} true
+      #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"}   {:a/x 5 :a/y 6} true
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"}       {:a/x 5 6 6}    false
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"}       {:a/x 5 6 6}    true
       #{"{:a/x 5 :b/y 6}" "{:b/y 6 :a/x 5}"} {:a/x 5 :b/y 6} true
-      #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"} {'a/x 5 'a/y 6} true
-      #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"} {:a/x 5 'a/y 6} true
-      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"} {:a/x 5 'y 6} true)
+      #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"}       {'a/x 5 'a/y 6} true
+      #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"}     {:a/x 5 'a/y 6} true
+      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"}       {:a/x 5 'y 6}   true)
 
     (are [res m pnm pm] (= res (binding [*print-namespace-maps* pnm
                                          *print-meta*           pm]
                                  (pr-str m)))
       "^{:m 1} {:a/x 5}"     ^{:m 1} {:a/x 5}   false true
-      "^{:m 1} #:a{:x 5}"    ^{:m 1} {:a/x 5}   true true
-      "^#:l{:m 1} #:a{:x 5}" ^{:l/m 1} {:a/x 5} true true)
+      "^{:m 1} #:a{:x 5}"    ^{:m 1} {:a/x 5}   true  true
+      "^#:l{:m 1} #:a{:x 5}" ^{:l/m 1} {:a/x 5} true  true)
 
     (are [res m pl] (= res (binding [*print-namespace-maps* true
                                      *print-meta*           true
                                      *print-level* pl]
                              (pr-str m)))
-      "#"                                ^{:m 1} {:a/x 5} 0
-      "^{:m 1} #:a{:x 5}"                ^{:m 1} {:a/x 5} 1
+      "#"                                ^{:m 1} {:a/x 5}                0
+      "^{:m 1} #:a{:x 5}"                ^{:m 1} {:a/x 5}                1
       "^{:m 1} #:a{:x #}"                ^{:m 1} {:a/x ^{:x 22} {:b 36}} 1
       "^{:m 1} #:a{:x ^{:x 22} {:b 36}}" ^{:m 1} {:a/x ^{:x 22} {:b 36}} 2)))
+
+(deftest prn-str-test
+  (is (= os/linesep (prn-str)))
+
+  (are [expected args] (= expected (apply prn-str args))
+    (str "\"\"" os/linesep)            [""]
+    (str ":kw" os/linesep)             [:kw]
+    (str ":hi \"there\" 3" os/linesep) [:hi "there" 3]))
+
+(deftest print-str-test
+  (is (= "" (print-str)))
+
+  (are [expected args] (= expected (apply print-str args))
+    ""            [""]
+    ":kw"         [:kw]
+    ":hi there 3" [:hi "there" 3]))
+
+(deftest println-str-test
+  (is (= os/linesep (println-str)))
+
+  (are [expected args] (= expected (apply println-str args))
+    os/linesep                    [""]
+    (str ":kw" os/linesep)        [:kw]
+    (str ":hithere 3" os/linesep) [:hi "there" 3]))
 
 (defn- bio-write
   "Helper fn to write the ``strings`` to the ByteIO buffer ``bio``
