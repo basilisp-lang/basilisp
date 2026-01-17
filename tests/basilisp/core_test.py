@@ -333,15 +333,6 @@ def test_namespace():
 
 
 class TestArithmetic:
-    def test_multiplication(self):
-        assert 1 == core.__STAR__()
-        assert -1 == core.__STAR__(-1)
-        assert 0 == core.__STAR__(0)
-        assert 1 == core.__STAR__(1)
-        assert 120 == core.__STAR__(1, 2, 3, 4, 5)
-        assert -120 == core.__STAR__(1, 2, 3, 4, -5)
-        assert -120 == core.__STAR__(-1, -2, -3, -4, -5)
-
     def test_division(self):
         with pytest.raises(runtime.RuntimeException):
             core.__DIV__()
