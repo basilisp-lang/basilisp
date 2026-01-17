@@ -80,7 +80,7 @@
   (are [expected args] (= expected (apply println-str args))
     os/linesep                    [""]
     (str ":kw" os/linesep)        [:kw]
-    (str ":hithere 3" os/linesep) [:hi "there" 3]))
+    (str ":hi there 3" os/linesep) [:hi "there" 3]))
 
 (defn- bio-write
   "Helper fn to write the ``strings`` to the ByteIO buffer ``bio``
