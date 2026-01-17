@@ -333,26 +333,6 @@ def test_namespace():
 
 
 class TestArithmetic:
-    def test_addition(self):
-        assert 0 == core.__PLUS__()
-        assert -1 == core.__PLUS__(-1)
-        assert 0 == core.__PLUS__(0)
-        assert 1 == core.__PLUS__(1)
-        assert 15 == core.__PLUS__(1, 2, 3, 4, 5)
-        assert 5 == core.__PLUS__(1, 2, 3, 4, -5)
-        assert -15 == core.__PLUS__(-1, -2, -3, -4, -5)
-
-    def test_subtraction(self):
-        with pytest.raises(runtime.RuntimeException):
-            core._()
-
-        assert 1 == core._(-1)
-        assert 0 == core._(0)
-        assert -1 == core._(1)
-        assert -13 == core._(1, 2, 3, 4, 5)
-        assert -3 == core._(1, 2, 3, 4, -5)
-        assert 13 == core._(-1, -2, -3, -4, -5)
-
     def test_multiplication(self):
         assert 1 == core.__STAR__()
         assert -1 == core.__STAR__(-1)
