@@ -6,6 +6,32 @@
   (testing "calling vars"
     (is (= '(1 2) (#'basilisp.core/list 1 2)))))
 
+(deftest var?-test
+  (is (var? #'list))
+
+  (are [v] (not (var? v))
+    nil
+    0
+    1
+    -1
+    true
+    false
+    python/list
+    list
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    []
+    '()
+    #{}
+    {}
+    (python/list)
+    (python/tuple)
+    (python/dict)
+    (python/set)
+    (python/frozenset)))
+
 (def test-var-unadorned 7)
 (def ^:redef test-var-redef 19)
 (def ^:dynamic test-var-dynamic 23)
