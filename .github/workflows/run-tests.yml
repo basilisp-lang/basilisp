@@ -68,7 +68,7 @@ jobs:
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}
         run: |
-          tox run-parallel -p 4
+          tox run-parallel -p 4 -- -n auto
           mkdir coverage
           mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results

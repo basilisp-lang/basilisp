@@ -3,13 +3,11 @@ import inspect
 import os
 import re
 import sys
-import threading
 import traceback
 from collections.abc import Callable, Iterable, Iterator
 from functools import cache
 from pathlib import Path
 from types import GeneratorType
-from typing import Optional, cast
 
 import pytest
 
@@ -123,9 +121,7 @@ class TestFailuresInfo(Exception):
 
 TestFunction = Callable[[], lmap.PersistentMap]
 FixtureTeardown = Iterator[None]
-FixtureFunction = (
-    Callable[[], Optional[FixtureTeardown]] | Callable[[Callable[[], None]], None]
-)
+FixtureFunction = Callable[[], FixtureTeardown | None]
 
 
 class FixtureManager:
@@ -149,12 +145,7 @@ class FixtureManager:
             next(coro)
             return coro
         else:
-            # Clojure use-fixtures functions expect to receive a function of no
-            # arguments which they call to execute the tests. In our case, use
-            # a threading.Event to wait until the function is called to proceed.
-            evt = threading.Event()
-            cast(Callable[[Callable[[], None]], None], fixture)(evt.set)
-            evt.wait()
+            fixture()
             return None
 
     @classmethod
