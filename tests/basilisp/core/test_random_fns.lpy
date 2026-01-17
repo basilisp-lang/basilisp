@@ -1,0 +1,52 @@
+(ns tests.basilisp.core.test-random-fns
+  (:require
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest rand-test
+  (testing "no args"
+    (let [x (rand)]
+      (is (float? x))
+      (is (<= 0 x 1))))
+
+  (testing "only upper bound"
+    (let [x (rand 100)]
+      (is (float? x))
+      (is (<= 0 x 100))))
+
+  (testing "upper and lower bounds"
+    (let [x (rand 10 100)]
+      (is (float? x))
+      (is (<= 10 x 100)))))
+
+(deftest rand-int-test
+  (testing "only upperbound"
+    (let [x (rand-int 100)]
+      (is (integer? x))
+      (is (<= 0 x 100))))
+
+  (testing "upper and lower bounds"
+    (let [x (rand-int 10 100)]
+      (is (integer? x))
+      (is (<= 10 x 100)))))
+
+(deftest rand-nth-test
+  (are [input] (contains? (set input) (rand-nth input))
+    [:a :b :c]
+    '(:a :b :c)
+    (python/list [:a :b :c])
+    (python/tuple [:a :b :c])))
+
+(deftest rand-sample-test
+  (are [input] (let [elems (set input)]
+                 (every? elems (random-sample 0.5 input)))
+    [:a :b :c]
+    '(:a :b :c)
+    (python/list [:a :b :c])
+    (python/tuple [:a :b :c])))
+
+(deftest shuffle-test
+  (are [input] (= (set input) (set (shuffle input)))
+    [:a :b :c]
+    '(:a :b :c)
+    (python/list [:a :b :c])
+    (python/tuple [:a :b :c])))
