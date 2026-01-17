@@ -1116,43 +1116,45 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn +
-  "Sum the arguments together. If no arguments given, returns 0."
+  "Sum the arguments together. If no arguments given, returns 0. If one argument is
+  given, return that argument."
   ([] 0)
   ([x] x)
-  ([x y] (operator/add x y))
+  ([x y] (basilisp.lang.numbers/add x y))
   ([x y & args]
    (if (seq args)
-     (recur (operator/add x y) (first args) (rest args))
-     (operator/add x y))))
+     (recur (basilisp.lang.numbers/add x y) (first args) (rest args))
+     (basilisp.lang.numbers/add x y))))
 
 (defn -
   "Subtract the arguments. If one argument given, returns the negation of that
   argument."
   ([x] (operator/neg x))
-  ([x y] (basilisp.lang.runtime/subtract x y))
+  ([x y] (basilisp.lang.numbers/subtract x y))
   ([x y & args]
    (if (seq args)
-     (recur (basilisp.lang.runtime/subtract x y) (first args) (rest args))
-     (basilisp.lang.runtime/subtract x y))))
+     (recur (basilisp.lang.numbers/subtract x y) (first args) (rest args))
+     (basilisp.lang.numbers/subtract x y))))
 
 (defn *
-  "Multiply the arguments. If no arguments given, returns 1."
+  "Multiply the arguments. If no arguments given, returns 1. If one argument is given,
+  return that argument."
   ([] 1)
   ([x] x)
-  ([x y] (basilisp.lang.runtime/multiply x y))
+  ([x y] (basilisp.lang.numbers/multiply x y))
   ([x y & args]
    (if (seq args)
-     (recur (basilisp.lang.runtime/multiply x y) (first args) (rest args))
-     (basilisp.lang.runtime/multiply x y))))
+     (recur (basilisp.lang.numbers/multiply x y) (first args) (rest args))
+     (basilisp.lang.numbers/multiply x y))))
 
 (defn /
   "Divide the arguments. If only one argument is given, returns the inverse of the argument."
-  ([x] (basilisp.lang.runtime/divide 1 x))
-  ([x y] (basilisp.lang.runtime/divide x y))
+  ([x] (basilisp.lang.numbers/divide 1 x))
+  ([x y] (basilisp.lang.numbers/divide x y))
   ([x y & args]
    (if (seq args)
-     (recur (basilisp.lang.runtime/divide x y) (first args) (rest args))
-     (basilisp.lang.runtime/divide x y))))
+     (recur (basilisp.lang.numbers/divide x y) (first args) (rest args))
+     (basilisp.lang.numbers/divide x y))))
 
 (defn ^:inline abs
   "Return the absolute value of ``x``\\."
@@ -1164,7 +1166,7 @@
 
   The division result is rounded towards zero."
   [num div]
-  (basilisp.lang.runtime/trunc (/ num div)))
+  (basilisp.lang.numbers/trunc (/ num div)))
 
 (defn rem
   "Returns the remainder of ``num`` and ``div``\\."

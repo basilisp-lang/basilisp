@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from re import Pattern
-from typing import Protocol, Union
+from typing import Any, Protocol, Union
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -51,6 +51,10 @@ LispForm = Union[
 PyCollectionForm = Union[dict, list, set, tuple]
 ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm, TaggedLiteral]
 SpecialForm = Union[llist.PersistentList, ISeq]
+
+
+class Comparable(Protocol):
+    def __lt__(self, other: Any, /) -> bool: ...
 
 
 class BasilispFunction(Protocol):

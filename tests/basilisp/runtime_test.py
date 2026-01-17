@@ -10,6 +10,7 @@ from basilisp.lang import atom as atom
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import numbers
 from basilisp.lang import queue as lqueue
 from basilisp.lang import runtime as runtime
 from basilisp.lang import seq as lseq
@@ -620,7 +621,7 @@ def test_not_equals(v1, v2):
     ],
 )
 def test_divide(v1, v2, expected_result, result_type):
-    result = runtime.divide(v1, v2)
+    result = numbers.divide(v1, v2)
     assert result == expected_result
     assert isinstance(result, result_type)
 
