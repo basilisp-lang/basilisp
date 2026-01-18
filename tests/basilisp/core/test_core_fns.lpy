@@ -12,6 +12,14 @@
    [basilisp.string :as str]
    [basilisp.test :refer [deftest are is testing]]))
 
+(deftest str-test
+  (are [expected args] (= expected (apply str args))
+    ""                         []
+    "hi"                       ["hi"]
+    "1"                        [1]
+    "hi there i'm chris"       ["hi " "there " "i'm " "chris"]
+    "today is my 1st birthday" ["today is my " 1 "st birthday"]))
+
 (deftest boolean-test
   (testing "logical false values"
     (are [v] (false? (boolean v))
@@ -96,6 +104,28 @@
       nil  nil
       :kw  :kw
       'sym 'sym)))
+
+(deftest name-test
+  (are [expected v] (= expected (name v))
+    "hi"  "hi"
+    "sym" 'sym
+    "sym" 'ns/sym
+    "kw"  :kw
+    "kw"  :ns/kw))
+
+(deftest name-test
+  (are [expected v] (= expected (namespace v))
+    nil  'sym
+    "ns" 'ns/sym
+    nil  :kw
+    "ns" :ns/kw))
+
+(deftest bigdec-test
+  (is (= (/ 1.0M 3.0M) (bigdec 1/3)))
+  (are [expected input] (= expected (bigdec input))
+    1M   1
+    1.5M 1.5
+    1.5M 1.5M))
 
 (deftest vary-meta-test
   (testing "with lists"

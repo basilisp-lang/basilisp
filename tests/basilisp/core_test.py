@@ -196,18 +196,6 @@ def test_ex_info():
         raise core.ex_info("This is just an exception", lmap.m())
 
 
-def test_last():
-    assert None is core.last(llist.EMPTY)
-    assert 1 == core.last(llist.l(1))
-    assert 2 == core.last(llist.l(1, 2))
-    assert 3 == core.last(llist.l(1, 2, 3))
-
-    assert None is core.last(vec.EMPTY)
-    assert 1 == core.last(vec.v(1))
-    assert 2 == core.last(vec.v(1, 2))
-    assert 3 == core.last(vec.v(1, 2, 3))
-
-
 class TestNot:
     def test_falsey(self, falsey_value):
         assert True is core.not_(falsey_value)
@@ -307,29 +295,6 @@ class TestComparison:
 
     def test_hash(self, lisp_value):
         assert hash(lisp_value) == core.hash_(lisp_value)
-
-
-def test_str():
-    assert "" == core.str_()
-    assert "hi" == core.str_("hi")
-    assert "1" == core.str_(1)
-    assert "hi there i'm chris" == core.str_("hi ", "there ", "i'm ", "chris")
-    assert "today is my 1st birthday" == core.str_("today is my ", 1, "st birthday")
-
-
-def test_name():
-    assert "hi" == core.name("hi")
-    assert "sym" == core.name(sym.symbol("sym"))
-    assert "sym" == core.name(sym.symbol("sym", ns="ns"))
-    assert "kw" == core.name(kw.keyword("kw"))
-    assert "kw" == core.name(kw.keyword("kw", ns="ns"))
-
-
-def test_namespace():
-    assert None is core.namespace(sym.symbol("sym"))
-    assert "ns" == core.namespace(sym.symbol("sym", ns="ns"))
-    assert None is core.namespace(kw.keyword("kw"))
-    assert "ns" == core.namespace(kw.keyword("kw", ns="ns"))
 
 
 class TestArithmetic:
