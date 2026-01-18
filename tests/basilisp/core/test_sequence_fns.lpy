@@ -3,6 +3,18 @@
   (:require
    [basilisp.test :refer [deftest are is testing]]))
 
+(deftest last-test
+  (are [expected coll] (= expected (last coll))
+    nil '()
+    1   '(1)
+    2   '(1 2)
+    3   '(1 2 3)
+
+    nil []
+    1   [1]
+    2   [1 2]
+    3   [1 2 3]))
+
 (deftest seqable?-test
   (are [v] (seqable? v)
     nil

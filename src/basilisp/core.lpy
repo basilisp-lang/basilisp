@@ -10,6 +10,7 @@
          inspect
          math
          multiprocessing
+         numbers
          os
          pathlib
          [queue :as py-queue]
@@ -133,7 +134,9 @@
     :arglists '([o])}
   integer?
   (fn integer? [o]
-    (instance? python/int o)))
+    (if (instance? python/bool o)
+      false
+      (instance? numbers/Integral o))))
 
 (def
   ^{:doc      "Return ``true`` if ``o`` is a string."
@@ -326,7 +329,6 @@
 (.alter-meta #'instance? assoc :inline ^:safe-py-params (fn [class obj] `(python/isinstance ~obj ~class)))
 (.alter-meta #'boolean? assoc :inline ^:safe-py-params (fn [o] `(instance? python/bool ~o)))
 (.alter-meta #'float? assoc :inline ^:safe-py-params (fn [o] `(instance? python/float ~o)))
-(.alter-meta #'integer? assoc :inline ^:safe-py-params (fn [o] `(instance? python/int ~o)))
 (.alter-meta #'string? assoc :inline ^:safe-py-params (fn [o] `(instance? python/str ~o)))
 (.alter-meta #'symbol? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.symbol/Symbol ~o)))
 (.alter-meta #'keyword? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.keyword/Keyword ~o)))
@@ -1113,69 +1115,72 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn +
-  "Sum the arguments together. If no arguments given, returns 0."
+  "Sum the arguments together. If no arguments given, returns 0. If one argument is
+  given, return that argument."
   ([] 0)
   ([x] x)
-  ([x y] (operator/add x y))
+  ([x y] (basilisp.lang.numbers/add x y))
   ([x y & args]
    (if (seq args)
-     (recur (operator/add x y) (first args) (rest args))
-     (operator/add x y))))
+     (recur (basilisp.lang.numbers/add x y) (first args) (rest args))
+     (basilisp.lang.numbers/add x y))))
 
 (defn -
   "Subtract the arguments. If one argument given, returns the negation of that
   argument."
   ([x] (operator/neg x))
-  ([x y] (operator/sub x y))
+  ([x y] (basilisp.lang.numbers/subtract x y))
   ([x y & args]
    (if (seq args)
-     (recur (operator/sub x y) (first args) (rest args))
-     (operator/sub x y))))
+     (recur (basilisp.lang.numbers/subtract x y) (first args) (rest args))
+     (basilisp.lang.numbers/subtract x y))))
 
 (defn *
-  "Multiply the arguments. If no arguments given, returns 1."
+  "Multiply the arguments. If no arguments given, returns 1. If one argument is given,
+  return that argument."
   ([] 1)
   ([x] x)
-  ([x y] (operator/mul x y))
+  ([x y] (basilisp.lang.numbers/multiply x y))
   ([x y & args]
    (if (seq args)
-     (recur (operator/mul x y) (first args) (rest args))
-     (operator/mul x y))))
+     (recur (basilisp.lang.numbers/multiply x y) (first args) (rest args))
+     (basilisp.lang.numbers/multiply x y))))
 
 (defn /
-  "Divide the arguments. If no arguments given, returns the inverse of the argument."
-  ([x] (basilisp.lang.runtime/divide 1 x))
-  ([x y] (basilisp.lang.runtime/divide x y))
+  "Divide the arguments. If only one argument is given, returns the inverse of the argument."
+  ([x] (basilisp.lang.numbers/divide 1 x))
+  ([x y] (basilisp.lang.numbers/divide x y))
   ([x y & args]
    (if (seq args)
-     (recur (basilisp.lang.runtime/divide x y) (first args) (rest args))
-     (basilisp.lang.runtime/divide x y))))
+     (recur (basilisp.lang.numbers/divide x y) (first args) (rest args))
+     (basilisp.lang.numbers/divide x y))))
 
 (defn ^:inline abs
   "Return the absolute value of ``x``\\."
   [x]
   (python/abs x))
 
-(defn ^:inline mod
+(defn mod
   "Returns the modulo of ``num`` and ``div``\\.
 
   It uses floored division for calculating the quotient."
   [num div]
-  (operator/mod num div))
+  (- num (* div (math/floor (/ num div)))))
 
-(defn ^:inline quot
+(defn quot
   "Returns the quotient of ``num`` and ``div``\\.
 
-  The division result is truncated."
+  The division result is rounded towards zero."
   [num div]
-  (int (/ num div)))
+  (basilisp.lang.numbers/trunc (/ num div)))
 
-(defn ^:inline rem
-  "Returns the remainder of ``num`` and ``div``\\.
-
-  It uses truncated division for calculating the quotient."
+(defn rem
+  "Returns the remainder of ``num`` and ``div``\\."
   [num div]
-  (- num (* div (int (/ num div)))))
+  (let [m (- num (* div (quot num div)))]
+    (if (and (< num 0 div) (> m 0))
+      (- m)
+      m)))
 
 (defn ^:inline inc
   "Increment the argument by 1."
@@ -1204,12 +1209,12 @@
 (defn min
   "Return the minimum of the arguments."
   [& args]
-  (python/min args))
+  (basilisp.lang.runtime/min-of args))
 
 (defn max
   "Return the maximum of the arguments."
   [& args]
-  (python/max args))
+  (basilisp.lang.runtime/max-of args))
 
 (defn ^:inline numerator
   "Return the numerator of a Fraction."
@@ -1224,13 +1229,19 @@
 (defn rationalize
   "Return the lowest ratio of ``num``.
 
-  If ``num`` is an integer or simplifies to an integer, return that value."
-  [num]
-  (let [frac (fractions/Fraction num)]
-    (if #?(:lpy312+ (.is-integer frac) :lpy311- (= (denominator frac) 1))
-      (python/int frac)
-      (let [ratio (.as-integer-ratio frac)]
-        (fractions/Fraction (first ratio) (second ratio))))))
+  If ``num`` is an integer or simplifies to an integer, return that value.
+
+  If ``max-denominator`` is not ``nil``, return an approximate rationalization for
+  ``num`` with denominator at most ``max-denominator``. Default is 1000000."
+  ([num]
+   (rationalize num 1000000))
+  ([num max-denominator]
+   (let [frac (if max-denominator
+                (.limit-denominator (fractions/Fraction num) max-denominator)
+                (fractions/Fraction num))]
+     (if #?(:lpy312+ (.is-integer frac) :lpy311- (= (denominator frac) 1))
+       (python/int frac)
+       frac))))
 
 (defn ^:inline compare
   "Return either -1, 0, or 1 to indicate the relationship between ``x`` and ``y``\\.
@@ -1338,9 +1349,13 @@
   (not (seq coll)))
 
 (defn even?
-  "Return ``true`` if ``x`` is even."
+  "Return ``true`` if ``x`` is even.
+
+  Throws a ``TypeError`` if ``x`` is not an integer."
   [x]
-  (if (= 0 (mod x 2)) true false))
+  (if-not (instance? python/int x)
+    (throw (python/TypeError #f"Argument must be an integer: {x}"))
+    (if (= 0 (mod x 2)) true false)))
 
 (defn ^:inline false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
@@ -1432,15 +1447,20 @@
   [x]
   (not (nil? x)))
 
-(defn number?
+(defn ^:no-inline number?
   "Return ``true`` if ``x`` is a number (integer, float, or complex)."
   [x]
-  (or (integer? x) (float? x) (complex? x)))
+  (and (not (boolean? x))
+       (instance? numbers/Number x)))
 
 (defn odd?
-  "Return ``true`` if ``x`` is odd."
+  "Return ``true`` if ``x`` is odd.
+
+  Throws a ``TypeError`` if ``x`` is not an integer."
   [x]
-  (if (= 1 (mod x 2)) true false))
+  (if-not (instance? python/int x)
+    (throw (python/TypeError #f"Argument must be an integer: {x}"))
+    (if (= 1 (mod x 2)) true false)))
 
 (defn pos?
   "Return ``true`` if ``x`` is positive."
@@ -1502,15 +1522,17 @@
   [x]
   (instance? fractions/Fraction x))
 
-(defn rational?
+(defn ^:no-inline rational?
   "Return ``true`` if ``x`` is a rational number."
   [x]
-  (or (int? x) (ratio? x) (decimal? x)))
+  (and (instance? #py (numbers/Rational decimal/Decimal) x)
+       (not (instance? python/bool x))))
 
-(defn real-number?
+(defn ^:no-inline real-number?
   "Return ``true`` if ``x`` is a real number."
   [x]
-  (or (integer? x) (float? x)))
+  (and (instance? #py (numbers/Real decimal/Decimal) x)
+       (not (instance? python/bool x))))
 
 (defn ^:inline reversible?
   "Return ``true`` if x implements :py:class:`basilisp.lang.interfaces.IReversible`\\."
@@ -1636,7 +1658,9 @@
 (defn bigdec
   "Coerce ``x`` to a Python :external:py:class:`decimal.Decimal`\\."
   [x]
-  (decimal/Decimal x))
+  (if (instance? fractions/Fraction x)
+    (operator/truediv (decimal/Decimal (.-numerator x)) (.-denominator x))
+    (decimal/Decimal x)))
 
 (defn ^:inline bigint
   "Coerce ``x`` to an integer.
@@ -1667,10 +1691,10 @@
     true))
 
 (defn byte
-  "Coerce ``x`` to a byte."
+  "Coerce ``x`` to a byte (an integer between -128 and 127)."
   [x]
-  (let [b (python/bytes [x])]
-    (if (= 1 (python/len b))
+  (let [b (python/int x)]
+    (if (operator/contains (python/range -128 128) b)
       b
       (throw
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
@@ -2258,14 +2282,18 @@
   ([v start]
    (subvec v start nil))
   ([v start end]
-   (when (> start (count v))
-     (throw (python/IndexError "Start index out of range")))
-   (when-not (nil? end)
-     (when (> end (count v))
-       (throw (python/IndexError "End index out of range")))
-     (when (> start end)
-       (throw (python/IndexError "Start index must be less than or equal to end index"))))
-   (operator/getitem v (python/slice start end))))
+   (let [start (int start)
+         end   (when end (int end))]
+     (when (> start (count v))
+       (throw (python/IndexError "Start index out of range")))
+     (when-not (nil? end)
+       (when (> end (count v))
+         (throw (python/IndexError "End index out of range")))
+       (when (> start end)
+         (throw (python/IndexError "Start index must be less than or equal to end index"))))
+     (when-not (vector? v)
+       (throw (python/TypeError #f "Expected vector; got {(type v)}")))
+     (operator/getitem v (python/slice start end)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
@@ -3029,7 +3057,7 @@
 (defn butlast
   "Return all but the last element in a sequence in linear time."
   [coll]
-  (drop-last coll))
+  (seq (drop-last coll)))
 
 (defn split-at
   "Split a collection at the ``n`` th item. Returns a vector of
@@ -3112,14 +3140,14 @@
 (defn cycle
   "Cycle the items in ``coll`` infinitely."
   [coll]
-  (let [coll (seq coll)
-        coll-cycle (fn coll-cycle
-                     [curr]
-                     (lazy-seq
-                      (if (seq curr)
-                        (cons (first curr) (coll-cycle (rest curr)))
-                        (coll-cycle coll))))]
-    (coll-cycle coll)))
+  (when-let [coll (seq coll)]
+    (let [coll-cycle (fn coll-cycle
+                       [curr]
+                       (lazy-seq
+                        (if (seq curr)
+                          (cons (first curr) (coll-cycle (rest curr)))
+                          (coll-cycle coll))))]
+      (coll-cycle coll))))
 
 (defn repeat
   "Repeat ``x`` infinitely or ``n`` many times if ``n`` is specified. Returns a lazy
@@ -3127,9 +3155,10 @@
   ([x]
    (lazy-seq (cons x (repeat x))))
   ([n x]
-   (lazy-seq
-    (when (> n 0)
-      (cons x (repeat (dec n) x))))))
+   (let [n (int n)]
+     (lazy-seq
+      (when (> n 0)
+        (cons x (repeat (dec n) x)))))))
 
 (defn repeatedly
   "Call ``f`` infinitely or ``n`` many times if ``n`` is specified. Returns a lazy
@@ -3147,15 +3176,14 @@
   Return a stateful transducer if no collection is provided."
   ([n]
    (fn [rf]
-     (let [v (volatile! 1)]
+     (let [v (volatile! -1)]
        (fn
          ([] (rf))
          ([result] (rf result))
          ([result input]
-          (let [cur (vswap! v dec)]
-            (if (zero? cur)
-              (do (vreset! v n)
-                  (rf result input))
+          (let [cur (vswap! v inc)]
+            (if (zero? (rem cur n))
+              (rf result input)
               result)))))))
   ([n coll]
    (lazy-seq
@@ -3388,7 +3416,7 @@
   [& maps]
   (when (some identity maps)
     (persistent!
-     (reduce* #(conj! %1 %2)
+     (reduce* #(conj! (or %1 {}) %2)
               (transient {})
               maps))))
 
@@ -3937,7 +3965,17 @@
   ([precision rounding]
    (let [current-ctx (.copy (decimal/getcontext))]
      (when-not (nil? rounding)
-       (when-not (contains? decimal-rounding-modes rounding)
+       (cond
+         (= "UNNECESSARY" rounding)
+         (let [current-traps (apply hash-map (mapcat identity (.items (.-traps current-ctx))))]
+           (set! (.-traps current-ctx)
+                 (python/dict
+                  (assoc current-traps decimal/Inexact true))))
+
+         (contains? decimal-rounding-modes rounding)
+         (set! (.-rounding current-ctx) (decimal-rounding-modes rounding))
+
+         :else
          (throw
           (python/ValueError
            (str "Unexpected rounding mode "
@@ -3945,8 +3983,6 @@
                 "; expected one of: "
                 (.join ", " (keys decimal-rounding-modes)))))))
      (set! (.-prec current-ctx) precision)
-     (when-let [rounding (decimal-rounding-modes rounding)]
-       (set! (.-rounding current-ctx) rounding))
      (decimal/localcontext current-ctx))))
 
 (defmacro with-precision
@@ -4358,13 +4394,6 @@
   ([s start]
    (subs s start nil))
   ([s start end]
-   (when (> start (count s))
-     (throw (python/IndexError "Start index out of range")))
-   (when-not (nil? end)
-     (when (> end (count s))
-       (throw (python/IndexError "End index out of range")))
-     (when (> start end)
-       (throw (python/IndexError "Start index must be less than or equal to end index"))))
    (operator/getitem s (python/slice start end))))
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -5678,6 +5707,28 @@
             (instance? python/type parent)
             (python/issubclass tag parent)))))
 
+(defn ^:private -check-global-hierarchy-tag-and-parent
+  [tag parent]
+  (when-not (qualified-ident? parent)
+    (throw (ex-info "Parent must be a qualified keyword or symbol"
+                    {:tag tag
+                     :parent parent})))
+  (when-not (or (qualified-ident? tag) (class? tag))
+    (throw (ex-info "Tag must be a valid Python type or a qualified keyword or symbol"
+                    {:tag tag
+                     :parent parent}))))
+
+(defn ^:private -check-hierarchy-tag-and-parent
+  [tag parent]
+  (when-not (ident? parent)
+    (throw (ex-info "Parent must be a keyword or symbol"
+                    {:tag tag
+                     :parent parent})))
+  (when-not (or (ident? tag) (class? tag))
+    (throw (ex-info "Tag must be a valid Python type or a keyword or symbol"
+                    {:tag tag
+                     :parent parent}))))
+
 (defn derive
   "Derive a parent/child relationship between ``tag`` and ``parent``\\.
 
@@ -5690,15 +5741,27 @@
 
   Relationships may be removed via :lpy:fn:`underive`."
   ([tag parent]
-   (alter-var-root #'global-hierarchy derive tag parent))
+   (-check-global-hierarchy-tag-and-parent tag parent)
+   (alter-var-root #'global-hierarchy derive tag parent)
+   nil)
   ([h tag parent]
-   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
-   (assert (or (qualified-ident? tag)
-               (class? tag))
-           "Tag must be a valid Python type or a qualified keyword or symbol")
-
+   (when-not (and (map? h) (:parents h) (:ancestors h) (:descendants h))
+     (throw
+      (ex-info "hierarchy must be a value returned by make-hierarchy"
+               {:hierarchy h})))
+   (when (= tag parent)
+     (throw
+      (ex-info "tag must be different from parent"
+               {:tag    tag
+                :parent parent})))
+   (-check-hierarchy-tag-and-parent tag parent)
    (let [parent-ancestors (get-in h [:ancestors parent] #{})
          cur-descendants  (get-in h [:descendants tag] #{})]
+     (when (contains? parent-ancestors tag)
+       (throw
+        (ex-info (str "cyclic derivation: " parent " has " tag " as an ancestor")
+                 {:tag    tag
+                  :parent parent})))
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (conj $ parent)
                      (assoc (:parents h) tag $))
@@ -5728,13 +5791,13 @@
   ``h`` must be a hierarchy returned by :lpy:fn:`make-hierarchy`. If ``h`` is not
   supplied, the global hierarchy will be used."
   ([tag parent]
-   (alter-var-root #'global-hierarchy underive tag parent))
+   (alter-var-root #'global-hierarchy underive tag parent)
+   nil)
   ([h tag parent]
-   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
-   (assert (or (qualified-ident? tag)
-               (class? tag))
-           "Tag must be a valid Python type or a qualified keyword or symbol")
-
+   (when-not (and (map? h) (:parents h) (:ancestors h) (:descendants h))
+     (throw
+      (ex-info "hierarchy must be a value returned by make-hierarchy"
+               {:hierarchy h})))
    (let [tag-parents (-> (get-in h [:parents tag] #{})
                          (disj parent))
          new-parents (if (seq tag-parents)

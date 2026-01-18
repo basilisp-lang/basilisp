@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * `get-in` always returns the input mapping if no keys are given (#1305)
  * `assoc!` allows an odd number of arguments, substituting `nil` for the missing value (#1305)
  * `nthrest` and `nthnext` return the input collection unchanged if the index given is negative (#1305)
+ * `even?` and `odd?` predicates throw exceptions for non-integral inputs (#1305)
+ * `min` and `max` now return `##NaN` if any input argument is `##NaN` (#1305)
+ * Ratios which reduce to an integer are now returned from the reader as integers (#1305)
 
 ### Fixed
  * Fix a bug where `import` refers would incorrectly be applied to all import modules in the same form (#1274)
@@ -32,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where namespaces created dynamically at the REPL could not be required from other namespaces in the REPL (#1302)
  * Fix a bug where NaN floats were not properly represented in compiled code (#1305)
  * Fix a bug where calling `dissoc` on a record type would throw an exception for keys which weren't defined on the record (#1305)
+ * Fix a bug where arithmetic functions with operands of different types would throw exceptions (#1305)
+ * Fix a bug where `number?` and `integer?` would return true for Python `bool` types (#1305)
 
 ### Removed
  * Removed support for Python 3.9 (#1283)

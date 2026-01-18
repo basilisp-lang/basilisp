@@ -1,0 +1,39 @@
+name: Run clojure-test-suite
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "43 16 * * 0"
+
+jobs:
+  run-clojure-test-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: basilisp
+      - uses: actions/checkout@v4
+        with:
+          path: clojure-test-suite
+          repository: basilisp-lang/clojure-test-suite
+          ref: feature/support-basilisp
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pip and dependencies
+        run: |
+          cd clojure-test-suite
+          pip install -U pip
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install "basilisp @ file://$(realpath ../basilisp)" pytest
+      - name: Run tests
+        run: |
+          cd clojure-test-suite
+          source .venv/bin/activate
+          BASILISP_TEST_PATH="$(pwd)/test" \
+            BASILISP_TEST_FILE_PATTERN='.*\.(lpy|cljc)' \
+            basilisp test -p test -- --continue-on-collection-errors

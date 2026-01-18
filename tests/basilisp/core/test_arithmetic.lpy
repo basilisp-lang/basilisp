@@ -1,0 +1,296 @@
+(ns tests.basilisp.core.test-arithmetic
+  (:import decimal
+           fractions
+           math)
+  (:require
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest numerator-denominator-test
+  (are [expected input] (= expected [(numerator input) (denominator input)])
+    [0 1]  0
+    [3 1]  3
+    [1 3]  1/3
+    [-1 3] -1/3))
+
+(deftest min-test
+  (are [args] (NaN? (apply min args))
+    [##NaN]
+    [1 ##NaN]
+    [##NaN 1]
+    [1 2 3 4 5 ##NaN]
+    [##NaN 1 2 3 4 5])
+
+  (are [expected args] (= expected (apply min args))
+    5    [5]
+    5    [5 5]
+    5    [5 9]
+    1    [1 2 3 4 5]
+    -399 [5 10 -1 532 -399 42.3 99.1937 -33.8]))
+
+(deftest max-test
+  (are [args] (NaN? (apply max args))
+    [##NaN]
+    [1 ##NaN]
+    [##NaN 1]
+    [1 2 3 4 5 ##NaN]
+    [##NaN 1 2 3 4 5])
+
+  (are [expected args] (= expected (apply max args))
+    5   [5]
+    5   [5 5]
+    9   [5 9]
+    5   [1 2 3 4 5]
+    532 [5 10 -1 532 -399 42.3 99.1937 -33.8]))
+
+(deftest plus-test
+  (are [expected tp args] (= [expected tp] (let [v (apply + args)]
+                                             [v (type v)]))
+    0  python/int []
+    1  python/int [1]
+    -1 python/int [-1]
+    2  python/int [1 1]
+    0  python/int [-1 1]
+    -2 python/int [-1 -1]
+
+    0.0 python/float [-1.0 1]
+    0.0 python/float [-1 1.0]
+
+    ;; adding floats and decimals yields a float
+    0.0 python/float [-1.0 1.0M]
+    0.0 python/float [-1.0M 1.0]
+
+    0.0M decimal/Decimal [-1.0M 1.0M]
+    0.0M decimal/Decimal [-1 1.0M]
+    0.0M decimal/Decimal [-1.0M 1]
+    0.0M decimal/Decimal [-2/2 1.0M]
+    0.0M decimal/Decimal [-1.0M 2/2]
+
+    1    python/int         [1/3 2/3]
+    4/3  fractions/Fraction [1/3 1]
+    4/3  fractions/Fraction [1 1/3]
+    -1/3 fractions/Fraction [1/3 -2/3])
+
+  (are [expected args] (let [v (apply + args)]
+                         (and (math/isclose expected v)
+                              (float? v)))
+    1.3333333333333333 [1/3 1.0]
+    1.3333333333333333 [1.0 1/3]))
+
+(deftest minus-test
+  (are [expected tp args] (= [expected tp] (let [v (apply - args)]
+                                             [v (type v)]))
+    -1    python/int         [1]
+    1     python/int         [-1]
+    -1.0  python/float       [1.0]
+    1.0   python/float       [-1.0]
+    -1.0M decimal/Decimal    [1.0M]
+    1.0M  decimal/Decimal    [-1.0M]
+    -2/3  fractions/Fraction [2/3]
+    2/3   fractions/Fraction [-2/3]
+
+    2.0  python/float [1 -1.0]
+    2.0  python/float [1.0 -1]
+    -2.0 python/float [-1.0 1]
+    -2.0 python/float [-1 1.0]
+
+    ;; subtraction floats and decimals yields a float
+    2.0  python/float [1.0 -1.0M]
+    2.0  python/float [1.0M -1.0]
+    -2.0 python/float [-1.0 1.0M]
+    -2.0 python/float [-1.0M 1.0]
+
+    -2.0M decimal/Decimal [-1.0M 1.0M]
+    -2.0M decimal/Decimal [-1 1.0M]
+    -2.0M decimal/Decimal [-1.0M 1]
+    -2.0M decimal/Decimal [-2/2 1.0M]
+    -2.0M decimal/Decimal [-1.0M 2/2]
+
+    -1   python/int         [1/3 4/3]
+    -1/3 fractions/Fraction [1/3 2/3]
+    -2/3 fractions/Fraction [1/3 1]
+    2/3  fractions/Fraction [1 1/3]
+    1    python/int         [1/3 -2/3])
+
+  (are [expected args] (let [v (apply - args)]
+                         (and (math/isclose expected v)
+                              (float? v)))
+    -0.6666666666666667 [1/3 1.0]
+    0.6666666666666667  [1.0 1/3]))
+
+(deftest times-test
+  (are [expected tp args] (= [expected tp] (let [v (apply * args)]
+                                             [v (type v)]))
+    1  python/int []
+    1  python/int [1]
+    -1 python/int [-1]
+    1  python/int [1 1]
+    -1 python/int [-1 1]
+    1  python/int [-1 -1]
+
+    -1.0 python/float [-1.0 1]
+    -1.0 python/float [-1 1.0]
+    1.0  python/float [-1.0 -1]
+    1.0  python/float [-1 -1.0]
+
+    ;; multiplying floats and decimals yields a float
+    -1.0 python/float [-1.0 1.0M]
+    -1.0 python/float [-1.0M 1.0]
+
+    -1.0M decimal/Decimal [-1.0M 1.0M]
+    -1.0M decimal/Decimal [-1 1.0M]
+    -1.0M decimal/Decimal [-1.0M 1]
+    -1.0M decimal/Decimal [-2/2 1.0M]
+    -1.0M decimal/Decimal [-1.0M 2/2]
+
+    1    python/int         [1/3 9/3]
+    2/9  fractions/Fraction [1/3 2/3]
+    1/3  fractions/Fraction [1/3 1]
+    1/3  fractions/Fraction [1 1/3]
+    -2/9 fractions/Fraction [1/3 -2/3])
+
+  (are [expected args] (let [v (apply * args)]
+                         (and (math/isclose expected v)
+                              (float? v)))
+    0.3333333333333333 [1/3 1.0]
+    0.3333333333333333 [1.0 1/3]))
+
+(deftest divide-test
+  (are [args] (thrown? python/ZeroDivisionError (apply / args))
+    [0]
+    [3 0])
+
+  (are [expected tp args] (= [expected tp] (let [v (apply / args)]
+                                             [v (type v)]))
+    1    python/int         [1]
+    1/2  fractions/Fraction [2]
+    1.0  python/float       [1.0]
+    0.5  python/float       [2.0]
+    1.0M decimal/Decimal    [1.0M]
+    0.5M decimal/Decimal    [2.0M]
+    3/2  fractions/Fraction [2/3]
+
+    -1.0 python/float [1 -1.0]
+    -1.0 python/float [1.0 -1]
+    -1.0 python/float [-1.0 1]
+    -1.0 python/float [-1 1.0]
+
+    ;; division of floats and decimals yields a float
+    -1.0 python/float [1.0 -1.0M]
+    -1.0 python/float [1.0M -1.0]
+    -1.0 python/float [-1.0 1.0M]
+    -1.0 python/float [-1.0M 1.0]
+
+    -1.0M decimal/Decimal [-1.0M 1.0M]
+    -1.0M decimal/Decimal [-1 1.0M]
+    -1.0M decimal/Decimal [-1.0M 1]
+    -1.0M decimal/Decimal [-2/2 1.0M]
+    -1.0M decimal/Decimal [-1.0M 2/2]
+
+    1/4  fractions/Fraction [1/3 4/3]
+    1/2  fractions/Fraction [1/3 2/3]
+    1/6  fractions/Fraction [1/3 2]
+    3    python/int         [1 1/3]
+    -1/2 fractions/Fraction [1/3 -2/3])
+
+  (are [expected args] (let [v (apply / args)]
+                         (and (math/isclose expected v)
+                              (float? v)))
+    0.16666666666666666 [1/3 2.0]
+    6.0                 [2.0 1/3]))
+
+(deftest inc-test
+  (are [result v] (= result (inc v))
+    11   10
+    1    0
+    0    -1
+    6.9  5.9
+    -4.9 -5.9))
+
+(deftest dec-test
+  (are [result v] (= result (dec v))
+    9    10
+    -1   0
+    -2   -1
+    0    1
+    4.9  5.9
+    -6.9 -5.9))
+
+(deftest mod-test
+  (are [result x y] (= result (mod x y))
+    0   10  5
+    4   10  6
+    0   10  10
+    0   10  -1
+    1   5   2
+    1   -5  2
+    -1  5   -2
+    -1  -5  -2
+    2   5   3
+    1   -5  3
+    -1  5   -3
+    -2  -5  -3
+    1   5   4
+    3   -5  4
+    -3  5   -4
+    -1  -5  -4
+    3   -21 4
+    3   -2  5
+    2   -10 3
+    0.5 1.5 1)
+
+  (are [result x y] (let [m (mod x y)]
+                      (math/isclose m result))
+    6.095000000000027 475.095    7
+    0.840200000000074 1024.8402  5.12
+    4.279799999999926 -1024.8402 5.12)
+  )
+
+(deftest quot-test
+  (are [result x y] (= result (quot x y))
+    0    1    2
+    2    5    2
+    -2   -5   2
+    -2   5    -2
+    2    -5   -2
+    1    5    3
+    -1   -5   3
+    -1   5    -3
+    1    -5   -3
+    1    5    4
+    -1   -5   4
+    -1   5    -4
+    1    -5   -4
+    1    2    2
+    1    3    2
+    2    4    2
+    3    10   3
+    3    11   3
+    4    12   3
+    1.0  5.9  3
+    -1.0 -5.9 3
+    -3   -10  3
+    -3   10   -3
+    3    10   3
+
+    44879032948094820938438942938402938402984209842098984209449032094205874758758475837584759347 448790329480948209384389429384029384029842098420989842094490320942058747587584758375847593471 10))
+
+(deftest rem-test
+  (are [result x y] (= result (rem x y))
+    1  10  9
+    0  2   2
+    1  5   2
+    -1 -5  2
+    1  5   -2
+    -1 -5  -2
+    2  5   3
+    -2 -5  3
+    2  5   -3
+    -2 -5  -3
+    1  5   4
+    -1 -5  4
+    1  5   -4
+    -1 -5  -4
+    1  3   2
+    -1 -3  2
+    -1 -10 3
+    -1 -21 4))

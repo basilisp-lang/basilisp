@@ -2,6 +2,93 @@
   (:require
    [basilisp.test :refer [deftest is are]]))
 
+(deftest nil?-test
+  (is (= true (nil? nil)))
+
+  (are [v] (= false (nil? v))
+    true
+    false
+    0
+    1
+    0.0
+    1.0
+    0.0M
+    1N
+    1.0M
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    []
+    '()
+    {}
+    #{}))
+
+(deftest integer?-test
+  (are [input] (true? (integer? input))
+    -1
+    0
+    1
+    -1N
+    0N
+    1N
+    3/3)
+
+  (are [input] (false? (integer? input))
+    true
+    false
+    nil
+    -1.0
+    0.0
+    1.0
+    -1.0M
+    0.0M
+    0.0M
+    2/3
+    -4/7
+    21J
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    []
+    {}
+    '()
+    #{}))
+
+(deftest number?-test
+  (are [input] (true? (number? input))
+    -1
+    0
+    1
+    -1N
+    0N
+    1N
+    3/3
+    -1.0
+    0.0
+    1.0
+    -1.0M
+    0.0M
+    0.0M
+    2/3
+    -4/7
+    21J
+    -4J)
+
+  (are [input] (false? (number? input))
+    true
+    false
+    nil
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    []
+    {}
+    '()
+    #{}))
+
 (deftest true?-test
   (is (= true (true? true)))
 

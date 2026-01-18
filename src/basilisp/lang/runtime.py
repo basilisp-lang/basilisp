@@ -18,7 +18,6 @@ import sys
 import threading
 import types
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
-from fractions import Fraction
 from typing import AbstractSet, Any, NoReturn, Optional, TypeVar, Union, cast
 
 import attr
@@ -53,7 +52,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.reduced import Reduced
 from basilisp.lang.reference import RefBase, ReferenceBase
-from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
+from basilisp.lang.typing import BasilispFunction, Comparable, CompilerOpts
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
 
@@ -560,6 +559,7 @@ class Namespace(ReferenceBase):
                 "basilisp.lang.list",
                 "basilisp.lang.map",
                 "basilisp.lang.multifn",
+                "basilisp.lang.numbers",
                 "basilisp.lang.promise",
                 "basilisp.lang.queue",
                 "basilisp.lang.reader",
@@ -1757,20 +1757,27 @@ def equals(v1, v2) -> bool:
     return v1 == v2
 
 
-@functools.singledispatch
-def divide(x: LispNumber, y: LispNumber) -> LispNumber:
-    """Division reducer. If both arguments are integers, return a Fraction.
-    Otherwise, return the true division of x and y."""
-    return x / y
+T_comparable = TypeVar("T_comparable", bound=Comparable)
 
 
-@divide.register(int)
-def _divide_ints(x: int, y: LispNumber) -> LispNumber:
-    if isinstance(y, int):
-        frac = Fraction(x, y)
-        # fractions.Fraction.is_integer() wasn't added until 3.12
-        return frac.numerator if frac.denominator == 1 else frac
-    return x / y
+def max_of(it: Iterable[T_comparable]) -> T_comparable:
+    """Return the max of an iterable of arguments.
+
+    Unlike in Python, if any value is NaN return NaN."""
+    for v in it:
+        if isinstance(v, numbers.Real) and math.isnan(v):
+            return v
+    return max(it)
+
+
+def min_of(it: Iterable[T_comparable]) -> T_comparable:
+    """Return the min of an iterable of arguments.
+
+    Unlike in Python, if any value is NaN return NaN."""
+    for v in it:
+        if isinstance(v, numbers.Real) and math.isnan(v):
+            return v
+    return min(it)
 
 
 @functools.singledispatch
