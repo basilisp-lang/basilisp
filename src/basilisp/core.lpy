@@ -1525,12 +1525,14 @@
 (defn ^:no-inline rational?
   "Return ``true`` if ``x`` is a rational number."
   [x]
-  (instance? numbers/Rational x))
+  (and (instance? #py (numbers/Rational decimal/Decimal) x)
+       (not (instance? python/bool x))))
 
 (defn ^:no-inline real-number?
   "Return ``true`` if ``x`` is a real number."
   [x]
-  (instance? numbers/Real x))
+  (and (instance? #py (numbers/Real decimal/Decimal) x)
+       (not (instance? python/bool x))))
 
 (defn ^:inline reversible?
   "Return ``true`` if x implements :py:class:`basilisp.lang.interfaces.IReversible`\\."
