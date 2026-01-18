@@ -456,20 +456,6 @@ def test_max():
     assert 532 == core.max_(5, 10, -1, 532, -399, 42.3, 99.1937, -33.8)
 
 
-def test_numerator(fraction):
-    assert fraction.numerator == core.numerator(fraction)
-
-
-def test_denominator(fraction):
-    assert fraction.denominator == core.denominator(fraction)
-
-
-def test_sort():
-    assert llist.l(1) == core.sort(vec.v(1))
-    assert llist.l(1, 2, 3) == core.sort(vec.v(1, 2, 3))
-    assert llist.l(1, 2, 3, 4, 5) == core.sort(vec.v(5, 3, 1, 2, 4))
-
-
 class TestIsAny:
     def test_any_always_true(self, lisp_value):
         assert True is core.any__Q__(lisp_value)
@@ -646,13 +632,6 @@ class TestIsIdent:
     )
     def test_is_qualified_symbol(self, v):
         assert True is core.qualified_symbol__Q__(v)
-
-
-def test_is_map_entry():
-    assert True is core.map_entry__Q__(lmap.MapEntry.of("a", "b"))
-    assert False is core.map_entry__Q__(vec.EMPTY)
-    assert False is core.map_entry__Q__(vec.v("a", "b"))
-    assert False is core.map_entry__Q__(vec.v("a", "b", "c"))
 
 
 class TestNumericPredicates:
@@ -1314,6 +1293,19 @@ class TestAssociativeFunctions:
             ),
             vec.v(kw.keyword("a"), kw.keyword("b")),
         )
+
+
+def test_sort():
+    assert llist.l(1) == core.sort(vec.v(1))
+    assert llist.l(1, 2, 3) == core.sort(vec.v(1, 2, 3))
+    assert llist.l(1, 2, 3, 4, 5) == core.sort(vec.v(5, 3, 1, 2, 4))
+
+
+def test_is_map_entry():
+    assert True is core.map_entry__Q__(lmap.MapEntry.of("a", "b"))
+    assert False is core.map_entry__Q__(vec.EMPTY)
+    assert False is core.map_entry__Q__(vec.v("a", "b"))
+    assert False is core.map_entry__Q__(vec.v("a", "b", "c"))
 
 
 def test_range():

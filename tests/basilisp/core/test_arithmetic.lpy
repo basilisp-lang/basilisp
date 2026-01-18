@@ -5,6 +5,13 @@
   (:require
    [basilisp.test :refer [deftest is are testing]]))
 
+(deftest numerator-denominator-test
+  (are [expected input] (= expected [(numerator input) (denominator input)])
+    [0 1]  0
+    [3 1]  3
+    [1 3]  1/3
+    [-1 3] -1/3))
+
 (deftest plus-test
   (are [expected tp args] (= [expected tp] (let [v (apply + args)]
                                              [v (type v)]))
