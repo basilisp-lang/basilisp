@@ -311,4 +311,47 @@
               python/complex #{python/object}
               ::collections  nil
               ::numeric      #{::types}
-              ::types        nil)))))))
+              ::types        nil))))))
+
+  (testing "invalid derive inputs"
+    (are [tag parent] (thrown? basilisp.lang.exception/ExceptionInfo
+                               (derive tag parent))
+      ;; tag and parent must not be the same
+      ::rect ::rect
+
+      ;; invalid parent
+      ::rect 'shape
+      ::rect :shape
+      ::rect python/object
+      ::rect "object"
+      ::rect nil
+
+      ;; invalid tag
+      'rect  ::shape
+      :rect  ::shape
+      "rect" ::shape
+      nil    ::shape)
+
+    (are [h tag parent] (thrown? basilisp.lang.exception/ExceptionInfo
+                                 (derive h tag parent))
+      ;; invalid hierarchy
+      nil                ::rect ::shape
+      {}                 ::rect ::shape
+      {:parents #{}}     ::rect ::shape
+      {:ancestors #{}}   ::rect ::shape
+      {:descendents #{}} ::rect ::shape
+
+      ;; tag and parent must not be the same
+      (make-hierarchy) ::rect   ::rect
+      (make-hierarchy) 'ns/rect 'ns/rect
+      (make-hierarchy) :rect    :rect
+      (make-hierarchy) 'rect    'rect
+
+      ;; invalid parent
+      (make-hierarchy) ::rect python/object
+      (make-hierarchy) ::rect "object"
+      (make-hierarchy) ::rect nil
+
+      ;; invalid tag
+      (make-hierarchy) "rect" ::shape
+      (make-hierarchy) nil    ::shape)))
