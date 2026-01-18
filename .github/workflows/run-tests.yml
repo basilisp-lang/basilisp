@@ -33,7 +33,7 @@ jobs:
             tox-env: py314,py314-lint
           - os: macos-latest
             version: '3.14'
-            tox-env: py313,py314-lint
+            tox-env: py314,py314-lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -70,6 +70,9 @@ jobs:
         run: |
           tox run-parallel -p 4 -- -n auto
           mkdir coverage
+      - name: Collect code coverage files
+        if: "startsWith (matrix.os, 'ubuntu')"
+        run: |
           for filename in .coverage.*; do mv "$filename" "coverage/$filename.py${{ matrix.version }}"; done;
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
