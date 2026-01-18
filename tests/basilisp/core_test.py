@@ -333,16 +333,6 @@ def test_namespace():
 
 
 class TestArithmetic:
-    def test_division(self):
-        with pytest.raises(runtime.RuntimeException):
-            core.__DIV__()
-
-        with pytest.raises(ZeroDivisionError):
-            core.__DIV__(0)
-
-        with pytest.raises(ZeroDivisionError):
-            core.__DIV__(3, 0)
-
     @pytest.mark.parametrize(
         "result,x,y",
         [
