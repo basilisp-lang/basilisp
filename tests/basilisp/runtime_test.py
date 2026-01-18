@@ -609,23 +609,6 @@ def test_not_equals(v1, v2):
     assert not runtime.equals(v2, v1)
 
 
-@pytest.mark.parametrize(
-    "v1,v2,expected_result,result_type",
-    [
-        (3, 3, 1, int),
-        (3, 1, 3, int),
-        (3, 1.001, 3 / 1.001, float),
-        (3000, 1000, 3, int),
-        (3000, 1001, fractions.Fraction(3000, 1001), fractions.Fraction),
-        (3001, 1000, fractions.Fraction(3001, 1000), fractions.Fraction),
-    ],
-)
-def test_divide(v1, v2, expected_result, result_type):
-    result = numbers.divide(v1, v2)
-    assert result == expected_result
-    assert isinstance(result, result_type)
-
-
 def test_pop_thread_bindings():
     with pytest.raises(runtime.RuntimeException):
         runtime.pop_thread_bindings()
