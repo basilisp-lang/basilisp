@@ -76,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage.py${{ matrix.version }}
-          path: coverage/.coverage.py*
+          path: coverage/.coverage.*
           include-hidden-files: true
           if-no-files-found: error
 
@@ -127,7 +127,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage.pypy${{ matrix.version }}
-          path: coverage/.coverage.py*
+          path: coverage/.coverage.*
           include-hidden-files: true
           if-no-files-found: error
 
