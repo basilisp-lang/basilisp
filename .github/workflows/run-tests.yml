@@ -70,7 +70,7 @@ jobs:
         run: |
           tox run-parallel -p 4 -- -n auto
           mkdir coverage
-          mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
+          for filename in .coverage.*; do mv "$filename" "coverage/$filename.py${{ matrix.version }}"; done;
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
         uses: actions/upload-artifact@v4
@@ -122,7 +122,7 @@ jobs:
         run: |
           tox run -- -n 2
           mkdir coverage
-          mv .coverage.* "coverage/.coverage.pypy${{ matrix.version }}"
+          for filename in .coverage.*; do mv "$filename" "coverage/$filename.pypy${{ matrix.version }}"; done;
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
         with:
