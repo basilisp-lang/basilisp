@@ -1161,6 +1161,13 @@
   [x]
   (python/abs x))
 
+(defn mod
+  "Returns the modulo of ``num`` and ``div``\\.
+
+  It uses floored division for calculating the quotient."
+  [num div]
+  (- num (* div (math/floor (/ num div)))))
+
 (defn quot
   "Returns the quotient of ``num`` and ``div``\\.
 
@@ -1175,13 +1182,6 @@
     (if (and (< num 0 div) (> m 0))
       (- m)
       m)))
-
-(defn mod
-  "Returns the modulo of ``num`` and ``div``\\.
-
-  It uses floored division for calculating the quotient."
-  [num div]
-  (- num (* div (math/floor (/ num div)))))
 
 (defn ^:inline inc
   "Increment the argument by 1."
