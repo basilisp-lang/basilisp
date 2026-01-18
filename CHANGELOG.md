@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * `even?` and `odd?` predicates throw exceptions for non-integral inputs (#1305)
  * `min` and `max` now return `##NaN` if any input argument is `##NaN` (#1305)
  * Ratios which reduce to an integer are now returned from the reader as integers (#1305)
+ * `mod`, `quot`, and `rem` return values are now consistent with the Clojure return values for the same inputs (#1305)
+ * `derive` will throw exceptions if the provided hierarchy is invalid or if the tag and parent are invalid types (#1305)
 
 ### Fixed
  * Fix a bug where `import` refers would incorrectly be applied to all import modules in the same form (#1274)
