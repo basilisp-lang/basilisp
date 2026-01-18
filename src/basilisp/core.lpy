@@ -329,7 +329,6 @@
 (.alter-meta #'instance? assoc :inline ^:safe-py-params (fn [class obj] `(python/isinstance ~obj ~class)))
 (.alter-meta #'boolean? assoc :inline ^:safe-py-params (fn [o] `(instance? python/bool ~o)))
 (.alter-meta #'float? assoc :inline ^:safe-py-params (fn [o] `(instance? python/float ~o)))
-(.alter-meta #'integer? assoc :inline ^:safe-py-params (fn [o] `(if (instance? python/bool ~o) false (instance? python/int ~o))))
 (.alter-meta #'string? assoc :inline ^:safe-py-params (fn [o] `(instance? python/str ~o)))
 (.alter-meta #'symbol? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.symbol/Symbol ~o)))
 (.alter-meta #'keyword? assoc :inline ^:safe-py-params (fn [o] `(instance? basilisp.lang.keyword/Keyword ~o)))
@@ -1448,7 +1447,7 @@
   [x]
   (not (nil? x)))
 
-(defn number?
+(defn ^:no-inline number?
   "Return ``true`` if ``x`` is a number (integer, float, or complex)."
   [x]
   (and (not (boolean? x))
@@ -1523,15 +1522,15 @@
   [x]
   (instance? fractions/Fraction x))
 
-(defn rational?
+(defn ^:no-inline rational?
   "Return ``true`` if ``x`` is a rational number."
   [x]
-  (or (int? x) (ratio? x) (decimal? x)))
+  (instance? numbers/Rational x))
 
-(defn real-number?
+(defn ^:no-inline real-number?
   "Return ``true`` if ``x`` is a real number."
   [x]
-  (or (integer? x) (float? x)))
+  (instance? numbers/Real x))
 
 (defn ^:inline reversible?
   "Return ``true`` if x implements :py:class:`basilisp.lang.interfaces.IReversible`\\."

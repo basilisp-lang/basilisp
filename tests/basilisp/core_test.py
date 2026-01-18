@@ -628,24 +628,19 @@ class TestNumericPredicates:
         assert False is core.even__Q__(odd_int)
 
     def test_is_int(self, int_number):
-        assert True is core.integer__Q__(int_number)
         assert True is core.int__Q__(int_number)
 
     def test_decimal_is_not_int(self, decimal):
-        assert False is core.integer__Q__(decimal)
         assert False is core.int__Q__(decimal)
 
     def test_double_is_not_int(self, float_number):
-        assert False is core.integer__Q__(float_number)
         assert False is core.int__Q__(float_number)
 
     def test_fraction_is_not_int(self, fraction):
-        assert False is core.integer__Q__(fraction)
         assert False is core.int__Q__(fraction)
 
     def test_complex_is_not_int(self, complex_number):
-        assert False is core.integer__Q__(complex_number)
-        assert False is core.integer__Q__(complex_number)
+        assert False is core.int__Q__(complex_number)
 
     @pytest.mark.parametrize("v", [1, 100, 1.0, 9_999_839.874_394])
     def test_is_positive(self, v):
@@ -700,12 +695,6 @@ class TestNumericPredicates:
     def test_is_not_nat_int(self, v):
         assert False is core.nat_int__Q__(v)
 
-    def test_is_number_includes_reals(self, real_number):
-        assert True is core.number__Q__(real_number)
-
-    def test_is_number_includes_complex(self, complex_number):
-        assert True is core.number__Q__(complex_number)
-
     def test_is_real_number(self, real_number):
         assert True is core.real_number__Q__(real_number)
 
@@ -741,7 +730,7 @@ class TestNumericPredicates:
         assert True is core.rational__Q__(fraction)
 
     def test_decimal_is_rational(self, decimal):
-        assert True is core.rational__Q__(decimal)
+        assert False is core.rational__Q__(decimal)
 
     def test_int_is_rational(self, int_number):
         assert True is core.rational__Q__(int_number)

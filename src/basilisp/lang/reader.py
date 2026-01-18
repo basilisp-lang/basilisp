@@ -906,9 +906,13 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-stateme
         if (numerator := int(num)) == 0:
             return 0
         try:
-            return Fraction(numerator=numerator, denominator=int(denominator))
+            frac = Fraction(numerator=numerator, denominator=int(denominator))
         except ZeroDivisionError as e:
             raise ctx.syntax_error(f"Invalid ratio format: {s}") from e
+        else:
+            if frac.denominator == 1:
+                return frac.numerator
+            return frac
     elif (match := scientific_notation_literal.fullmatch(s)) is not None:
         sig = float(m) if "." in (m := match.group(1)) else int(m)
         exp = int(match.group(2))

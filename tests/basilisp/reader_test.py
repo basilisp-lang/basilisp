@@ -2079,6 +2079,8 @@ def test_decimal_literal():
 def test_fraction_literal():
     assert langutil.fraction(1, 7) == read_str_first("1/7")
     assert langutil.fraction(22, 7) == read_str_first("22/7")
+    assert 1 == read_str_first("3/3")
+    assert 3 == read_str_first("9/3")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("3/7N")
