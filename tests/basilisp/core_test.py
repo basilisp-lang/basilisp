@@ -622,7 +622,7 @@ class TestNumericPredicates:
         assert True is core.rational__Q__(fraction)
 
     def test_decimal_is_rational(self, decimal):
-        assert False is core.rational__Q__(decimal)
+        assert True is core.rational__Q__(decimal)
 
     def test_int_is_rational(self, int_number):
         assert True is core.rational__Q__(int_number)

@@ -267,12 +267,7 @@ class MapEntry(IMapEntry[K, V], PersistentVector[Union[K, V]]):
     __slots__ = ()
 
     def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
-        try:
-            if not len(wrapped) == 2:
-                raise ValueError("Vector arg to map conj must be a pair")
-        except TypeError as e:
-            raise TypeError(f"Cannot make map entry from {type(wrapped)}") from e
-
+        assert len(wrapped) == 2, "Vector arg to map conj must be a pair"
         super().__init__(wrapped)
 
     @property
@@ -289,6 +284,11 @@ class MapEntry(IMapEntry[K, V], PersistentVector[Union[K, V]]):
 
     @staticmethod
     def from_vec(v: Sequence[K | V]) -> "MapEntry[K, V]":
+        try:
+            if len(v) != 2:
+                raise ValueError("Vector arg to map conj must be a pair")
+        except TypeError as e:
+            raise TypeError(f"Cannot make map entry from {type(v)}") from e
         return MapEntry(pvector(v))
 
 
