@@ -2,6 +2,28 @@
   (:require
    [basilisp.test :refer [deftest is are]]))
 
+(deftest nil?-test
+  (is (= true (nil? nil)))
+
+  (are [v] (= false (nil? v))
+    true
+    false
+    0
+    1
+    0.0
+    1.0
+    0.0M
+    1N
+    1.0M
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym
+    []
+    '()
+    {}
+    #{}))
+
 (deftest true?-test
   (is (= true (true? true)))
 

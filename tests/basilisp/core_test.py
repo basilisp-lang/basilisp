@@ -440,22 +440,6 @@ class TestArithmetic:
         assert result == core.dec(x)
 
 
-def test_min():
-    assert 5 == core.min_(5)
-    assert 5 == core.min_(5, 5)
-    assert 5 == core.min_(5, 9)
-    assert 1 == core.min_(1, 2, 3, 4, 5)
-    assert -399 == core.min_(5, 10, -1, 532, -399, 42.3, 99.1937, -33.8)
-
-
-def test_max():
-    assert 5 == core.max_(5)
-    assert 5 == core.max_(5, 5)
-    assert 9 == core.max_(5, 9)
-    assert 5 == core.max_(1, 2, 3, 4, 5)
-    assert 532 == core.max_(5, 10, -1, 532, -399, 42.3, 99.1937, -33.8)
-
-
 class TestIsAny:
     def test_any_always_true(self, lisp_value):
         assert True is core.any__Q__(lisp_value)
@@ -506,17 +490,6 @@ class TestIsColl:
     @pytest.mark.parametrize("v", [kw.keyword("a"), 1, "string", sym.symbol("sym")])
     def test_is_not_coll(self, v):
         assert False is core.coll__Q__(v)
-
-
-class TestIsFalse:
-    def test_false_is_false(self):
-        assert True is core.false__Q__(False)
-
-    def test_none_is_not_false(self):
-        assert False is core.false__Q__(None)
-
-    def test_truth_values_are_not_false(self, truthy_value):
-        assert False is core.false__Q__(truthy_value)
 
 
 class TestIsFn:
@@ -828,14 +801,6 @@ class TestNumericPredicates:
         assert False is core.infinite__Q__(real_number)
 
 
-class TestIsNil:
-    def test_nil_values_are_nil(self, nil_value):
-        assert True is core.nil__Q__(nil_value)
-
-    def test_non_nil_values_are_not_nil(self, non_nil_value):
-        assert False is core.nil__Q__(non_nil_value)
-
-
 class TestIsPy:
     @pytest.mark.parametrize("v", [{}, {"a": "b"}])
     def test_is_py_dict(self, v):
@@ -884,15 +849,6 @@ class TestIsSome:
 
     def test_non_nil_values_are_some(self, non_nil_value):
         assert True is core.some__Q__(non_nil_value)
-
-
-class TestIsTrue:
-    def test_true_is_true(self):
-        assert True is core.true__Q__(True)
-
-    def test_other_values_are_not_true(self, lisp_value):
-        if lisp_value is not True:
-            assert False is core.true__Q__(lisp_value)
 
 
 class TestIsUUID:

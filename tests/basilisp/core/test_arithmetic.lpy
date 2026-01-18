@@ -12,6 +12,36 @@
     [1 3]  1/3
     [-1 3] -1/3))
 
+(deftest min-test
+  (are [args] (NaN? (apply min args))
+    [##NaN]
+    [1 ##NaN]
+    [##NaN 1]
+    [1 2 3 4 5 ##NaN]
+    [##NaN 1 2 3 4 5])
+
+  (are [expected args] (= expected (apply min args))
+    5    [5]
+    5    [5 5]
+    5    [5 9]
+    1    [1 2 3 4 5]
+    -399 [5 10 -1 532 -399 42.3 99.1937 -33.8]))
+
+(deftest max-test
+  (are [args] (NaN? (apply max args))
+    [##NaN]
+    [1 ##NaN]
+    [##NaN 1]
+    [1 2 3 4 5 ##NaN]
+    [##NaN 1 2 3 4 5])
+
+  (are [expected args] (= expected (apply max args))
+    5   [5]
+    5   [5 5]
+    9   [5 9]
+    5   [1 2 3 4 5]
+    532 [5 10 -1 532 -399 42.3 99.1937 -33.8]))
+
 (deftest plus-test
   (are [expected tp args] (= [expected tp] (let [v (apply + args)]
                                              [v (type v)]))
