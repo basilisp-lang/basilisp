@@ -360,7 +360,7 @@
   the input streams should be compatible with Python's :external:py:class:`io.BufferedIOBase` interface.
 
   Callers should take care to open a reader instance using
-  :lpy:fn`basilisp.core/with-open` to ensure that any resources are properly closed
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
   afterwards. Note that for in-memory IO buffers such as :external:py:class:`io.BytesIO` and
   :external:py:class:`io.StringIO`, opening an input stream without assigning it to a name for the
   duration of its use may trigger garbage collection of the input stream which closes

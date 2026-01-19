@@ -891,7 +891,7 @@
   (not (apply = args)))
 
 (defn ==
-  "Alias for lpy:fn:`=`."
+  "Alias for :lpy:fn:`=`."
   [& args]
   (apply = args))
 
@@ -1006,7 +1006,7 @@
 
 (defn atom
   "Return an Atom containing ``v``\\. The value of an Atom at any point in time may be
-  returned by :lpy:fn`deref` ing it. The value of an atom may be reset using
+  returned by :lpy:fn:`deref` ing it. The value of an atom may be reset using
   :lpy:fn:`reset!` and may be swapped using :lpy:fn:`swap!`. All operations on an atom
   occur atomically."
   ([v]
@@ -6926,7 +6926,7 @@
   "Return a collection of types explicitly extending protocol ``proto``\\.
 
   The returned collection will not include types which extend proto via inheritance
-  (as by :lpy:fn:`deftype` and :lpy:fn`defrecord`). Only types extending proto via
+  (as by :lpy:fn:`deftype` and :lpy:fn:`defrecord`). Only types extending proto via
   :lpy:fn:`extend` (or :lpy:fn:`extend-protocol` or :lpy:fn:`extend-type`) will appear."
   [{:keys [impls] :as proto}]
   (apply list impls))

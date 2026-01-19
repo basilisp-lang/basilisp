@@ -13,6 +13,11 @@ You can fetch the latest version of Basilisp from PyPI using ``pip``::
 
     pip install basilisp
 
+Basilisp supports some optional extras:
+
+- ``pygments`` will install `Pygments <https://pygments.org/>`_ locally and provide syntax highlighting at the REPL.
+- ``pytest`` will install PyTest. See :ref:`testing` for more information.
+
 .. note::
 
    This will pull the latest version of Basilisp from PyPI, but ``pip`` also offers a variety of other ways to select specific versions of libraries.
@@ -53,6 +58,16 @@ From here you might find the documentation for the :ref:`repl` helpful to learn 
 
 Good luck!
 
+Getting Support
+---------------
+
+If you're looking for support using Basilisp, you are encouraged to reach out on one of the following platforms:
+
+- `Clojurians Slack <https://clojurians.slack.com/archives/C071RFV2Z1D>`_
+- `GitHub Discusssions <https://github.com/basilisp-lang/basilisp/discussions>`_
+
+If you believe you have discovered a bug, please review the :ref:`Contributing Guidelines <contributing>` before submitting an issue.
+
 .. _using_basilisp_in_a_project:
 
 Using Basilisp in a Project
@@ -92,7 +107,7 @@ Basilisp source files should always have a ``.lpy`` extension.
    Python ``__init__.py`` files are not required anywhere in Basilisp project source directories (including for nested namespaces), though you may need to use them if your project mixes Python and Basilisp sources.
    A single ``__init__.py`` file may be required for running tests with Pytest -- see :ref:`testing_path` for more information.
 
-Basilisp apps can use any of Python's myriad dependency management options, including `pip <https://pip.pypa.io/en/stable/>`_, `Pipenv <https://pipenv.pypa.io/en/latest/>`_, and `Poetry <https://python-poetry.org/>`_.
+Basilisp apps can use any of Python's myriad dependency management options, such as `pip <https://pip.pypa.io/en/stable/>`_, `uv <https://docs.astral.sh/uv/>`_, `Poetry <https://python-poetry.org/>`_, and many others.
 Basilisp itself uses Poetry and that is the recommended dependency management tool for new Basilisp projects.
 
 .. _bootstrapping:

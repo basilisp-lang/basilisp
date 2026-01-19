@@ -21,6 +21,5 @@ There are many such planned features that will hopefully improve the ergonomics 
 A few of those features include:
 
 * Project management tooling to facility dependency management/locking and packaging
-* Compatibility with the platform-agnostic components of Clojure
 
 See the GitHub `issues <https://github.com/basilisp-lang/basilisp/issues>`_ and `projects <https://github.com/basilisp-lang/basilisp/projects?type=beta>`_ pages for more details.

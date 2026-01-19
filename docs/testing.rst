@@ -6,6 +6,10 @@ Testing
 .. lpy:currentns:: basilisp.test
 
 Basilisp includes a `PyTest <https://docs.pytest.org/>`_ plugin which supports running tests defined using the functions and macros in :lpy:ns:`basilisp.test`.
+PyTest can be installed alongside Basilisp by specifying the ``pytest`` extra when installing::
+
+   pip install basilisp[pytest]
+
 Tests should be located in a ``tests/`` directory off of the project root, as outlined in :ref:`project_structure`.
 Basilisp test files should end with an ``.lpy`` suffix and the file basename should either be prefixed with ``test_`` or suffixed with ``_test``.
 Tests can be executed using the :ref:`CLI <run_basilisp_tests>` or can be run directly using PyTest's provided CLI.

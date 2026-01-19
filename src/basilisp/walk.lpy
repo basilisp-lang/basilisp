@@ -94,12 +94,12 @@
            form))
 
 (defn postwalk-demo
-  "Print each element as it is walked as by :lpy:fn`postwalk`."
+  "Print each element as it is walked as by :lpy:fn:`postwalk`."
   [form]
   (postwalk #(do (println (str "Walked: " %)) %) form))
 
 (defn prewalk-demo
-  "Print each element as it is walked as by :lpy:fn`postwalk`."
+  "Print each element as it is walked as by :lpy:fn:`postwalk`."
   [form]
   (prewalk #(do (println (str "Walked: " %)) %) form))
 
