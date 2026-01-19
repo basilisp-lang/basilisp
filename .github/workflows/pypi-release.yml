@@ -19,7 +19,7 @@ jobs:
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
       - name: Validate Release Version
-        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
+        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | sed -e 's/^v//')"
       - name: Build Basilisp distributions
         run: poetry build
       - name: Upload build artifact
