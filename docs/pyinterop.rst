@@ -470,7 +470,7 @@ Python's :external:py:class:`decimal.Decimal` type (which backs Basilisp's equiv
 .. note::
 
    There *is* a runtime cost to supporting this seamless interoperation.
-   Users who wish to use Python's operators directly (with all of it's attendant benefits and drawbacks) may use the functions in :external:py:mod:`operator` freely without needing to import ``operator``.
+   Users who wish to use Python's operators directly (with all of their attendant benefits and drawbacks) may use the functions in :external:py:mod:`operator` freely without needing to import ``operator``.
    Basilisp will automatically compile ``operator`` module function invocations into the corresponding Python unary or binary operation.
 
 The Python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators.

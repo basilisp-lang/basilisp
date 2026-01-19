@@ -58,6 +58,16 @@ From here you might find the documentation for the :ref:`repl` helpful to learn 
 
 Good luck!
 
+Getting Support
+---------------
+
+If you're looking for support using Basilisp, you are encouraged to reach out on one of the following platforms:
+
+- `Clojurians Slack <https://clojurians.slack.com/archives/C071RFV2Z1D>`_
+- `GitHub Discusssions <https://github.com/basilisp-lang/basilisp/discussions>`_
+
+If you believe you have discovered a bug, please review the :ref:`Contributing Guidelines <contributing>` before submitting an issue.
+
 .. _using_basilisp_in_a_project:
 
 Using Basilisp in a Project
