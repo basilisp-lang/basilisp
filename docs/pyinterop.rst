@@ -457,20 +457,34 @@ These decorators are applied from right to left, similar to how Python decorator
     (asyncio/run (six))
     ;; => 13
 
-.. _arithmetic_division:
+.. _arithmetic:
 
-Arithmetic Division
--------------------
+Arithmetic
+----------
 
 .. lpy:currentns:: basilisp.core
 
-The Python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators. The discrepancy arises from Python's choice of floored division (`src <http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_, `archived <https://web.archive.org/web/20100827160949/http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_) while Java employs truncated division for its calculations (refer to the to the `Wikipedia Modulo page <https://en.wikipedia.org/wiki/Modulo>`_ for a a comprehensive list of available division formulae).
+Basilisp's arithmetic functions follow Clojure's conventions allowing frictionless interoperability between all supported numeric types.
+Python's :external:py:class:`decimal.Decimal` type (which backs Basilisp's equivalent to Clojure's ``BigDecimal``) does not support arithmetic operations between ``Decimal`` instances and Python ``float``s, but Basilisp does allow this (downcasting the result to a ``float`` as in Clojure).
 
-In Clojure, the ``clojure.core/quot`` function utilizes Java's long division operator, and the ``%`` operator is employed in defining the ``clojure.core/rem`` function. The ``clojure.core/mod`` function is subsequently established through floored division based on the latter.
+.. note::
 
-Basilisp has chosen to adopt the same mathematical formulae as Clojure for these three functions, rather than using the Python's built in operators under all cases. This approach offers the advantage of enhanced cross-platform compatibility without requiring modification, and ensures compatibility with examples in  `ClojureDocs <https://clojuredocs.org/>`_.
+   There *is* a runtime cost to supporting this seamless interoperation.
+   Users who wish to use Python's operators directly (with all of it's attendant benefits and drawbacks) may use the functions in :external:py:mod:`operator` freely without needing to import ``operator``.
+   Basilisp will automatically compile ``operator`` module function invocations into the corresponding Python unary or binary operation.
 
-Users still have the option to use the native :external:py:func:`operator.floordiv`, i.e. Python's ``//``  operator, if they prefer so.
+The Python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators.
+The discrepancy arises from Python's choice of floored division (`src <http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_, `archived <https://web.archive.org/web/20100827160949/http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_) while Java employs truncated division for its calculations (refer to the to the `Wikipedia Modulo page <https://en.wikipedia.org/wiki/Modulo>`_ for a a comprehensive list of available division formulae).
+
+In Clojure, the ``clojure.core/quot`` function utilizes Java's long division operator, and the ``%`` operator is employed in defining the ``clojure.core/rem`` function.
+The ``clojure.core/mod`` function is subsequently established through floored division based on the latter.
+
+Basilisp has chosen to adopt the same mathematical formulae as Clojure for these three functions, rather than using the Python's built in operators under all cases.
+This approach offers the advantage of enhanced cross-platform compatibility without requiring modification, and ensures compatibility with examples in  `ClojureDocs <https://clojuredocs.org/>`_.
+
+.. note::
+
+   Users still have the option to use the native :external:py:func:`operator.floordiv`, i.e. Python's ``//``  operator.
 
 .. seealso::
 

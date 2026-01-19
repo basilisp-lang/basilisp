@@ -1,6 +1,6 @@
 [project]
 name = "basilisp"
-version = "0.4.0"
+version = "0.5.0.dev1"
 description = "A Clojure-like lisp written for Python"
 authors = [
     { name = "Christopher Rink", email = "chris@crink.dev" },

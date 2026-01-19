@@ -60,7 +60,7 @@ Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
 
 .. seealso::
 
-   :ref:`arithmetic_division`
+   :ref:`arithmetic`
 
    Arithmetic functions: :lpy:fn:`+`, :lpy:fn:`-`, :lpy:fn:`*`, :lpy:fn:`/`, :lpy:fn:`abs`, :lpy:fn:`mod`, :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`inc`, :lpy:fn:`dec`, :lpy:fn:`min`, :lpy:fn:`max`
 
