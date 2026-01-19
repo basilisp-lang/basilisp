@@ -282,26 +282,19 @@ class TestRequireDynamicNamespaces:
         return "require_dynamic_ns_test"
 
     def test_dynamic_require_succeeds(self, lcompile: CompileFn):
-        lcompile(
-            """
+        lcompile("""
             (ns basilisp.dynamic-ns)
 
-            (defn hi [] :hi)"""
-        )
+            (defn hi [] :hi)""")
 
         assert runtime.get_current_ns().name == "basilisp.dynamic-ns"
 
-        assert (
-            lcompile(
-                """
+        assert lcompile("""
                 (in-ns 'basilisp.require-dynamic-ns-test)
 
                 (require '[basilisp.dynamic-ns :as dynamic])
 
-                (dynamic/hi)"""
-            )
-            == kw.keyword("hi")
-        )
+                (dynamic/hi)""") == kw.keyword("hi")
 
         # Dynamically created namespace modules are never inserted into `sys.modules`
         # so they cannot be reloaded.
@@ -324,17 +317,12 @@ class TestRequireDynamicNamespaces:
 
         assert runtime.get_current_ns().name == "btest.dynamic-ns"
 
-        assert (
-            lcompile(
-                """
+        assert lcompile("""
                 (in-ns 'basilisp.require-dynamic-ns-test)
 
                 (require '[btest.dynamic-ns :as btdyn])
 
-                (btdyn/hi)"""
-            )
-            == kw.keyword("dynamic-with-file")
-        )
+                (btdyn/hi)""") == kw.keyword("dynamic-with-file")
 
 
 class TestRequireAsAlias:

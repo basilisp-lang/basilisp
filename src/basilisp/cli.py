@@ -761,8 +761,7 @@ def test(
 @_subcommand(
     "test",
     help="run tests in a Basilisp project",
-    description=textwrap.dedent(
-        """Run tests in a Basilisp project.
+    description=textwrap.dedent("""Run tests in a Basilisp project.
 
         Any options not recognized by Basilisp and all positional arguments will
         be collected and passed on to PyTest. It is possible to directly signal
@@ -780,8 +779,7 @@ def test(
 
             `basilisp test -k vector -p other_dir`
 
-        Returns the PyTest exit code as the exit code."""
-    ),
+        Returns the PyTest exit code as the exit code."""),
     handler=test,
     allows_extra=True,
 )
