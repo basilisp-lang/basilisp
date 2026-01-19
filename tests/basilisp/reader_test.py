@@ -275,16 +275,12 @@ class TestSyntaxErrorFormat:
             return tmp_path / "reader_test.lpy"
 
         def test_shows_source_context(self, monkeypatch, source_file: Path):
-            source_file.write_text(
-                textwrap.dedent(
-                    """
+            source_file.write_text(textwrap.dedent("""
                     (ns reader-test)
 
                     (let [a :b]
                       a
-                    """
-                ).strip()
-            )
+                    """).strip())
             monkeypatch.syspath_prepend(source_file.parent)
 
             with pytest.raises(reader.SyntaxError) as e:
@@ -308,17 +304,12 @@ class TestSyntaxErrorFormat:
             )
 
         def test_shows_source_context_(self, monkeypatch, source_file: Path):
-            source_file.write_text(
-                textwrap.dedent(
-                    """
+            source_file.write_text(textwrap.dedent("""
                     (ns reader-test)
 
                     (let [a :b]
                       a
-                    """
-                ).strip()
-                + "\n"
-            )
+                    """).strip() + "\n")
             monkeypatch.setenv("BASILISP_NO_COLOR", "true")
             monkeypatch.syspath_prepend(source_file.parent)
 
