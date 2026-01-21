@@ -1,7 +1,6 @@
 name: Release to Test PyPI
 
 on:
-  pull_request:
   push:
     branches: [ main ]
 
