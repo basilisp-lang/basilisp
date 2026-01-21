@@ -1,6 +1,7 @@
 name: Release to PyPI
 
 on:
+  pull_request:
   release:
     types: [ published ]
 
@@ -18,8 +19,8 @@ jobs:
           python-version: ${{ vars.PYTHON_VERSION }}
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
-      - name: Validate Release Version
-        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | sed -e 's/^v//')"
+#      - name: Validate Release Version
+#        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | sed -e 's/^v//')"
       - name: Build Basilisp distributions
         run: poetry build
       - name: Upload build artifact
@@ -46,31 +47,38 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: dist/
+    - run: |
+        pwd
+        ls -la
     - name: Sign the dists with Sigstore
       uses: sigstore/gh-action-sigstore-python@v3.0.0
       with:
         inputs: >-
           ./dist/*.tar.gz
           ./dist/*.whl
-    - name: Upload artifact signatures to GitHub Release
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      run: gh release upload "$GITHUB_REF_NAME" dist/** --repo "$GITHUB_REPOSITORY"
+    - run: |
+        pwd
+        ls -la
 
-  pypi-release:
-    runs-on: ubuntu-latest
-    environment:
-      name: release
-    name: Release to PyPI
-    needs:
-      - build
-    permissions:
-      id-token: write
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: dist/
-          merge-multiple: true
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+#    - name: Upload artifact signatures to GitHub Release
+#      env:
+#        GITHUB_TOKEN: ${{ github.token }}
+#      run: gh release upload "$GITHUB_REF_NAME" dist/** --repo "$GITHUB_REPOSITORY"
+#
+#  pypi-release:
+#    runs-on: ubuntu-latest
+#    environment:
+#      name: release
+#    name: Release to PyPI
+#    needs:
+#      - build
+#    permissions:
+#      id-token: write
+#    steps:
+#      - name: Download build artifact
+#        uses: actions/download-artifact@v4
+#        with:
+#          path: dist/
+#          merge-multiple: true
+#      - name: Publish package distributions to PyPI
+#        uses: pypa/gh-action-pypi-publish@v1.13.0
