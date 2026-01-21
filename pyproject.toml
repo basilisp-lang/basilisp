@@ -108,7 +108,6 @@ omit = [
     "*/__version__.py",
     "*/basilisp/contrib/sphinx/*",
 ]
-patch = ["subprocess"]
 
 [tool.coverage.paths]
 source = [
