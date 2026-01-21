@@ -30,7 +30,7 @@ jobs:
   sign-dists:
     runs-on: ubuntu-latest
     environment:
-      name: release
+      name: test-pypi
     name: >-
       Sign the Python distribution with Sigstore and upload them to GitHub Release
     needs:
