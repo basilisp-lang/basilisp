@@ -42,7 +42,7 @@ jobs:
           path: dist/
       - run: |
           pwd
-          ls -la
+          find .
       - name: Sign the dists with Sigstore
         uses: sigstore/gh-action-sigstore-python@v3.0.0
         with:
