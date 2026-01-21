@@ -42,15 +42,14 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           path: dist/
-      - run: |
-          pwd
-          find .
       - name: Sign the dists with Sigstore
         uses: sigstore/gh-action-sigstore-python@v3.2.0
         with:
           inputs: >-
             ./dist/*.tar.gz
             ./dist/*.whl
+      - name: Print all files recursively
+        run: find .
 
   test-pypi-release:
     runs-on: ubuntu-latest
