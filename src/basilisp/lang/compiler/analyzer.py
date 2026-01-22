@@ -2762,9 +2762,7 @@ def _invoke_ast(form: llist.PersistentList | ISeq, ctx: AnalyzerContext) -> Node
         if _is_macro(fn.var) and ctx.should_macroexpand:
             try:
                 macro_env = ctx.symbol_table.as_env_map()
-                expanded = runtime.apply(
-                    fn.var.value, llist.l(macro_env, form, form.rest)
-                )
+                expanded = fn.var.value(macro_env, form, *form.rest)
                 return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
                 if isinstance(e, CompilerException) and (  # pylint: disable=no-member
