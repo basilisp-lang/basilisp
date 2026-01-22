@@ -1305,20 +1305,21 @@ def is_reiterable_iterable(x: Any) -> bool:
     return isinstance(x, Iterable) and iter(x) is not x
 
 
-def concat(*seqs: Any) -> ISeq:
-    """Concatenate the sequences given by seqs into a single ISeq."""
-    return lseq.iterator_sequence(
-        itertools.chain.from_iterable(filter(None, map(to_seq, seqs)))
-    )
+T_concat = TypeVar("T_concat")
 
 
-def concat_from_seq(seqs: ISeq[ISeq] | None) -> ISeq:
-    """Concatenate the sequences given by seqs into a single ISeq."""
+def concat_from_seq(seqs: Iterable[Iterable[T_concat] | None] | None) -> ISeq[T_concat]:
+    """Given a seq of seqs, return a flat seq."""
     if seqs is None:
         return lseq.EMPTY
     return lseq.iterator_sequence(
         itertools.chain.from_iterable(filter(None, map(to_seq, seqs)))
     )
+
+
+def concat(*seqs: Iterable[T_concat] | None) -> ISeq[T_concat]:
+    """Concatenate the sequences given by seqs into a single ISeq."""
+    return concat_from_seq(seqs)
 
 
 T_reduce_init = TypeVar("T_reduce_init")
@@ -2209,13 +2210,31 @@ def _fn_with_meta(f, meta: lmap.PersistentMap | None):
 
 
 class _WrappedRestArgs:
+    """Sentinel wrapper type for a potentially infinite sequence of arguments
+    provided by `apply`.
+
+    `apply` calls `BasilispFunction.apply_to` (a method on all Basilisp functions
+    added by the compiler via `_basilisp_fn` decorator) with the fixed set of arguments
+    and the remaining (rest) arguments as an ISeq. `BasilispFunction.apply_to` then
+    calls the wrapped function with the fixed set of arguments and the remaining args
+    as an ISeq wrapped in a `_WrappedRestArgs` object.
+
+    The compiler generates code which calls `_unwrap_rest_args` on Python varargs
+    to convert it into a flattened ISeq within the receiving function. This allows
+    applying infinite sequences without attempting to eagerly consume them."""
+
     __slots__ = ("rest",)
 
-    def __init__(self, rest: ISeq):
+    def __init__(self, rest: ISeq | None):
         self.rest = rest
 
 
 def _unwrap_rest_args(args: tuple) -> ISeq:
+    """Runtime support function added by the compiler for generated variadic Python
+    functions to support infinite sequences of arguments with `apply`.
+
+    Unwraps any `_WrappedRestArgs` objects in the final position of the Python vararg
+    on a variadic arity function, returning an ISeq which can be consumed lazily."""
     try:
         *final, last = args
     except ValueError:
@@ -2223,7 +2242,7 @@ def _unwrap_rest_args(args: tuple) -> ISeq:
     else:
         if isinstance(last, _WrappedRestArgs):
             return concat(final, last.rest)
-        return lseq.to_seq(args)
+        return concat(final, [last])
 
 
 def _basilisp_fn(
@@ -2232,23 +2251,26 @@ def _basilisp_fn(
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
 
-    def wrap_fn(f: Callable) -> BasilispFunction:
+    def wrap_fn(f) -> BasilispFunction:
 
         if REST_KW in arities:
             try:
                 max_fixed_arity = max(v for v in arities if isinstance(v, int))
             except ValueError:
 
+                @functools.wraps(f)
                 def apply_to(args: list, rest: ISeq | None):
                     return f(*args, _WrappedRestArgs(rest))
 
             else:
 
+                @functools.wraps(f)
                 def apply_to(args: list, rest: ISeq | None):
                     num_missing_args = max_fixed_arity - len(args)
                     if num_missing_args > 0:
                         remaining = []
                         while num_missing_args > 0 and to_seq(rest):
+                            assert rest is not None
                             e, rest = rest.first, rest.rest
                             remaining.append(e)
                             num_missing_args -= 1
@@ -2260,6 +2282,7 @@ def _basilisp_fn(
 
         else:
 
+            @functools.wraps(f)
             def apply_to(args: list, rest: ISeq | None):
                 return f(*concat(args, rest))
 

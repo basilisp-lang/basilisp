@@ -213,7 +213,14 @@
 (def ^{:doc      "Apply function ``f`` to the arguments provided.
 
                   The last argument must always be coercible to a Seq. Intermediate
-                  arguments are not modified."
+                  arguments are not modified. The Seq in the last argument may be
+                  infinite if the called function ``f`` is lazy.
+
+                  .. warning::
+
+                     Applying arguments to Python functions (rather than Basilisp
+                     functions) will consume the argument Seq eagerly. Infinite
+                     Seqs are **not** supported for Python functions."
        :arglists '([f & args])}
   apply
   (fn apply [f & args]
