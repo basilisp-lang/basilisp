@@ -799,6 +799,7 @@ _ATTR_FROZEN_DECORATOR_NAME = _load_attr(f"{_ATTR_ALIAS}.frozen")
 _ATTRIB_FIELD_FN_NAME = _load_attr(f"{_ATTR_ALIAS}.field")
 _BASILISP_LOAD_CONSTANT_NAME = _load_attr(f"{_RUNTIME_ALIAS}._load_constant")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
+_UNWRAP_REST_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._unwrap_rest_args")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _BASILISP_TYPE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_type")
@@ -1707,7 +1708,7 @@ def __fn_args_to_py_ast(
                     value=ast.IfExp(
                         test=ast.Name(id=arg_name, ctx=ast.Load()),
                         body=ast.Call(
-                            func=_NEW_LIST_FN_NAME,
+                            func=_UNWRAP_REST_ARGS_FN_NAME,
                             args=[ast.Name(id=arg_name, ctx=ast.Load())],
                             keywords=[],
                         ),

@@ -31,6 +31,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.atom import Atom
+from basilisp.lang.compiler.constants import REST_KW
 from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
@@ -1311,6 +1312,15 @@ def concat(*seqs: Any) -> ISeq:
     )
 
 
+def concat_from_seq(seqs: ISeq[ISeq] | None) -> ISeq:
+    """Concatenate the sequences given by seqs into a single ISeq."""
+    if seqs is None:
+        return lseq.EMPTY
+    return lseq.iterator_sequence(
+        itertools.chain.from_iterable(filter(None, map(to_seq, seqs)))
+    )
+
+
 T_reduce_init = TypeVar("T_reduce_init")
 
 
@@ -1361,23 +1371,24 @@ def _internal_reduce_ireduce(
     return coll.reduce(f, cast(T_reduce_init, init))
 
 
-def apply(f, args):
+def apply(f: Callable, args: ISeq):
     """Apply function f to the arguments provided.
     The last argument must always be coercible to a Seq. Intermediate
     arguments are not modified.
     For example:
         (apply max [1 2 3])   ;=> 3
         (apply max 4 [1 2 3]) ;=> 4"""
-    final = list(args[:-1])
-
     try:
-        last = args[-1]
-    except TypeError as e:
-        logger.debug("Ignored %s: %s", type(e).__name__, e)
+        *final, last = list(args)
+    except ValueError:
+        final, last = [], None
 
     s = to_seq(last)
     if s is not None:
-        final.extend(s)
+        if getattr(f, "_basilisp_fn", False) and hasattr(f, "apply_to"):
+            return f.apply_to(final, s)
+        else:
+            final.extend(s)
 
     return f(*final)
 
@@ -1389,12 +1400,10 @@ def apply_kw(f, args):
     For example:
         (apply python/dict {:a 1} {:b 2})   ;=> #py {:a 1 :b 2}
         (apply python/dict {:a 1} {:a 2})   ;=> #py {:a 2}"""
-    final = list(args[:-1])
-
     try:
-        last = args[-1]
-    except TypeError as e:
-        logger.debug("Ignored %s: %s", type(e).__name__, e)
+        *final, last = list(args)
+    except ValueError:
+        final, last = [], None
 
     if last is None:
         kwargs = {}
@@ -2199,15 +2208,64 @@ def _fn_with_meta(f, meta: lmap.PersistentMap | None):
     return wrapped_f
 
 
+class _WrappedRestArgs:
+    __slots__ = ("rest",)
+
+    def __init__(self, rest: ISeq):
+        self.rest = rest
+
+
+def _unwrap_rest_args(args: tuple) -> ISeq:
+    try:
+        *final, last = args
+    except ValueError:
+        return lseq.EMPTY
+    else:
+        if isinstance(last, _WrappedRestArgs):
+            return concat(final, last.rest)
+        return lseq.to_seq(args)
+
+
 def _basilisp_fn(
     arities: tuple[int | kw.Keyword, ...],
 ) -> Callable[..., BasilispFunction]:
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
 
-    def wrap_fn(f) -> BasilispFunction:
+    def wrap_fn(f: Callable) -> BasilispFunction:
+
+        if REST_KW in arities:
+            try:
+                max_fixed_arity = max(v for v in arities if isinstance(v, int))
+            except ValueError:
+
+                def apply_to(args: list, rest: ISeq | None):
+                    return f(*args, _WrappedRestArgs(rest))
+
+            else:
+
+                def apply_to(args: list, rest: ISeq | None):
+                    num_missing_args = max_fixed_arity - len(args)
+                    if num_missing_args > 0:
+                        remaining = []
+                        while num_missing_args > 0 and to_seq(rest):
+                            e, rest = rest.first, rest.rest
+                            remaining.append(e)
+                            num_missing_args -= 1
+                        if to_seq(rest):
+                            return f(*args, *remaining, _WrappedRestArgs(rest))
+                        else:
+                            return f(*args, *remaining)
+                    return f(*args, _WrappedRestArgs(rest))
+
+        else:
+
+            def apply_to(args: list, rest: ISeq | None):
+                return f(*concat(args, rest))
+
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
+        f.apply_to = apply_to
         f.arities = lset.set(arities)
         f.meta = None
         f.with_meta = partial(_fn_with_meta, f)

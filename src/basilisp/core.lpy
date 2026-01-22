@@ -23,7 +23,7 @@
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
-  (fn* list [& args] (if args args '())))
+  (fn* list [& args] (if args (basilisp.lang.list/list args) '())))
 
 (def
   ^{:doc      "If ``seq`` is a Seq, return the first element from ``seq``. If ``seq``
@@ -231,7 +231,7 @@
        :arglists '([& seqs])}
   concat
   (fn concat [& seqs]
-    (apply basilisp.lang.runtime/concat seqs)))
+    (basilisp.lang.runtime/concat-from-seq seqs)))
 
 (def
   ^{:doc      "Create a hash map from pairs of input arguments."
@@ -2878,10 +2878,8 @@
   "Return a lazy sequence of the concatenated results of mapping ``f`` over ``colls``\\."
   ([f]
    (comp (map f) cat))
-  ([f coll]
-   (apply concat (map f coll)))
-  ([f coll & colls]
-   (apply concat (apply map f coll colls))))
+  ([f & colls]
+   (apply concat (apply map f colls))))
 
 (defn filter
   "Return a lazy sequence of elements from ``coll`` where ``(pred elem)`` returns a
