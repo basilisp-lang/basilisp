@@ -19,7 +19,6 @@ jobs:
         with:
           path: clojure-test-suite
           repository: basilisp-lang/clojure-test-suite
-          ref: feature/support-basilisp
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
