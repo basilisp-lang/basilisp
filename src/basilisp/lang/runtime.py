@@ -2245,50 +2245,69 @@ def _unwrap_rest_args(args: tuple) -> ISeq:
         return concat(final, [last])
 
 
-def _basilisp_fn(
-    arities: tuple[int | kw.Keyword, ...],
-) -> Callable[..., BasilispFunction]:
-    """Create a Basilisp function, setting meta and supplying a with_meta
-    method implementation."""
+def _fn_apply_to(
+    f, arities: tuple[int | kw.Keyword, ...], max_fixed_arity: int | None = None
+) -> Callable[[list, ISeq | None], Any]:
+    """Return a new `apply_to` method implementation for the supplied function."""
 
-    def wrap_fn(f) -> BasilispFunction:
+    if REST_KW in arities:
+        if max_fixed_arity is None:
 
-        if REST_KW in arities:
-            try:
-                max_fixed_arity = max(v for v in arities if isinstance(v, int))
-            except ValueError:
-
-                @functools.wraps(f)
-                def apply_to(args: list, rest: ISeq | None):
-                    return f(*args, _WrappedRestArgs(rest))
-
-            else:
-
-                @functools.wraps(f)
-                def apply_to(args: list, rest: ISeq | None):
-                    num_missing_args = max_fixed_arity - len(args)
-                    if num_missing_args > 0:
-                        remaining = []
-                        while num_missing_args > 0 and to_seq(rest):
-                            assert rest is not None
-                            e, rest = rest.first, rest.rest
-                            remaining.append(e)
-                            num_missing_args -= 1
-                        if to_seq(rest):
-                            return f(*args, *remaining, _WrappedRestArgs(rest))
-                        else:
-                            return f(*args, *remaining)
-                    return f(*args, _WrappedRestArgs(rest))
-
-        else:
+            # If there is a rest arity, we pass the non-seq args to the function
+            # using Python's `*` operator and then wrap the final seq args in
+            # _WrappedRestArgs.
 
             @functools.wraps(f)
             def apply_to(args: list, rest: ISeq | None):
-                return f(*concat(args, rest))
+                return f(*args, _WrappedRestArgs(rest))
 
+        else:
+
+            # If there is a maximum fixed arity, we need to make sure we pass at
+            # least that many arguments as standard arguments before wrapping the
+            # seq in a _WrappedRestArgs otherwise we'll get a TypeError.
+
+            @functools.wraps(f)
+            def apply_to(args: list, rest: ISeq | None):
+                num_missing_args = max_fixed_arity - len(args)
+                if num_missing_args > 0:
+                    remaining = []
+                    while num_missing_args > 0 and to_seq(rest):
+                        assert rest is not None
+                        e, rest = rest.first, rest.rest
+                        remaining.append(e)
+                        num_missing_args -= 1
+                    if to_seq(rest):
+                        return f(*args, *remaining, _WrappedRestArgs(rest))
+                    else:
+                        return f(*args, *remaining)
+                return f(*args, _WrappedRestArgs(rest))
+
+    else:
+
+        # If there is no rest arity on this function, consume the entire argument
+        # list eagerly.
+
+        @functools.wraps(f)
+        def apply_to(args: list, rest: ISeq | None):
+            return f(*concat(args, rest))
+
+    return apply_to
+
+
+def _basilisp_fn(
+    arities: tuple[int | kw.Keyword, ...],
+    max_fixed_arity: int | None = None,
+) -> Callable[..., BasilispFunction]:
+    """Decorator applied to Basilisp functions by the compiler.
+
+    This decorator is responsible for setting default properties and generating methods
+    all Basilisp functions must have."""
+
+    def wrap_fn(f) -> BasilispFunction:
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
-        f.apply_to = apply_to
+        f.apply_to = _fn_apply_to(f, arities, max_fixed_arity=max_fixed_arity)
         f.arities = lset.set(arities)
         f.meta = None
         f.with_meta = partial(_fn_with_meta, f)

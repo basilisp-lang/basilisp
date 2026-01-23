@@ -1739,6 +1739,7 @@ def __fn_args_to_py_ast(
 def __fn_decorator(
     arities: Iterable[int],
     has_rest_arg: bool = False,
+    max_fixed_arity: int | None = None,
 ) -> ast.Call:
     return ast.Call(
         func=_BASILISP_FN_FN_NAME,
@@ -1768,7 +1769,8 @@ def __fn_decorator(
                     ),
                     ctx=ast.Load(),
                 ),
-            )
+            ),
+            ast.keyword(arg="max_fixed_arity", value=ast.Constant(max_fixed_arity)),
         ],
     )
 
@@ -1876,6 +1878,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                                         __fn_decorator(
                                             (len(fn_args),),
                                             has_rest_arg=method.is_variadic,
+                                            max_fixed_arity=node.max_fixed_arity,
                                         )
                                     ],
                                     (
@@ -2086,6 +2089,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                                         )
                                     ),
                                     has_rest_arg=default_name is not None,
+                                    max_fixed_arity=max_fixed_arity,
                                 )
                             ],
                         )
