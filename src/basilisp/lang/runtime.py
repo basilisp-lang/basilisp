@@ -1400,10 +1400,7 @@ def apply_kw(f: Callable, args: ISeq):
     For example:
         (apply python/dict {:a 1} {:b 2})   ;=> #py {:a 1 :b 2}
         (apply python/dict {:a 1} {:a 2})   ;=> #py {:a 2}"""
-    try:
-        *final, last = list(args)
-    except ValueError:
-        final, last = [], None
+    *final, last = list(args)
 
     if last is None:
         kwargs = {}
@@ -2243,14 +2240,11 @@ def _unwrap_rest_args(args: tuple) -> ISeq:
 
     Unwraps any `_WrappedRestArgs` objects in the final position of the Python vararg
     on a variadic arity function, returning an ISeq which can be consumed lazily."""
-    try:
-        *final, last = args
-    except ValueError:
-        return lseq.EMPTY
-    else:
-        if isinstance(last, _WrappedRestArgs):
-            return concat(final, last.rest)
-        return concat(final, [last])
+    assert args, "Args must be defined"
+    *final, last = args
+    if isinstance(last, _WrappedRestArgs):
+        return concat(final, last.rest)
+    return concat(final, [last])
 
 
 _REST_KW = kw.keyword("rest")

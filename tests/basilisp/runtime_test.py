@@ -317,6 +317,7 @@ def test_internal_reduce_init(add, coll, res, init):
 
 
 def test_apply():
+    assert vec.v() == runtime.apply(vec.v, [])
     assert vec.v() == runtime.apply(vec.v, [[]])
     assert vec.v(1, 2, 3) == runtime.apply(vec.v, [[1, 2, 3]])
     assert vec.v(None, None, None) == runtime.apply(vec.v, [[None, None, None]])

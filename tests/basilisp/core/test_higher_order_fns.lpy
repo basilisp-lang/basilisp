@@ -4,6 +4,9 @@
 
 (deftest apply-kw-test
   (let [kwargs ^{:kwargs :collect} (fn [x] x)]
+    (is (thrown? python/TypeError (apply-kw kwargs)))
+    (is (thrown? python/AttributeError (apply-kw kwargs [])))
+
     (are [expected x] (= expected (apply-kw kwargs x))
       {:test 1} {:test 1}
       {}        {}
