@@ -1394,7 +1394,7 @@ def apply(f: Callable, args: ISeq):
     return f(*final)
 
 
-def apply_kw(f, args):
+def apply_kw(f: Callable, args: ISeq):
     """Apply function f to the arguments provided.
     The last argument must always be coercible to a Mapping. Intermediate
     arguments are not modified.
@@ -1421,7 +1421,9 @@ def apply_kw(f, args):
 def count(coll) -> int:
     if isinstance(coll, Iterable) and iter(coll) is coll:
         raise TypeError(
-            f"The count function is not supported on single-use iterable objects because it would exhaust them during counting. Please use iterator-seq to coerce them into sequences first. Iterable Object type: {type(coll)}"
+            "The count function is not supported on single-use iterable objects because "
+            "it would exhaust them during counting. Please use iterator-seq to coerce "
+            f"them into sequences first. Iterable Object type: {type(coll)}"
         )
 
     try:
