@@ -1718,6 +1718,13 @@ def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
                 f"{num_args} arguments given; expected any of: "
                 f"{', '.join(sorted(map(str, existing_arities)))}"
             )
+    f.apply_to = _fn_apply_to(  # type: ignore[method-assign, assignment]
+        f,
+        tuple(new_arities),
+        max_fixed_arity=max(
+            (arity for arity in new_arities if isinstance(arity, int)), default=None
+        ),
+    )
     f.arities = lset.set(new_arities)
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)  # type: ignore[method-assign]
@@ -2306,6 +2313,7 @@ def _basilisp_fn(
     This decorator is responsible for setting default properties and generating methods
     all Basilisp functions must have."""
 
+    # Be sure to update _update_signature_for_partial when new attributes are added here.
     def wrap_fn(f) -> BasilispFunction:
         assert not hasattr(f, "meta")
         f._basilisp_fn = True

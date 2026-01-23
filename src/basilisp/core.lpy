@@ -2847,11 +2847,13 @@
       (cons (f (first coll)) (map f (rest coll))))))
   ([f coll & colls]
    (lazy-seq
-    (when-let [coll (seq coll)]
-      (let [colls (map seq colls)]
-        (when (every? identity colls)
-          (cons (apply f (first coll) (map first colls))
-                (apply map f (rest coll) (map rest colls)))))))))
+    (let [step-elems (fn step-elems [colls]
+                       (lazy-seq
+                        (let [colls (map seq colls)]
+                          (when (every? identity colls)
+                            (cons (map first colls)
+                                  (step-elems (map rest colls)))))))]
+      (map #(apply f %) (step-elems (cons coll colls)))))))
 
 (def ^{:doc "Return a vector of ``(f elem)`` for elements in ``coll``\\. More than one
              collection may be supplied. If more than one collection is supplied, the
