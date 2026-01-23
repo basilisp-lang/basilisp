@@ -2259,12 +2259,15 @@ _REST_KW = kw.keyword("rest")
 def _fn_apply_to(
     f, arities: tuple[int | kw.Keyword, ...], max_fixed_arity: int | None = None
 ) -> Callable[[list, ISeq | None], Any]:
-    """Return a new `apply_to` method implementation for the supplied function."""
+    """Return a new `apply_to` method implementation for the supplied Basilisp function.
+
+    `apply_to` methods are called by `apply` in order to facilitate lazy evaluation
+    of applied argument sequences (such as infinite sequences)."""
 
     if _REST_KW in arities:
         if max_fixed_arity is None:
 
-            # If there is a rest arity, we pass the non-seq args to the function
+            # If there is only a rest arity, we pass the non-seq args to the function
             # using Python's `*` operator and then wrap the final seq args in
             # _WrappedRestArgs.
 
@@ -2315,7 +2318,7 @@ def _basilisp_fn(
     This decorator is responsible for setting default properties and generating methods
     all Basilisp functions must have."""
 
-    # Be sure to update _update_signature_for_partial when new attributes are added here.
+    # Be sure to update _update_signature_for_partial when new attributes are added here!
     def wrap_fn(f) -> BasilispFunction:
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
