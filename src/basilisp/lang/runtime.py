@@ -31,7 +31,6 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.atom import Atom
-from basilisp.lang.compiler.constants import REST_KW
 from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
@@ -2254,12 +2253,15 @@ def _unwrap_rest_args(args: tuple) -> ISeq:
         return concat(final, [last])
 
 
+_REST_KW = kw.keyword("rest")
+
+
 def _fn_apply_to(
     f, arities: tuple[int | kw.Keyword, ...], max_fixed_arity: int | None = None
 ) -> Callable[[list, ISeq | None], Any]:
     """Return a new `apply_to` method implementation for the supplied function."""
 
-    if REST_KW in arities:
+    if _REST_KW in arities:
         if max_fixed_arity is None:
 
             # If there is a rest arity, we pass the non-seq args to the function
