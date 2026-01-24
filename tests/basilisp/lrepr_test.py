@@ -52,8 +52,8 @@ def test_print_length(lcompile: CompileFn, s: str, code: str):
 
 def test_print_length_maps(lcompile: CompileFn):
     assert lcompile("(binding [*print-length* 1] (pr-str {:a 1 :b 2}))") in {
-        "{:a 1 ...}",
-        "{:b 2 ...}",
+        "{:a 1, ...}",
+        "{:b 2, ...}",
     }
 
 

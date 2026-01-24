@@ -28,19 +28,19 @@
     (is (= "#py #:a{:x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
 
     (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
-      #{"{:a/x 5}"}                          {:a/x 5}        false
-      #{"#:a{:x 5}"}                         {:a/x 5}        true
-      #{"{:x 5}"}                            {:x 5}          true
-      #{"{1 2}"}                             {1 2}           false
-      #{"{1 2}"}                             {1 2}           true
-      #{"{:a/y 6 :a/x 5}" "{:a/x 5 :a/y 6}"} {:a/x 5 :a/y 6} false
-      #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"}   {:a/x 5 :a/y 6} true
-      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"}       {:a/x 5 6 6}    false
-      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"}       {:a/x 5 6 6}    true
-      #{"{:a/x 5 :b/y 6}" "{:b/y 6 :a/x 5}"} {:a/x 5 :b/y 6} true
-      #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"}       {'a/x 5 'a/y 6} true
-      #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"}     {:a/x 5 'a/y 6} true
-      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"}       {:a/x 5 'y 6}   true)
+      #{"{:a/x 5}"}                            {:a/x 5}        false
+      #{"#:a{:x 5}"}                           {:a/x 5}        true
+      #{"{:x 5}"}                              {:x 5}          true
+      #{"{1 2}"}                               {1 2}           false
+      #{"{1 2}"}                               {1 2}           true
+      #{"{:a/y 6, :a/x 5}" "{:a/x 5, :a/y 6}"} {:a/x 5 :a/y 6} false
+      #{"#:a{:y 6, :x 5}" "#:a{:x 5, :y 6}"}   {:a/x 5 :a/y 6} true
+      #{"{6 6, :a/x 5}" "{:a/x 5, 6 6}"}       {:a/x 5 6 6}    false
+      #{"{6 6, :a/x 5}" "{:a/x 5, 6 6}"}       {:a/x 5 6 6}    true
+      #{"{:a/x 5, :b/y 6}" "{:b/y 6, :a/x 5}"} {:a/x 5 :b/y 6} true
+      #{"#:a{y 6, x 5}" "#:a{x 5, y 6}"}       {'a/x 5 'a/y 6} true
+      #{"#:a{y 6, :x 5}" "#:a{:x 5, y 6}"}     {:a/x 5 'a/y 6} true
+      #{"{y 6, :a/x 5}" "{:a/x 5, y 6}"}       {:a/x 5 'y 6}   true)
 
     (are [res m pnm pm] (= res (binding [*print-namespace-maps* pnm
                                          *print-meta*           pm]
