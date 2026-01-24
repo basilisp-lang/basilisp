@@ -465,7 +465,7 @@ Arithmetic
 .. lpy:currentns:: basilisp.core
 
 Basilisp's arithmetic functions follow Clojure's conventions allowing frictionless interoperability between all supported numeric types.
-Python's :external:py:class:`decimal.Decimal` type (which backs Basilisp's equivalent to Clojure's ``BigDecimal``) does not support arithmetic operations between ``Decimal`` instances and Python ``float``s, but Basilisp does allow this (downcasting the result to a ``float`` as in Clojure).
+Python's :external:py:class:`decimal.Decimal` type (which backs Basilisp's equivalent to Clojure's ``BigDecimal``) does not support arithmetic operations between ``Decimal`` instances and Python ``float``\s, but Basilisp does allow this (downcasting the result to a ``float`` as in Clojure).
 
 .. note::
 
