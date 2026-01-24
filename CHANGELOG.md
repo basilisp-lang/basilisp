@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Unicode escape sequences in string literals (#1295)
  * Added environment variable configurations for the PyTest testrunner to allow more specific test discovery (#1301)
  * Added no-op Clojure compatibility functions: `inc'`, `dec'`, `int-array`, `long-array`, `short-array`, `float-array`, `double-array`, `bool-array` (#1305)
+ * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Changed
  * `try` and `catch` special form bodies may now be empty and will return `nil` when no expressions are given (#1294)
@@ -272,7 +273,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.1]
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
- * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Fixed
  * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
