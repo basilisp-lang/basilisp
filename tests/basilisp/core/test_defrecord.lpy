@@ -194,19 +194,19 @@
       (is (= {:tag Point} (meta (with-meta p {:tag Point})))))
 
     (testing "repr"
-      (is (contains? #{"#tests.basilisp.core.test-defrecord.Point{:x 1 :y 2 :z 3}"
-                       "#tests.basilisp.core.test-defrecord.Point{:y 2 :z 3 :x 1}"
-                       "#tests.basilisp.core.test-defrecord.Point{:z 3 :x 1 :y 2}"
-                       "#tests.basilisp.core.test-defrecord.Point{:y 2 :x 1 :z 3}"
-                       "#tests.basilisp.core.test-defrecord.Point{:x 1 :z 3 :y 2}"
-                       "#tests.basilisp.core.test-defrecord.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"#tests.basilisp.core.test-defrecord.Point{:x 1, :y 2, :z 3}"
+                       "#tests.basilisp.core.test-defrecord.Point{:y 2, :z 3, :x 1}"
+                       "#tests.basilisp.core.test-defrecord.Point{:z 3, :x 1, :y 2}"
+                       "#tests.basilisp.core.test-defrecord.Point{:y 2, :x 1, :z 3}"
+                       "#tests.basilisp.core.test-defrecord.Point{:x 1, :z 3, :y 2}"
+                       "#tests.basilisp.core.test-defrecord.Point{:z 3, :y 2, :x 1}"}
                      (repr p)))
-      (is (contains? #{"^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:x 1 :y 2 :z 3}"
-                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:y 2 :z 3 :x 1}"
-                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:z 3 :x 1 :y 2}"
-                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:y 2 :x 1 :z 3}"
-                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:x 1 :z 3 :y 2}"
-                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:x 1, :y 2, :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:y 2, :z 3, :x 1}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:z 3, :x 1, :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:y 2, :x 1, :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:x 1, :z 3, :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Point{:z 3, :y 2, :x 1}"}
                      (binding [*print-meta* true]
                        (repr (with-meta p {:interesting :yes}))))))))
 
@@ -259,8 +259,8 @@
       (is (= "^{:interesting :yes} #tests.basilisp.core.test-defrecord.Circle{:radius 1}"
              (binding [*print-meta* true]
                (pr-str (with-meta c {:interesting :yes})))))
-      (is (contains? #{"#tests.basilisp.core.test-defrecord.Circle{:radius 1 :name \"Kurt\"}"
-                       "#tests.basilisp.core.test-defrecord.Circle{:name \"Kurt\" :radius 1}"}
+      (is (contains? #{"#tests.basilisp.core.test-defrecord.Circle{:radius 1, :name \"Kurt\"}"
+                       "#tests.basilisp.core.test-defrecord.Circle{:name \"Kurt\", :radius 1}"}
                      (repr c1))))
 
     (testing "str"

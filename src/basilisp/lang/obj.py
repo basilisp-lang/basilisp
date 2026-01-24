@@ -26,7 +26,8 @@ PRINT_LEVEL: PrintCountSetting = None
 PRINT_META = False
 PRINT_NAMESPACE_MAPS = False
 PRINT_READABLY = True
-PRINT_SEPARATOR = " "
+SEQ_PRINT_SEPARATOR = " "
+MAP_PRINT_SEPARATOR = ", "
 
 
 class PrintSettings(TypedDict, total=False):
@@ -115,7 +116,7 @@ def seq_lrepr(
     kw_items = kwargs.copy()
     kw_items["human_readable"] = False
     items = list(map(lambda o: lrepr(o, **kw_items), items))
-    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
+    seq_lrepr = SEQ_PRINT_SEPARATOR.join(items + trailer)
 
     print_meta = kwargs["print_meta"]
     if print_meta and meta:

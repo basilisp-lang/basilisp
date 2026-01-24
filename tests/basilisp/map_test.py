@@ -232,7 +232,7 @@ def test_map_repr():
     assert repr(m) == '{:key "val"}'
 
     m = lmap.map({keyword("key1"): "val1", keyword("key2"): 3})
-    assert repr(m) in ['{:key2 3 :key1 "val1"}', '{:key1 "val1" :key2 3}']
+    assert repr(m) in ['{:key2 3, :key1 "val1"}', '{:key1 "val1", :key2 3}']
 
 
 def test_hash_map_creator():
