@@ -90,10 +90,10 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.11']
+        version: ['3.12']
         include:
-          - version: '3.11'
-            graalpy-version: '24.1.0'
+          - version: '3.12'
+            graalpy-version: '25.0.2'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
