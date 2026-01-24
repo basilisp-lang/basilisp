@@ -225,6 +225,10 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: tox run -v -e coverage
+      - name: Generate job summary
+        run: |
+          echo '### Coverage Summary' >> $GITHUB_STEP_SUMMARY
+          tox exec -e coverage -qq -- coverage report --format=markdown >> $GITHUB_STEP_SUMMARY
       - name: Report Combined Coverage
         uses: coverallsapp/github-action@v2
         with:
