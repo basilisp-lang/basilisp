@@ -985,17 +985,6 @@ class TestDefType:
         assert hints["x"] == int
         assert "y" not in hints
 
-    @pytest.mark.skipif(
-        sys.version_info > (3, 9), reason="This version is intended for 3.9"
-    )
-    def test_deftype_field_tag_annotations_pre310(
-        self, lcompile: CompileFn, ns: runtime.Namespace
-    ):
-        Point = lcompile("(deftype* Rectangle [^python/int x y])")
-        hints = typing.get_type_hints(Point, globalns=ns.module.__dict__)
-        assert hints["x"] == int
-        assert "y" not in hints
-
     def test_deftype_field_with_complex_tag_annotations(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(

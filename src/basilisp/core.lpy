@@ -23,7 +23,7 @@
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
-  (fn* list [& args] (if args args '())))
+  (fn* list [& args] (if args (basilisp.lang.list/list args) '())))
 
 (def
   ^{:doc      "If ``seq`` is a Seq, return the first element from ``seq``. If ``seq``
@@ -209,11 +209,17 @@
   (fn iterator-seq [it]
     (basilisp.lang.runtime/to-iterator-seq it)))
 
-
 (def ^{:doc      "Apply function ``f`` to the arguments provided.
 
                   The last argument must always be coercible to a Seq. Intermediate
-                  arguments are not modified."
+                  arguments are not modified. The Seq in the last argument may be
+                  infinite if the called function ``f`` is lazy.
+
+                  .. warning::
+
+                     Applying arguments to Python functions (rather than Basilisp
+                     functions) will consume the argument Seq eagerly. Infinite
+                     Seqs are **not** supported for Python functions."
        :arglists '([f & args])}
   apply
   (fn apply [f & args]
@@ -231,7 +237,7 @@
        :arglists '([& seqs])}
   concat
   (fn concat [& seqs]
-    (apply basilisp.lang.runtime/concat seqs)))
+    (basilisp.lang.runtime/concat-from-seq seqs)))
 
 (def
   ^{:doc      "Create a hash map from pairs of input arguments."
@@ -2840,11 +2846,13 @@
       (cons (f (first coll)) (map f (rest coll))))))
   ([f coll & colls]
    (lazy-seq
-    (when-let [coll (seq coll)]
-      (let [colls (map seq colls)]
-        (when (every? identity colls)
-          (cons (apply f (first coll) (map first colls))
-                (apply map f (rest coll) (map rest colls)))))))))
+    (let [step-elems (fn step-elems [colls]
+                       (lazy-seq
+                        (let [colls (map seq colls)]
+                          (when (every? identity colls)
+                            (cons (map first colls)
+                                  (step-elems (map rest colls)))))))]
+      (map #(apply f %) (step-elems (cons coll colls)))))))
 
 (def ^{:doc "Return a vector of ``(f elem)`` for elements in ``coll``\\. More than one
              collection may be supplied. If more than one collection is supplied, the
@@ -2878,10 +2886,8 @@
   "Return a lazy sequence of the concatenated results of mapping ``f`` over ``colls``\\."
   ([f]
    (comp (map f) cat))
-  ([f coll]
-   (apply concat (map f coll)))
-  ([f coll & colls]
-   (apply concat (apply map f coll colls))))
+  ([f & colls]
+   (apply concat (apply map f colls))))
 
 (defn filter
   "Return a lazy sequence of elements from ``coll`` where ``(pred elem)`` returns a

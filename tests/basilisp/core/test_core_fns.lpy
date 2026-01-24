@@ -74,8 +74,11 @@
       :dotted.ns/name "dotted.ns" "name")
 
     (are [ns name] (thrown? python/TypeError (keyword ns name))
-      :kw  :kw
-      'sym 'sym)))
+      nil   nil
+      :kw   :kw
+      :kw   "str"
+      'sym  'sym
+      "str" nil)))
 
 (deftest symbol-test
   (testing "name only"
@@ -103,7 +106,9 @@
     (are [ns name] (thrown? python/TypeError (symbol ns name))
       nil  nil
       :kw  :kw
-      'sym 'sym)))
+      :kw  "str"
+      'sym 'sym
+      "ns" nil)))
 
 (deftest name-test
   (are [expected v] (= expected (name v))
@@ -119,6 +124,39 @@
     "ns" 'ns/sym
     nil  :kw
     "ns" :ns/kw))
+
+(deftest count-test
+  (are [v] (thrown? python/TypeError (count v))
+    3
+    3.0
+    :kw
+    :ns/kw
+    'sym
+    'ns/sym)
+
+  (is (thrown? python/TypeError (count (python/map identity [1 2 3]))))
+
+  (are [expected v] (= expected (count v))
+    0 nil
+    0 ""
+    0 '()
+    3 '(:a :b :c)
+    0 []
+    3 [:a :b :c]
+    0 {}
+    2 {:a 1 :b 2}
+    0 #{}
+    3 #{:a :b :c}
+    0 (python/list)
+    3 (python/list [1 2 3])
+    0 (python/tuple)
+    3 (python/tuple [1 2 3])
+    0 (python/dict)
+    2 (python/dict {:a 1 :b 2})
+    0 (python/set)
+    3 (python/set #{:a :b :c})
+    0 (python/frozenset)
+    3 (python/frozenset #{:a :b :c})))
 
 (deftest bigdec-test
   (is (= (/ 1.0M 3.0M) (bigdec 1/3)))

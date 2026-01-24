@@ -1236,12 +1236,9 @@ def _rest_none(_: None) -> ISeq:
     return lseq.EMPTY
 
 
-@rest.register(type(ISeq))
+@rest.register(ISeq)
 def _rest_iseq(o: ISeq[T]) -> ISeq:
-    s = o.rest
-    if s is None:
-        return lseq.EMPTY
-    return s
+    return o.rest
 
 
 def nthrest(coll, i: int):
@@ -1304,11 +1301,21 @@ def is_reiterable_iterable(x: Any) -> bool:
     return isinstance(x, Iterable) and iter(x) is not x
 
 
-def concat(*seqs: Any) -> ISeq:
-    """Concatenate the sequences given by seqs into a single ISeq."""
+T_concat = TypeVar("T_concat")
+
+
+def concat_from_seq(seqs: Iterable[Iterable[T_concat] | None] | None) -> ISeq[T_concat]:
+    """Given a seq of seqs, return a flat seq."""
+    if seqs is None:
+        return lseq.EMPTY
     return lseq.iterator_sequence(
         itertools.chain.from_iterable(filter(None, map(to_seq, seqs)))
     )
+
+
+def concat(*seqs: Iterable[T_concat] | None) -> ISeq[T_concat]:
+    """Concatenate the sequences given by seqs into a single ISeq."""
+    return concat_from_seq(seqs)
 
 
 T_reduce_init = TypeVar("T_reduce_init")
@@ -1361,40 +1368,38 @@ def _internal_reduce_ireduce(
     return coll.reduce(f, cast(T_reduce_init, init))
 
 
-def apply(f, args):
+def apply(f: Callable, args: ISeq | None):
     """Apply function f to the arguments provided.
     The last argument must always be coercible to a Seq. Intermediate
     arguments are not modified.
     For example:
         (apply max [1 2 3])   ;=> 3
         (apply max 4 [1 2 3]) ;=> 4"""
-    final = list(args[:-1])
+    if args is None:
+        raise TypeError("apply args cannot be nil")
 
-    try:
-        last = args[-1]
-    except TypeError as e:
-        logger.debug("Ignored %s: %s", type(e).__name__, e)
+    # It is not possible to call apply with an empty seq from Basilisp (it will be
+    # None instead), so this cannot trigger a ValueError.
+    *final, last = list(args)
 
     s = to_seq(last)
     if s is not None:
-        final.extend(s)
+        if getattr(f, "_basilisp_fn", False) and hasattr(f, "apply_to"):
+            return f.apply_to(final, s)
+        else:
+            final.extend(s)
 
     return f(*final)
 
 
-def apply_kw(f, args):
+def apply_kw(f: Callable, args: ISeq):
     """Apply function f to the arguments provided.
     The last argument must always be coercible to a Mapping. Intermediate
     arguments are not modified.
     For example:
         (apply python/dict {:a 1} {:b 2})   ;=> #py {:a 1 :b 2}
         (apply python/dict {:a 1} {:a 2})   ;=> #py {:a 2}"""
-    final = list(args[:-1])
-
-    try:
-        last = args[-1]
-    except TypeError as e:
-        logger.debug("Ignored %s: %s", type(e).__name__, e)
+    *final, last = list(args)
 
     if last is None:
         kwargs = {}
@@ -1411,7 +1416,9 @@ def apply_kw(f, args):
 def count(coll) -> int:
     if isinstance(coll, Iterable) and iter(coll) is coll:
         raise TypeError(
-            f"The count function is not supported on single-use iterable objects because it would exhaust them during counting. Please use iterator-seq to coerce them into sequences first. Iterable Object type: {type(coll)}"
+            "The count function is not supported on single-use iterable objects because "
+            "it would exhaust them during counting. Please use iterator-seq to coerce "
+            f"them into sequences first. Iterable Object type: {type(coll)}"
         )
 
     try:
@@ -1706,6 +1713,13 @@ def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
                 f"{num_args} arguments given; expected any of: "
                 f"{', '.join(sorted(map(str, existing_arities)))}"
             )
+    f.apply_to = _fn_apply_to(  # type: ignore[method-assign, assignment]
+        f,
+        tuple(new_arities),
+        max_fixed_arity=max(
+            (arity for arity in new_arities if isinstance(arity, int)), default=0
+        ),
+    )
     f.arities = lset.set(new_arities)
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)  # type: ignore[method-assign]
@@ -1871,17 +1885,8 @@ def sort(coll, f=compare) -> ISeq | None:
             def __lt__(self, other):
                 return comparator(self.obj, other.obj) < 0
 
-            def __gt__(self, other):
-                return comparator(self.obj, other.obj) > 0
-
-            def __eq__(self, other):
+            def __eq__(self, other):  # pragma: no cover
                 return comparator(self.obj, other.obj) == 0
-
-            def __le__(self, other):
-                return comparator(self.obj, other.obj) <= 0
-
-            def __ge__(self, other):
-                return comparator(self.obj, other.obj) >= 0
 
             __hash__ = None  # type: ignore
 
@@ -1903,6 +1908,7 @@ def sort_by(keyfn, coll, cmp=compare) -> ISeq | None:
 
         comparator = _fn_to_comparator(cmp)
 
+        @functools.total_ordering
         class key:
             __slots__ = ("obj",)
 
@@ -1912,17 +1918,8 @@ def sort_by(keyfn, coll, cmp=compare) -> ISeq | None:
             def __lt__(self, other):
                 return comparator(keyfn(self.obj), keyfn(other.obj)) < 0
 
-            def __gt__(self, other):
-                return comparator(keyfn(self.obj), keyfn(other.obj)) > 0
-
-            def __eq__(self, other):
+            def __eq__(self, other):  # pragma: no cover
                 return comparator(keyfn(self.obj), keyfn(other.obj)) == 0
-
-            def __le__(self, other):
-                return comparator(keyfn(self.obj), keyfn(other.obj)) <= 0
-
-            def __ge__(self, other):
-                return comparator(keyfn(self.obj), keyfn(other.obj)) >= 0
 
             __hash__ = None  # type: ignore
 
@@ -2199,15 +2196,103 @@ def _fn_with_meta(f, meta: lmap.PersistentMap | None):
     return wrapped_f
 
 
+class _WrappedRestArgs:
+    """Sentinel wrapper type for a potentially infinite sequence of arguments
+    provided by `apply`.
+
+    `apply` calls `BasilispFunction.apply_to` (a method on all Basilisp functions
+    added by the compiler via `_basilisp_fn` decorator) with the fixed set of arguments
+    and the remaining (rest) arguments as an ISeq. `BasilispFunction.apply_to` then
+    calls the wrapped function with the fixed set of arguments and the remaining args
+    as an ISeq wrapped in a `_WrappedRestArgs` object.
+
+    The compiler generates code which calls `_unwrap_rest_args` on Python varargs
+    to convert it into a flattened ISeq within the receiving function. This allows
+    applying infinite sequences without attempting to eagerly consume them."""
+
+    __slots__ = ("rest",)
+
+    def __init__(self, rest: ISeq | None):
+        self.rest = rest
+
+
+def _unwrap_rest_args(args: tuple) -> ISeq:
+    """Runtime support function added by the compiler for generated variadic Python
+    functions to support infinite sequences of arguments with `apply`.
+
+    Unwraps any `_WrappedRestArgs` objects in the final position of the Python vararg
+    on a variadic arity function, returning an ISeq which can be consumed lazily."""
+    assert args, "Args must be defined"
+    *final, last = args
+    if isinstance(last, _WrappedRestArgs):
+        return concat(final, last.rest)
+    return concat(final, [last])
+
+
+_REST_KW = kw.keyword("rest")
+
+
+def _fn_apply_to(
+    f,
+    arities: tuple[int | kw.Keyword, ...],
+    max_fixed_arity: int,
+) -> Callable[[list, ISeq | None], Any]:
+    """Return a new `apply_to` method implementation for the supplied Basilisp function.
+
+    `apply_to` methods are called by `apply` in order to facilitate lazy evaluation
+    of applied argument sequences (such as infinite sequences)."""
+
+    if _REST_KW in arities:
+
+        @functools.wraps(f)
+        def apply_to(args: list, rest: ISeq | None):
+            # If there is a maximum fixed arity, we need to make sure we pass at
+            # least that many arguments as standard arguments before wrapping the
+            # seq in a _WrappedRestArgs otherwise we'll get a TypeError.
+            num_missing_args = max_fixed_arity - len(args)
+            if num_missing_args > 0:
+                remaining = []
+                while num_missing_args > 0 and to_seq(rest):
+                    assert rest is not None
+                    e, rest = rest.first, rest.rest
+                    remaining.append(e)
+                    num_missing_args -= 1
+
+                # If the seq has been fully consumed by the above, don't send a
+                # _WrappedRestArg in the final position.
+                if to_seq(rest):
+                    return f(*args, *remaining, _WrappedRestArgs(rest))
+                else:
+                    return f(*args, *remaining)
+
+            return f(*args, _WrappedRestArgs(rest))
+
+    else:
+
+        # If there is no rest arity on this function, consume the entire argument
+        # list eagerly.
+
+        @functools.wraps(f)
+        def apply_to(args: list, rest: ISeq | None):
+            return f(*concat(args, rest))
+
+    return apply_to
+
+
 def _basilisp_fn(
     arities: tuple[int | kw.Keyword, ...],
+    max_fixed_arity: int,
 ) -> Callable[..., BasilispFunction]:
-    """Create a Basilisp function, setting meta and supplying a with_meta
-    method implementation."""
+    """Decorator applied to Basilisp functions by the compiler.
 
+    This decorator is responsible for setting default properties and generating methods
+    all Basilisp functions must have."""
+
+    # Be sure to update _update_signature_for_partial when new attributes are added here!
     def wrap_fn(f) -> BasilispFunction:
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
+        f.apply_to = _fn_apply_to(f, arities, max_fixed_arity=max_fixed_arity)
         f.arities = lset.set(arities)
         f.meta = None
         f.with_meta = partial(_fn_with_meta, f)
@@ -2297,7 +2382,7 @@ def _load_constant(s: bytes) -> Any:
     produced by `pickle.dumps`."""
     try:
         return pickle.loads(s)  # nosec B301
-    except pickle.UnpicklingError as e:
+    except pickle.UnpicklingError as e:  # pragma: no cover
         raise RuntimeException("Unable to load constant value") from e
 
 

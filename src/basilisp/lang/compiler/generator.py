@@ -799,6 +799,7 @@ _ATTR_FROZEN_DECORATOR_NAME = _load_attr(f"{_ATTR_ALIAS}.frozen")
 _ATTRIB_FIELD_FN_NAME = _load_attr(f"{_ATTR_ALIAS}.field")
 _BASILISP_LOAD_CONSTANT_NAME = _load_attr(f"{_RUNTIME_ALIAS}._load_constant")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
+_UNWRAP_REST_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._unwrap_rest_args")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _BASILISP_TYPE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_type")
@@ -1707,7 +1708,7 @@ def __fn_args_to_py_ast(
                     value=ast.IfExp(
                         test=ast.Name(id=arg_name, ctx=ast.Load()),
                         body=ast.Call(
-                            func=_NEW_LIST_FN_NAME,
+                            func=_UNWRAP_REST_ARGS_FN_NAME,
                             args=[ast.Name(id=arg_name, ctx=ast.Load())],
                             keywords=[],
                         ),
@@ -1738,6 +1739,8 @@ def __fn_args_to_py_ast(
 def __fn_decorator(
     arities: Iterable[int],
     has_rest_arg: bool = False,
+    *,
+    max_fixed_arity: int,
 ) -> ast.Call:
     return ast.Call(
         func=_BASILISP_FN_FN_NAME,
@@ -1767,7 +1770,8 @@ def __fn_decorator(
                     ),
                     ctx=ast.Load(),
                 ),
-            )
+            ),
+            ast.keyword(arg="max_fixed_arity", value=ast.Constant(max_fixed_arity)),
         ],
     )
 
@@ -1875,6 +1879,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                                         __fn_decorator(
                                             (len(fn_args),),
                                             has_rest_arg=method.is_variadic,
+                                            max_fixed_arity=node.max_fixed_arity,
                                         )
                                     ],
                                     (
@@ -1905,10 +1910,11 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     ctx: GeneratorContext,
     name: str,
     arity_map: Mapping[int, str],
+    *,
     return_tags: Iterable[Node | None],
     default_name: str | None = None,
     rest_arity_fixed_arity: int | None = None,
-    max_fixed_arity: int | None = None,
+    max_fixed_arity: int,
     meta_node: MetaNode | None = None,
     is_async: bool = False,
 ) -> GeneratedPyAST[ast.expr]:
@@ -2085,6 +2091,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                                         )
                                     ),
                                     has_rest_arg=default_name is not None,
+                                    max_fixed_arity=max_fixed_arity,
                                 )
                             ],
                         )
@@ -3688,7 +3695,7 @@ def _const_val_to_py_ast(
     `_const_node_to_py_ast`."""
     try:
         serialized = pickle.dumps(form)
-    except (pickle.PicklingError, RecursionError) as e:
+    except (pickle.PicklingError, RecursionError) as e:  # pragma: no cover
         # For types without custom "constant" handling code, we defer to pickle
         # to generate a representation that can be reloaded from the generated
         # byte code. There are a few cases where that may not be possible for one
