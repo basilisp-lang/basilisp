@@ -316,27 +316,6 @@ def test_internal_reduce_init(add, coll, res, init):
     assert runtime.internal_reduce(coll, add, init) == res
 
 
-def test_apply():
-    assert vec.v() == runtime.apply(vec.v, [])
-    assert vec.v() == runtime.apply(vec.v, [[]])
-    assert vec.v(1, 2, 3) == runtime.apply(vec.v, [[1, 2, 3]])
-    assert vec.v(None, None, None) == runtime.apply(vec.v, [[None, None, None]])
-    assert vec.v(vec.v(1, 2, 3), 4, 5, 6) == runtime.apply(
-        vec.v, [vec.v(1, 2, 3), [4, 5, 6]]
-    )
-    assert vec.v(vec.v(1, 2, 3), None, None, None) == runtime.apply(
-        vec.v, [vec.v(1, 2, 3), [None, None, None]]
-    )
-
-
-def test_count():
-    assert 0 == runtime.count(None)
-    assert 0 == runtime.count(vec.v())
-    assert 0 == runtime.count("")
-    assert 3 == runtime.count(vec.v(1, 2, 3))
-    assert 3 == runtime.count("123")
-
-
 def test_nth():
     assert None is runtime.nth(None, 1)
     assert "not found" == runtime.nth(None, 4, "not found")

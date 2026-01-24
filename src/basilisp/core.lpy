@@ -209,7 +209,6 @@
   (fn iterator-seq [it]
     (basilisp.lang.runtime/to-iterator-seq it)))
 
-
 (def ^{:doc      "Apply function ``f`` to the arguments provided.
 
                   The last argument must always be coercible to a Seq. Intermediate

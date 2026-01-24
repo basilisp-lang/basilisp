@@ -1739,7 +1739,8 @@ def __fn_args_to_py_ast(
 def __fn_decorator(
     arities: Iterable[int],
     has_rest_arg: bool = False,
-    max_fixed_arity: int | None = None,
+    *,
+    max_fixed_arity: int,
 ) -> ast.Call:
     return ast.Call(
         func=_BASILISP_FN_FN_NAME,
@@ -1909,10 +1910,11 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     ctx: GeneratorContext,
     name: str,
     arity_map: Mapping[int, str],
+    *,
     return_tags: Iterable[Node | None],
     default_name: str | None = None,
     rest_arity_fixed_arity: int | None = None,
-    max_fixed_arity: int | None = None,
+    max_fixed_arity: int,
     meta_node: MetaNode | None = None,
     is_async: bool = False,
 ) -> GeneratedPyAST[ast.expr]:
@@ -3693,7 +3695,7 @@ def _const_val_to_py_ast(
     `_const_node_to_py_ast`."""
     try:
         serialized = pickle.dumps(form)
-    except (pickle.PicklingError, RecursionError) as e:
+    except (pickle.PicklingError, RecursionError) as e:  # pragma: no cover
         # For types without custom "constant" handling code, we defer to pickle
         # to generate a representation that can be reloaded from the generated
         # byte code. There are a few cases where that may not be possible for one

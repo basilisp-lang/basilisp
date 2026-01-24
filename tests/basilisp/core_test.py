@@ -352,7 +352,7 @@ class TestIsColl:
 class TestIsFn:
     @pytest.fixture(scope="class")
     def basilisp_fn(self):
-        @runtime._basilisp_fn(arities=(1,))
+        @runtime._basilisp_fn(arities=(1,), max_fixed_arity=1)
         def repeat(v):
             while True:
                 yield v

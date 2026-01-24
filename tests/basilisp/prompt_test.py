@@ -7,6 +7,8 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.key_binding.key_bindings import Binding
 from prompt_toolkit.keys import Keys
 
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
 from basilisp.lang.runtime import Namespace
 from basilisp.prompt import PromptToolkitPrompter, REPLCompleter, get_prompter
 
@@ -16,45 +18,14 @@ except ImportError:
     pygments = None
 
 
-class TestCompleter:
+class TestCurrentNamespaceCompletions:
     @pytest.fixture(scope="class")
     def completer(self) -> Completer:
         return REPLCompleter()
 
     @pytest.fixture(scope="class")
     def test_ns(self) -> str:
-        return "basilisp.lrepr-test"
-
-    @pytest.fixture(scope="class")
-    def completions(self) -> Iterable[str]:
-        return (
-            "macroexpand",
-            "macroexpand-1",
-            "map",
-            "map-entry",
-            "map-entry?",
-            "map-indexed",
-            "map?",
-            "mapcat",
-            "mapv",
-            "max",
-            "max-key",
-            "merge",
-            "merge-with",
-            "meta",
-            "methods",
-            "min",
-            "min-key",
-            "mod",
-            "munge",
-        )
-
-    @pytest.fixture(scope="class")
-    def patch_completions(self, completions: Iterable[str]):
-        with patch(
-            "basilisp.prompt.runtime.repl_completions", return_value=completions
-        ):
-            yield
+        return "basilisp.current-namespace-completions-test"
 
     @pytest.mark.parametrize(
         "val,expected",
@@ -129,6 +100,100 @@ class TestCompleter:
                     "map-indexed",
                 ),
             ),
+        ],
+    )
+    def test_completion(
+        self, completer: Completer, ns: Namespace, val: str, expected: tuple[str]
+    ):
+        doc = Document(val, len(val))
+        completions = list(completer.get_completions(doc, CompleteEvent()))
+        assert len(completions) == len(expected)
+        assert {c.text for c in completions} == set(expected)
+
+
+class TestREPLCompletions:
+    @pytest.fixture(scope="class")
+    def completer(self) -> Completer:
+        return REPLCompleter()
+
+    @pytest.fixture(scope="class")
+    def test_ns(self) -> str:
+        return "basilisp.repl-completions-test"
+
+    @pytest.fixture(scope="class")
+    def completions(self) -> Iterable[str]:
+        return (
+            "macroexpand",
+            "macroexpand-1",
+            "make-array",
+            "make-hierarchy",
+            "map",
+            "map-entry",
+            "map-entry?",
+            "map-indexed",
+            "map?",
+            "mapcat",
+            "mapv",
+            "max",
+            "max-key",
+            "merge",
+            "merge-with",
+            "meta",
+            "methods",
+            "min",
+            "min-key",
+            "mod",
+            "munge",
+        )
+
+    @pytest.fixture(scope="class", autouse=True)
+    def patch_keyword_completions(self, completions: Iterable[str]):
+        with patch(
+            "basilisp.lang.keyword._INTERN",
+            new=lmap.EMPTY,
+        ):
+            # Seed the temporary cache with these keywords
+            for v in completions:
+                kw.keyword(v)
+            yield
+
+    @pytest.mark.parametrize(
+        "val,expected",
+        [
+            ("1", ()),
+            ("123", ()),
+            (":zzzzzzzzzz", ()),
+            (
+                ":ma",
+                (
+                    ":macroexpand",
+                    ":macroexpand-1",
+                    ":make-array",
+                    ":make-hierarchy",
+                    ":map",
+                    ":map-entry",
+                    ":map-entry?",
+                    ":map-indexed",
+                    ":map?",
+                    ":mapcat",
+                    ":mapv",
+                    ":max",
+                    ":max-key",
+                ),
+            ),
+            (
+                ":map",
+                (
+                    ":map",
+                    ":map-entry",
+                    ":map-entry?",
+                    ":map-indexed",
+                    ":map?",
+                    ":mapcat",
+                    ":mapv",
+                ),
+            ),
+            (":mav", ()),
         ],
     )
     def test_completer(
