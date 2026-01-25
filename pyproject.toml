@@ -1,7 +1,7 @@
 [project]
 name = "basilisp"
 version = "0.5.0"
-description = "A Clojure-like lisp written for Python"
+description = "A Clojure-compatible(-ish) Lisp dialect hosted on Python 3 with seamless Python interop."
 authors = [
     { name = "Christopher Rink", email = "chris@crink.dev" },
 ]
@@ -11,8 +11,6 @@ requires-python = ">=3.10"
 packages = [
     { include = "basilisp", from = "src" },
 ]
-repository = "https://github.com/basilisp-lang/basilisp"
-documentation = "https://basilisp.readthedocs.io/"
 classifiers = [
     # Trove classifiers
     # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
@@ -37,6 +35,13 @@ dependencies = [
     "pyrsistent (>=0.18.0,<1.0.0)",
     "typing-extensions (>=4.7.0,<5.0.0)",
 ]
+
+[project.urls]
+Homepage = "https://github.com/basilisp-lang/basilisp"
+Documentation = "https://docs.basilisp.org"
+Repository = "https://github.com/basilisp-lang/basilisp"
+"Bug Tracker" = "https://github.com/basilisp-lang/basilisp/issues"
+Changelog = "https://github.com/basilisp-lang/basilisp/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
