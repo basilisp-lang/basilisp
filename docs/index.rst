@@ -6,7 +6,35 @@
 Welcome to Basilisp's documentation!
 ====================================
 
-Basilisp is a :ref:`Clojure-compatible(-ish) <differences_from_clojure>` Lisp dialect targeting Python 3.10+.
+.. image:: https://img.shields.io/badge/Github-basilisp-green?style=flat-square
+   :target: https://github.com/basilisp-lang/basilisp
+   :alt: Link to Basilisp Github repository
+.. image:: https://img.shields.io/pypi/v/basilisp.svg?style=flat-square
+   :target: https://pypi.org/project/basilisp/
+   :alt: Link to Basilisp PyPI page for current release; shows the current release version
+.. image:: https://img.shields.io/pypi/pyversions/basilisp.svg?style=flat-square
+   :target: https://pypi.org/project/basilisp/
+   :alt: Link to Basilisp PyPI page for current release; shows currently supported Python versions
+.. image:: https://img.shields.io/readthedocs/basilisp.svg?style=flat-square
+   :target: https://docs.basilisp.org
+   :alt: Link to Basilisp documentation
+.. image:: https://github.com/basilisp-lang/basilisp/actions/workflows/run-tests.yml/badge.svg?branch=main&style=flat-square
+   :target: https://github.com/basilisp-lang/basilisp/actions/workflows/run-tests.yml
+   :alt: Link to Basilisp test CI workflow on Github Actions
+.. image:: https://github.com/basilisp-lang/basilisp/actions/workflows/run-clojure-test-suite.yml/badge.svg?branch=main&style=flat-square
+   :target: https://github.com/basilisp-lang/basilisp/actions/workflows/run-clojure-test-suite.yml
+   :alt: Link to Basilisp clojure-test-suite CI workflow on Github Actions
+.. image:: https://img.shields.io/coveralls/github/basilisp-lang/basilisp.svg?style=flat-square
+   :target: https://coveralls.io/github/basilisp-lang/basilisp
+   :alt: Link to Basilisp Coverage report on Coveralls
+.. image:: https://img.shields.io/github/license/basilisp-lang/basilisp.svg?style=flat-square
+   :target: https://github.com/basilisp-lang/basilisp/blob/master/LICENSE
+   :alt: Link to Basilisp license file
+.. image:: https://img.shields.io/badge/Slack-Clojurians-green?style=flat-square
+   :target: https://clojurians.slack.com/archives/C071RFV2Z1D
+   :alt: Link to Basilisp channel on Clojurians Slack
+
+Basilisp is a :ref:`Clojure-compatible(-ish) <differences_from_clojure>` Lisp dialect hosted on Python 3 with seamless Python interop.
 
 Basilisp compiles down to raw Python 3 code and executes on the Python 3 virtual machine, allowing natural interoperability between existing Python libraries and new Lisp code.
 
