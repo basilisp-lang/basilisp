@@ -324,7 +324,9 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_import_arg_group(parser: argparse.ArgumentParser, include_unsafe_path_default: bool = True) -> None:
+def _add_import_arg_group(
+    parser: argparse.ArgumentParser, include_unsafe_path_default: bool = True
+) -> None:
     group = parser.add_argument_group(
         "path options",
         description=(
@@ -337,7 +339,9 @@ def _add_import_arg_group(parser: argparse.ArgumentParser, include_unsafe_path_d
         action="store",
         nargs="?",
         const=include_unsafe_path_default,
-        default=os.getenv("BASILISP_INCLUDE_UNSAFE_PATH", str(include_unsafe_path_default)),
+        default=os.getenv(
+            "BASILISP_INCLUDE_UNSAFE_PATH", str(include_unsafe_path_default)
+        ),
         type=_to_bool,
         help=(
             "if true, automatically prepend a potentially unsafe path to `sys.path`; "
@@ -806,7 +810,7 @@ def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
         help=(
             "if true, automatically prepend a 'test' or 'tests' directory to the "
             "PYTHONPATH enabling discovery and importing of test namespaces "
-            f"(env: BASILISP_INCLUDE_DEFAULT_TEST_PATH; default: true)"
+            "(env: BASILISP_INCLUDE_DEFAULT_TEST_PATH; default: true)"
         ),
     )
 
