@@ -324,7 +324,7 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
+def _add_import_arg_group(parser: argparse.ArgumentParser, include_unsafe_path_default: bool = True) -> None:
     group = parser.add_argument_group(
         "path options",
         description=(
@@ -336,14 +336,14 @@ def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
         "--include-unsafe-path",
         action="store",
         nargs="?",
-        const=True,
-        default=os.getenv("BASILISP_INCLUDE_UNSAFE_PATH", "true"),
+        const=include_unsafe_path_default,
+        default=os.getenv("BASILISP_INCLUDE_UNSAFE_PATH", str(include_unsafe_path_default)),
         type=_to_bool,
         help=(
             "if true, automatically prepend a potentially unsafe path to `sys.path`; "
             "setting `--include-unsafe-path=false` is the Basilisp equivalent to "
             "setting PYTHONSAFEPATH to a non-empty string for CPython's REPL "
-            "(env: BASILISP_INCLUDE_UNSAFE_PATH; default: true)"
+            f"(env: BASILISP_INCLUDE_UNSAFE_PATH; default: {str(include_unsafe_path_default).lower()})"
         ),
     )
     group.add_argument(
@@ -732,12 +732,23 @@ def test(
     args: argparse.Namespace,
     extra: list[str],
 ) -> None:  # pragma: no cover
+    # Add `test` or `tests` directory to the current working directory
+    if args.include_default_test_path:
+        if not getattr(args, "include_path", []):
+            args.include_path = []
+        for d in ("tests", "test"):
+            p = Path.cwd() / d
+            if p.exists():
+                args.include_path.append(str(p))
+
     init_path(args)
     basilisp.init(_compiler_opts(args))
+
     # parse_known_args leaves the `--` separator as the first element if it is present
     # but retaining that causes PyTest to interpret all the arguments as positional
     if extra and extra[0] == "--":
         extra = extra[1:]
+
     try:
         import pytest
     except (ImportError, ModuleNotFoundError):
@@ -784,8 +795,23 @@ def test(
     allows_extra=True,
 )
 def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-d",
+        "--include-default-test-path",
+        action="store",
+        nargs="?",
+        const=True,
+        default=os.getenv("BASILISP_INCLUDE_DEFAULT_TEST_PATH", "true"),
+        type=_to_bool,
+        help=(
+            "if true, automatically prepend a 'test' or 'tests' directory to the "
+            "PYTHONPATH enabling discovery and importing of test namespaces "
+            f"(env: BASILISP_INCLUDE_DEFAULT_TEST_PATH; default: true)"
+        ),
+    )
+
     _add_compiler_arg_group(parser)
-    _add_import_arg_group(parser)
+    _add_import_arg_group(parser, include_unsafe_path_default=False)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
