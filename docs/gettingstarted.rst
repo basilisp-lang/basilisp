@@ -73,6 +73,25 @@ If you believe you have discovered a bug, please review the :ref:`Contributing G
 Using Basilisp in a Project
 ---------------------------
 
+.. _project_template:
+
+Project Template
+^^^^^^^^^^^^^^^^
+
+Basilisp has a `Leiningen project template <https://github.com/basilisp-lang/lein-template-basilisp>`_ which can be used to create a new project.
+
+.. code-block::
+
+   lein new org.basilisp/basilisp myproject
+
+The template uses ``pip`` as the default dependency management tool.
+This is not meant to be prescriptive, but rather to enable users to get setup with minimum effort since most Python installations ship with ``pip`` by default.
+The generated project works with ``uv`` without any changes.
+
+.. note::
+
+   The template handles :ref:`bootstrapping` for you.
+
 .. _project_structure:
 
 Project Structure
@@ -89,7 +108,6 @@ Basilisp source files should always have a ``.lpy`` extension.
 
    .
    ├── README.md
-   ├── poetry.lock
    ├── pyproject.toml
    ├── src
    │   └── myproject
@@ -108,7 +126,7 @@ Basilisp source files should always have a ``.lpy`` extension.
    A single ``__init__.py`` file may be required for running tests with Pytest -- see :ref:`testing_path` for more information.
 
 Basilisp apps can use any of Python's myriad dependency management options, such as `pip <https://pip.pypa.io/en/stable/>`_, `uv <https://docs.astral.sh/uv/>`_, `Poetry <https://python-poetry.org/>`_, and many others.
-Basilisp itself uses Poetry and that is the recommended dependency management tool for new Basilisp projects.
+Basilisp itself uses Poetry.
 
 .. _bootstrapping:
 

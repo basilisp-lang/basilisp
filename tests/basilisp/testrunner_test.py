@@ -271,7 +271,7 @@ def test_basilisp_test_noargs(pytester: pytest.Pytester):
     runtime.Namespace.remove(sym.symbol("a.test-path"))
 
     code = """
-    (ns tests.test-path
+    (ns test-path
       (:require
        [basilisp.test :refer [deftest is]]))
     (deftest passing-test

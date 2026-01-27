@@ -205,6 +205,10 @@ If you installed the `PyTest <https://docs.pytest.org/en/7.0.x/>`_ extra, you ca
 
 Because Basilisp defers all testing logic to PyTest, you can use any standard PyTest arguments and flags from this entrypoint.
 
+.. seealso::
+
+   :ref:`testing`
+
 .. _bootstrap_cli_command:
 
 Bootstrap Python Installation

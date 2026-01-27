@@ -86,7 +86,7 @@ In this case, the test namespace can start at ``myproject``:
    (ns myproject.core-test)
 
 
-However, the ``test`` directory must be explicitly added to the ``PYTHONPATH`` using the ``--include-path`` (or ``-p``) option when running the tests:
+However, the ``test`` directory must be explicitly added to the ``PYTHONPATH`` using the ``--include-path`` (or ``-p`` or the ``PYTHONPATH`` environment variable) option when running the tests:
 
 .. code-block:: shell
 
@@ -98,6 +98,14 @@ However, the ``test`` directory must be explicitly added to the ``PYTHONPATH`` u
    By default, the test runner searches all subdirectories for tests.
    In the first example above (``tests``, a Python convention), the top-level directory is already in the ``PYTHONPATH``, allowing ``tests.myproject.core-test`` to be resolvable.
    In the second example (``test``, a Clojure convention), the test directory is explicitly added to the ``PYTHONPATH``, enabling ``myproject.core-test`` to be resolvable.
+
+.. warning::
+
+   In versions of Basilisp prior to v0.5.1, you will also want to specify ``--include-unsafe-path=false`` to disable Python prepending the empty string ``""`` (meaning the current directory) to the path.
+   Without this, PyTest will attempt to collect your namespace from ``./test`` first, which will attempt to import your test namespaces as ``test.{namespace}``, which will fail collection.
+
+   After version v0.5.1, ``basilisp test`` automatically prepends ``tests`` and ``test`` (if either exist) to the ``PYTHONPATH``.
+   You can disable this behavior by passing ``--include-default-test-path=false`` or ``-d false``.
 
 .. _test_settings:
 
