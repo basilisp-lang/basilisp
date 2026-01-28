@@ -1,0 +1,59 @@
+(ns basilisp.csv
+  "Wrapper functions for :external:py:mod:`csv` which reads and writes CSVs."
+  (:require
+   [basilisp.io :as bio])
+  (:import
+   csv))
+
+(defn read-csv
+  "Returns a lazy sequence of vectors corresponding to the rows of a CSV file.
+
+  If ``input`` is a string, it will be treated as the contents of a CSV. Otherwise,
+  it will be treated as a :external:py:class:`io.TextIOBase`.
+
+  The reader function supports the following keyword arguments:
+
+   :keyword ``:separator``: the character used as the separator for a fields in a row
+       default is \",\"
+   :keyword ``:quote``: the quote character used on quoted fields; default is ``true``"
+  [input & {:keys [separator quote] :or {separator "," quote "\""}}]
+  (let [f       (if (string? input)
+                  (io/StringIO input)
+                  input)
+        reader  (csv/reader f ** :delimiter separator :quotechar quote)
+        do-read (fn read-csv*
+                  []
+                  (when-some [row (python/next reader nil)]
+                    (cons (vec row) (lazy-seq (read-csv*)))))]
+    (lazy-seq (do-read))))
+
+(defn rows->maps
+  "Returns a lazy sequence mapping over a sequence of CSV data (as vectors)
+  converting them to maps.
+
+  The first row will be used as the headers. The ``:key-fn`` keyword argument
+  names a function which will be used to map over the keys."
+  [rows & {:keys [key-fn] :or {key-fn keyword}}]
+  (let [header (mapv key-fn (first rows))]
+    (map #(zipmap header %) (rest rows))))
+
+(defn write-csv
+  "Write a sequence of rows in CSV format to ``writer``, which should be an
+  :external:py:class:`io.TextIOBase`.
+
+  The writing function supports the following keyword arguments:
+
+   :keyword ``:separator``: the character used as the separator for a fields in a row
+       default is \",\"
+   :keyword ``:quote``: the quote character used on quoted fields; default is ``true``
+   :keyword ``:newline``: the newline character to use between rows (``:lf`` or
+       ``:cr+lf``)"
+  [writer data & {:keys [separator quote newline] :or {separator "," quote "\"" newline :lf}}]
+  (let [nl (cond
+             (= newline :lf)    "\n"
+             (= newline :cr+lf) "\r\n"
+             :else              (throw
+                                 (ex-info "newline must be one of: :lf or :cr+lf"
+                                          {:newline newline})))
+        w  (csv/writer writer ** :delimiter separator :quotechar quote :lineterminator nl)]
+    (.writerows w (map #(mapv str %) data))))

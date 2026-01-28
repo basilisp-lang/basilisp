@@ -1,0 +1,56 @@
+(ns tests.basilisp.test-csv
+  (:require
+   [basilisp.csv :as csv]
+   [basilisp.test :refer [deftest is are testing]])
+  (:import io))
+
+(def test-csv-content
+  "id,name,country
+1,John,United Kingdom
+2,Hanns,Germany
+3,Jose,Spain")
+
+(def test-csv-headers
+  ["id" "name" "country"])
+
+(def test-csv-rows
+  '(["1" "John" "United Kingdom"]
+    ["2" "Hanns" "Germany"]
+    ["3" "Jose" "Spain"]))
+
+(deftest read-csv-test
+  (testing "string"
+    (is (= '() (csv/read-csv "")))
+    (is (= '() (csv/rows->maps (csv/read-csv "id,name"))))
+    (is (= (concat [test-csv-headers] test-csv-rows)
+           (csv/read-csv test-csv-content)))
+    (is (= (map zipmap (repeat [:id :name :country]) test-csv-rows)
+           (csv/rows->maps (csv/read-csv test-csv-content)))))
+
+  (testing "file-like object"
+    (with-open [f (io/StringIO)]
+      (is (= '() (csv/read-csv f))))
+    (with-open [f (io/StringIO "id,name")]
+      (is (= '() (csv/rows->maps (csv/read-csv f)))))
+    (with-open [f (io/StringIO test-csv-content)]
+      (is (= (concat [test-csv-headers] test-csv-rows)
+             (csv/read-csv f))))
+    (with-open [f (io/StringIO test-csv-content)]
+      (is (= (map zipmap (repeat [:id :name :country]) test-csv-rows)
+             (csv/rows->maps (csv/read-csv f)))))))
+
+(deftest write-csv-test
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (csv/write-csv (io/StringIO) [] :newline :wrong-nl)))
+
+  (with-open [f (io/StringIO)]
+    (csv/write-csv f [])
+    (is (= "" (.getvalue f))))
+
+  (with-open [f (io/StringIO)]
+    (csv/write-csv f [test-csv-headers])
+    (is (= "id,name,country\n" (.getvalue f))))
+
+  (with-open [f (io/StringIO)]
+    (csv/write-csv f (concat [test-csv-headers] test-csv-rows))
+    (is (= (str test-csv-content "\n") (.getvalue f)))))
