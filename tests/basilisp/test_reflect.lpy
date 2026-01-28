@@ -1,0 +1,8 @@
+(ns tests.basilisp.test-reflect
+  (:require
+   [basilisp.reflect :refer [reflect]]
+   [basilisp.test :refer [deftest are]]))
+
+(deftest reflect-test
+  (are [v res] (= res (reflect v))
+    nil nil))
