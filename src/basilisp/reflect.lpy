@@ -50,7 +50,7 @@
                                         (inspect/getmembers this))]
       {:name                (symbol (python/getattr this "__name__"))
        :file                (python/getattr this "__file__" nil)
-       :package             (python/getattr this "__package__" nil)
+       :package             (symbol (python/getattr this "__package__" nil))
        :is-basilisp-module? is-basilisp-module?
        :basilisp-ns         (when is-basilisp-module?
                               (python/getattr this "__basilisp_namespace__"))
@@ -66,7 +66,7 @@
                                          (py-property? member) :properties
                                          :else                 :attributes))
                                      (inspect/getmembers this))]
-      {:module         (python/getattr this "__module__")
+      {:module         (symbol (python/getattr this "__module__"))
        :qualified-name (qualname->sym (python/getattr this "__qualname__"))
        :name           (symbol (python/getattr this "__name__"))
        :bases          (set (bases this))
@@ -153,7 +153,7 @@
   {:qualified-name        (qualname->sym (python/getattr f "__qualname__"))
    :name                  (symbol (python/getattr f "__name__"))
    :signature             (signature f)
-   :module                (inspect/getmodule f)
+   :module                (symbol (inspect/getmodule f))
    :doc                   (inspect/getdoc f)
    :file                  (try
                             (inspect/getfile f)

@@ -1,8 +1,28 @@
 (ns tests.basilisp.test-reflect
+  (:import json)
   (:require
    [basilisp.reflect :refer [reflect]]
-   [basilisp.test :refer [deftest are]]))
+   [basilisp.test :refer [deftest is testing]]))
 
 (deftest reflect-test
-  (are [v res] (= res (reflect v))
-    nil nil))
+  (is (nil? (reflect nil)))
+
+  (testing "module type"
+    (let [{:keys [name package] :as m} (reflect json)]
+      (is (= 'json name))
+      (is (contains? m :file))
+      (is (= 'json package))
+      (is (false? (:is-basilisp-module? m)))
+      (is (nil? (:basilisp-module m)))))
+
+  (testing "type"
+    (let [{:keys [name qualified-name module] :as m} (reflect python/str)]
+      (is (= name 'str))
+      (is (= qualified-name 'str))
+      (is (= module 'builtins))
+      (is (every? class? (:supers m)))
+      (is (set? (:supers m)))
+      (is (every? class? (:bases m)))
+      (is (set? (:bases m)))
+      (is (every? class? (:subclasses m)))
+      (is (set? (:subclasses m))))))
