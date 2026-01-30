@@ -168,7 +168,7 @@
    :is-awaitable?         (inspect/isawaitable f)
    :is-async-gen-fn?      (inspect/isasyncgenfunction f)
    :is-builtin?           (inspect/isbuiltin f)
-   :is-method-wrapper?    (inspect/ismethodwrapper f)
+   #?@(:lpy311+ [:is-method-wrapper?    (inspect/ismethodwrapper f)])
    :is-routine?           (inspect/isroutine f)
    :is-method-descriptor? (inspect/ismethoddescriptor f)})
 
