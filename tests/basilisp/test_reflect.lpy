@@ -1,6 +1,7 @@
 (ns tests.basilisp.test-reflect
   (:import json)
   (:require
+   basilisp.string
    [basilisp.reflect :refer [reflect]]
    [basilisp.test :refer [deftest is testing]]))
 
@@ -13,7 +14,14 @@
       (is (contains? m :file))
       (is (= 'json package))
       (is (false? (:is-basilisp-module? m)))
-      (is (nil? (:basilisp-module m)))))
+      (is (nil? (:basilisp-ns m))))
+
+    (let [{:keys [name package] :as m} (reflect (.-module (the-ns 'basilisp.string)))]
+      (is (= 'basilisp.string name))
+      (is (contains? m :file))
+      (is (= 'basilisp package))
+      (is (true? (:is-basilisp-module? m)))
+      (is (not (nil? (:basilisp-ns m))))))
 
   (testing "type"
     (let [{:keys [name qualified-name module] :as m} (reflect python/str)]
