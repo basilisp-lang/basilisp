@@ -1,7 +1,32 @@
 (ns basilisp.reflect
   "Runtime reflection of Python objects."
-  (:import inspect
+  (:import importlib
+           inspect
            types))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Type References ;;
+;;;;;;;;;;;;;;;;;;;;;
+
+(defprotocol TypeReference
+  (typename [this]
+    "Return a canonical name for the type named by ``this``."))
+
+(extend-protocol TypeReference
+  types/ModuleType
+  (typename [this]
+    (python/getattr this "__name__"))
+  python/type
+  (typename [this]
+    (str (python/getattr this "__module__") "." (python/getattr this "__qualname__"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Types and Modules ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(defprotocol Reflectable
+  (reflect* [this]
+    "Reflect on ``this`` and return a map describing the object."))
 
 (defn ^:private qualname->sym
   "Canonicalize a Python ``__qualname__`` as a symbol."
@@ -11,11 +36,7 @@
       (symbol namespace-or-name)
       (symbol namespace-or-name maybe-name))))
 
-(defprotocol Reflectable
-  (reflect* [this]
-    "Reflect on ``this`` and return a map describing the object."))
-
-(defn members->map
+(defn ^:private members->map
   "Given a seq of 2-tuples of ``member-name, member``, return a mapping of the
   member name converted to a symbol and the member."
   [m]
@@ -183,6 +204,24 @@
 (extend types/MethodDescriptorType      Reflectable {:reflect* reflect-callable})
 (extend types/ClassMethodDescriptorType Reflectable {:reflect* reflect-callable})
 
+;;;;;;;;;;;;;;;;;;;
+;; Reflector API ;;
+;;;;;;;;;;;;;;;;;;;
+
+(defprotocol Reflector
+  (do-reflect [this typeref]
+    "Reflect on the object named by ``typeref`` and return a map describing the object."))
+
+(deftype PythonReflector []
+  Reflector
+  (do-reflect [_ typeref]
+    (let [[mod-name obj] (.rsplit typeref "." 1)
+          mod            (importlib/import-module mod-name)]
+      (reflect*
+       (if obj
+         (python/getattr mod obj)
+         mod)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Public Interface ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -199,5 +238,10 @@
   If ``o`` is an object, then return the results of ``(reflect (type o))``.
 
   If ``o`` is ``nil``, return ``nil``."
+  [o]
+  (reflect* o))
+
+(defn type-reflect
+  "Identical to :lpy:fn:`reflect`."
   [o]
   (reflect* o))

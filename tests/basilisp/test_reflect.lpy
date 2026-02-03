@@ -1,9 +1,28 @@
 (ns tests.basilisp.test-reflect
-  (:import json)
+  (:import collections.abc
+           json)
   (:require
    basilisp.string
-   [basilisp.reflect :refer [reflect]]
-   [basilisp.test :refer [deftest is testing]]))
+   [basilisp.reflect :refer [reflect typename]]
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest typename-test
+  (are [v] (thrown? basilisp.lang.exception/ExceptionInfo (typename v))
+    nil
+    0
+    0.0
+    :kw
+    'sym
+    "str"
+    []
+    {}
+    #{}
+    '())
+
+  (are [expected v] (= expected (typename v))
+    "json"                                  json
+    "collections.abc.Mapping"               collections.abc/Mapping
+    "basilisp.lang.vector.PersistentVector" (type [])))
 
 (deftest reflect-test
   (is (nil? (reflect nil)))
