@@ -24,6 +24,10 @@
     "collections.abc.Mapping"               collections.abc/Mapping
     "basilisp.lang.vector.PersistentVector" (type [])))
 
+(defn ^:private is-member-map?
+  [[s _]]
+  (symbol? s))
+
 (deftest reflect-test
   (is (nil? (reflect nil)))
 
@@ -33,14 +37,25 @@
       (is (contains? m :file))
       (is (= 'json package))
       (is (false? (:is-basilisp-module? m)))
-      (is (nil? (:basilisp-ns m))))
+      (is (nil? (:basilisp-ns m)))
+      (is (every? is-member-map? (:modules m)))
+      (is (every? is-member-map? (:classes m)))
+      (is (contains? (:classes m) 'JSONDecoder))
+      (is (every? is-member-map? (:functions m)))
+      (is (contains? (:functions m) 'dumps))
+      (is (every? is-member-map? (:attributes m)))
+      (is (contains? (:attributes m) '__name__)))
 
     (let [{:keys [name package] :as m} (reflect (.-module (the-ns 'basilisp.string)))]
       (is (= 'basilisp.string name))
       (is (contains? m :file))
       (is (= 'basilisp package))
       (is (true? (:is-basilisp-module? m)))
-      (is (not (nil? (:basilisp-ns m))))))
+      (is (not (nil? (:basilisp-ns m))))
+      (is (every? is-member-map? (:modules m)))
+      (is (every? is-member-map? (:classes m)))
+      (is (every? is-member-map? (:functions m)))
+      (is (every? is-member-map? (:attributes m)))))
 
   (testing "type"
     (let [{:keys [name qualified-name module] :as m} (reflect python/str)]
@@ -52,4 +67,9 @@
       (is (every? class? (:bases m)))
       (is (set? (:bases m)))
       (is (every? class? (:subclasses m)))
-      (is (set? (:subclasses m))))))
+      (is (set? (:subclasses m)))
+      (is (every? is-member-map? (:attributes m)))
+      (is (contains? (:attributes m) '__doc__))
+      (is (every? is-member-map? (:methods m)))
+      (is (contains? (:methods m) 'startswith))
+      (is (= {} (:properties m))))))
