@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added `basilisp.csv` namespace (#753)
+ * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Changed
  * Add `test` and `tests` directories to `PYTHONPATH` automatically during `basilisp test` CLI invocations (#1069)

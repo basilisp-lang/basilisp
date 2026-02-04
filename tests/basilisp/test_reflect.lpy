@@ -1,0 +1,84 @@
+(ns tests.basilisp.test-reflect
+  (:import collections.abc
+           json)
+  (:require
+   basilisp.string
+   [basilisp.reflect :refer [reflect typename]]
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest typename-test
+  (are [v] (thrown? basilisp.lang.exception/ExceptionInfo (typename v))
+    nil
+    0
+    0.0
+    :kw
+    'sym
+    "str"
+    []
+    {}
+    #{}
+    '())
+
+  (are [expected v] (= expected (typename v))
+    "json"                                  json
+    "collections.abc.Mapping"               collections.abc/Mapping
+    "basilisp.lang.vector.PersistentVector" (type [])))
+
+(defn ^:private is-member-map?
+  [[s _]]
+  (symbol? s))
+
+(deftest reflect-test
+  (is (nil? (reflect nil)))
+
+  (testing "module type"
+    (let [{:keys [name package] :as m} (reflect json)]
+      (is (= 'json name))
+      (is (contains? m :file))
+      (is (= 'json package))
+      (is (false? (:is-basilisp-module? m)))
+      (is (nil? (:basilisp-ns m)))
+      (is (every? is-member-map? (:modules m)))
+      (is (every? is-member-map? (:classes m)))
+      (is (contains? (:classes m) 'JSONDecoder))
+      (is (every? is-member-map? (:functions m)))
+      (is (contains? (:functions m) 'dumps))
+      (is (every? is-member-map? (:attributes m)))
+      (is (contains? (:attributes m) '__name__)))
+
+    (let [{:keys [name package] :as m} (reflect (.-module (the-ns 'basilisp.string)))]
+      (is (= 'basilisp.string name))
+      (is (contains? m :file))
+      (is (= 'basilisp package))
+      (is (true? (:is-basilisp-module? m)))
+      (is (not (nil? (:basilisp-ns m))))
+      (is (every? is-member-map? (:modules m)))
+      (is (every? is-member-map? (:classes m)))
+      (is (every? is-member-map? (:functions m)))
+      (is (every? is-member-map? (:attributes m)))))
+
+  (testing "type"
+    (let [{:keys [name qualified-name module] :as m} (reflect python/str)]
+      (is (= name 'str))
+      (is (= qualified-name 'str))
+      (is (= module 'builtins))
+      (is (every? class? (:supers m)))
+      (is (set? (:supers m)))
+      (is (every? class? (:bases m)))
+      (is (set? (:bases m)))
+      (is (every? class? (:subclasses m)))
+      (is (set? (:subclasses m)))
+      (is (every? is-member-map? (:attributes m)))
+      (is (contains? (:attributes m) '__doc__))
+      (is (every? is-member-map? (:methods m)))
+      (is (contains? (:methods m) 'startswith))
+      (is (= {} (:properties m)))))
+
+  (testing "callable"
+    (let [{:keys [name qualified-name module signature] :as m} (reflect keyword)]
+      (is (= name 'keyword))
+      (is (= qualified-name 'keyword))
+      (is (= module 'basilisp.core))
+      (is (string? (:file m)))
+      (is (= #{:function :routine :basilisp-function} (:flags m)))
+      (is (= :basilisp.reflect/empty (:return-annotation signature))))))
