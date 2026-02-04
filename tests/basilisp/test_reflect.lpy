@@ -72,4 +72,13 @@
       (is (contains? (:attributes m) '__doc__))
       (is (every? is-member-map? (:methods m)))
       (is (contains? (:methods m) 'startswith))
-      (is (= {} (:properties m))))))
+      (is (= {} (:properties m)))))
+
+  (testing "callable"
+    (let [{:keys [name qualified-name module signature] :as m} (reflect keyword)]
+      (is (= name 'keyword))
+      (is (= qualified-name 'keyword))
+      (is (= module 'basilisp.core))
+      (is (string? (:file m)))
+      (is (= #{:function :routine :basilisp-function} (:flags m)))
+      (is (= :basilisp.reflect/empty (:return-annotation signature))))))
