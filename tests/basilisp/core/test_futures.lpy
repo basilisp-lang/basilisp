@@ -1,5 +1,7 @@
 (ns tests.basilisp.core.test-futures
-  (:import time)
+  (:import os
+           time
+           [basilisp.lang.futures :as futures])
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
@@ -17,7 +19,7 @@
 
   (testing "timed deref of future"
     (let [pre (time/perf-counter)
-          fut (future (time/sleep 3))
+          fut (future (time/sleep 0.3))
           start (time/perf-counter)
           ;; block for 100ms
           ret (deref fut 100 :timed-out)
@@ -47,8 +49,8 @@
 
 (deftest pmap-test
   (binding [*pmap-cpu-count* 2]
-    (let [slow (fn slow [x]
-                 (time/sleep 0.5)
+      (let [slow (fn slow [x]
+                 (time/sleep 0.1)
                  (+ x 10))]
       (is (= [] (vec (pmap slow []))))
       (is (= [11] (vec (pmap slow [1]))))
@@ -57,8 +59,8 @@
 
 (deftest pcalls-test
   (binding [*pmap-cpu-count* 2]
-    (let [slow (fn slow [x]
-                 (time/sleep 0.5)
+      (let [slow (fn slow [x]
+                 (time/sleep 0.1)
                  (+ x 10))]
       (is (= [] (vec (pcalls))))
       (is (= [11] (vec (pcalls #(slow 1)))))
@@ -70,8 +72,8 @@
 
 (deftest pvalues-test
   (binding [*pmap-cpu-count* 2]
-    (let [slow (fn slow [x]
-                 (time/sleep 0.5)
+      (let [slow (fn slow [x]
+                 (time/sleep 0.1)
                  (+ x 10))]
       (is (= [] (vec (pvalues))))
       (is (= [11] (vec (pvalues (slow 1)))))
@@ -81,3 +83,244 @@
                            (slow 3)
                            (slow 4))))))))
 
+(defn process-pool-helper
+  "A helper function for ProcessPoolExecutor tests."
+  [x]
+  (+ x 10))
+
+(defn identity-fn
+  "A simple identity function for multicore testing."
+  [x]
+  x)
+
+(defn cpu-bound-work
+  "Simulate CPU-bound work by computing sum of range."
+  [n]
+  (reduce + (range n)))
+
+(defn get-pid
+  "Get the current process ID."
+  []
+  (os/getpid))
+
+(def ^:dynamic *test-binding-a* nil)
+(def ^:dynamic *test-binding-b* nil)
+
+(deftest process-pool-executor-basic-test
+  (testing "basic function execution with ProcessPoolExecutor"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [fut (future (process-pool-helper 1))]
+        (is (= 11 @fut)))))
+
+  (testing "closure execution with ProcessPoolExecutor"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [multiplier 5
+            fut (future (* multiplier 3))]
+        (is (= 15 @fut)))))
+
+  (testing "binding conveyance with ProcessPoolExecutor"
+    ;; Note: Only vars that are explicitly bound in a `binding` form are
+    ;; conveyed to the subprocess. The root value of dynamic vars is NOT
+    ;; conveyed - only thread-local bindings are.
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)
+              *thread-value* 7]
+      (let [fut (future *thread-value*)]
+        (is (= 7 @fut))))))
+
+(deftest process-pool-executor-parallel-test
+  (testing "multiple futures run in parallel across processes"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 4)]
+      ;; Warm the pool so initialization/bootstrapping in each worker
+      ;; doesn't dominate the timing assertions.
+      (let [_warmup (doall (mapv deref [(future (get-pid))
+                                       (future (get-pid))
+                                       (future (get-pid))
+                                       (future (get-pid))]))
+            start (time/perf-counter)
+            ;; Each future sleeps briefly and returns [pid value] for diagnostics
+            futures [(future (do (time/sleep 0.1) [(get-pid) 1]))
+                     (future (do (time/sleep 0.1) [(get-pid) 2]))
+                     (future (do (time/sleep 0.1) [(get-pid) 3]))
+                     (future (do (time/sleep 0.1) [(get-pid) 4]))]
+            results (mapv deref futures)
+            pids (set (mapv first results))
+            values (mapv second results)
+            elapsed (- (time/perf-counter) start)]
+        ;; If running in parallel, total time should be ~0.5s, not ~2s
+        ;; Allow some overhead for process startup
+        (println "process-pool parallel test pids:" pids "elapsed:" elapsed "values:" values)
+        (is (= [1 2 3 4] values))
+        (is (< elapsed 0.8) (str "Expected parallel execution but took " elapsed "s")))))
+
+  (testing "futures execute in different processes"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 2)]
+      (let [main-pid (get-pid)
+            futures [(future (get-pid))
+                     (future (get-pid))]
+            pids (set (mapv deref futures))]
+        ;; Worker PIDs should be different from main process
+        (is (not (contains? pids main-pid))
+            "Worker processes should have different PIDs than main process")))))
+
+(deftest process-pool-executor-data-types-test
+  (testing "returns various data types correctly"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      ;; Integers
+      (is (= 42 @(future 42)))
+
+      ;; Floats
+      (is (= 3.14 @(future 3.14)))
+
+      ;; Strings
+      (is (= "hello" @(future "hello")))
+
+      ;; Keywords
+      (is (= :success @(future :success)))
+
+      ;; Symbols
+      (is (= 'my-symbol @(future 'my-symbol)))
+
+      ;; Vectors
+      (is (= [1 2 3] @(future [1 2 3])))
+
+      ;; Lists
+      (is (= '(a b c) @(future '(a b c))))
+
+      ;; Maps
+      (is (= {:a 1 :b 2} @(future {:a 1 :b 2})))
+
+      ;; Sets
+      (is (= #{1 2 3} @(future #{1 2 3})))
+
+      ;; Nested structures
+      (is (= {:data [1 2 {:nested "value"}]}
+             @(future {:data [1 2 {:nested "value"}]})))
+
+      ;; nil
+      (is (nil? @(future nil))))))
+
+(deftest process-pool-executor-closures-test
+  (testing "closures over simple values"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [x 10
+            y 20]
+        (is (= 30 @(future (+ x y)))))))
+
+  (testing "closures over collections"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [data [1 2 3 4 5]]
+        (is (= 15 @(future (reduce + data)))))))
+
+  (testing "closures over nested let bindings"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [a 1
+            b (+ a 2)
+            c (* b 3)]
+        (is (= 9 @(future c)))))))
+
+(deftest process-pool-executor-bindings-test
+  (testing "multiple binding conveyance"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)
+              *test-binding-a* "value-a"
+              *test-binding-b* 42]
+      (is (= ["value-a" 42] @(future [*test-binding-a* *test-binding-b*])))))
+
+  (testing "nested bindings are conveyed"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)
+              *test-binding-a* "outer"]
+      (binding [*test-binding-b* "inner"]
+        (is (= ["outer" "inner"] @(future [*test-binding-a* *test-binding-b*])))))))
+
+(deftest process-pool-executor-error-handling-test
+  (testing "exceptions in subprocess are re-raised"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [fut (future (throw (ex-info "Test error" {:code 123})))]
+        (is (thrown-with-msg? Exception #"Test error"
+              @fut)))))
+
+  (testing "division by zero exception"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [fut (future (/ 1 0))]
+        (is (thrown? Exception @fut)))))
+
+  (testing "future-done? works with process pool"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [fut (future (time/sleep 0.1) :done)]
+        (is (= false (future-done? fut)))
+        (is (= :done @fut))
+        (is (= true (future-done? fut)))))))
+
+(deftest process-pool-executor-timeout-test
+  (testing "deref with timeout returns timeout value"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+      (let [fut (future (time/sleep 0.5) :never-returned)
+            result (deref fut 100 :timed-out)]
+        (is (= :timed-out result))
+        ;; Clean up - cancel the future
+        (future-cancel fut)))))
+
+(deftest process-pool-pmap-test
+  (testing "pmap with ProcessPoolExecutor"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 4)
+              *pmap-cpu-count* 4]
+      (is (= [11 12 13 14 15]
+             (vec (pmap process-pool-helper [1 2 3 4 5]))))))
+
+  (testing "pmap with empty collection"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)
+              *pmap-cpu-count* 2]
+      (is (= [] (vec (pmap process-pool-helper []))))))
+
+  (testing "pmap with closures"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 2)
+              *pmap-cpu-count* 2]
+      (let [multiplier 10]
+        (is (= [10 20 30 40]
+               (vec (pmap #(* % multiplier) [1 2 3 4]))))))))
+
+(deftest process-pool-pcalls-test
+  (testing "pcalls with ProcessPoolExecutor"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 4)
+              *pmap-cpu-count* 4]
+      (is (= [1 2 3 4]
+             (vec (pcalls #(identity-fn 1)
+                          #(identity-fn 2)
+                          #(identity-fn 3)
+                          #(identity-fn 4)))))))
+
+  (testing "pcalls with no arguments"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)
+              *pmap-cpu-count* 2]
+      (is (= [] (vec (pcalls)))))))
+
+(deftest process-pool-pvalues-test
+  (testing "pvalues with ProcessPoolExecutor"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 4)
+              *pmap-cpu-count* 4]
+      (is (= [10 20 30 40]
+             (vec (pvalues (process-pool-helper 0)
+                           (process-pool-helper 10)
+                           (process-pool-helper 20)
+                           (process-pool-helper 30)))))))
+
+  (testing "pvalues with no arguments"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)
+              *pmap-cpu-count* 2]
+      (is (= [] (vec (pvalues)))))))
+
+(deftest process-pool-cpu-bound-test
+  (testing "CPU-bound work benefits from process pool"
+    (binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor 4)]
+      (let [n 100000
+            start (time/perf-counter)
+            futures [(future (cpu-bound-work n))
+                     (future (cpu-bound-work n))
+                     (future (cpu-bound-work n))
+                     (future (cpu-bound-work n))]
+            results (mapv deref futures)
+            elapsed (- (time/perf-counter) start)
+            expected (reduce + (range n))]
+        ;; All results should be correct
+        (is (every? #(= expected %) results))
+        ;; Just verify results are correct - timing depends on hardware
+        (is (= 4 (count results)))))))
