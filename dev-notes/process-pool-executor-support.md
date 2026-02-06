@@ -107,10 +107,15 @@ def _var_from_symbol(qualified_sym: sym.Symbol) -> Var:
     v = Var.find(qualified_sym)
     if v is not None:
         return v
+    # Best-effort import to load user namespaces in the subprocess
+    try:
+        importlib.import_module(munge(sym.symbol(qualified_sym.ns).name))
+    except ImportError:
+        pass
     # Create the Var if it doesn't exist (for user-defined vars in subprocesses)
     ns = Namespace.get_or_create(sym.symbol(qualified_sym.ns))
-    return Var.intern(ns, sym.symbol(qualified_sym.name),
-                      Var._Var__UNBOUND_SENTINEL, dynamic=True)
+    unbound = getattr(Var, "_Var__UNBOUND_SENTINEL")
+    return Var.intern(ns, sym.symbol(qualified_sym.name), unbound, dynamic=True)
 ```
 
 **Namespace.__reduce__**:
@@ -149,12 +154,40 @@ def __reduce__(self):
 **Worker function** - bootstraps Basilisp:
 ```python
 def _execute_cloudpickled_fn(pickled_fn: bytes, pickled_args: bytes):
+    import sys
     from basilisp.main import init
+    from basilisp import importer
     init()  # Bootstrap Basilisp in subprocess
+    # Ensure Basilisp import hook is active in the child process
+    if not any(isinstance(o, importer.BasilispImporter) for o in sys.meta_path):
+        importer.hook_imports()
 
     fn = cloudpickle.loads(pickled_fn)
     args, kwargs = cloudpickle.loads(pickled_args)
     return fn(*args, **kwargs)
+```
+
+**ProcessPoolExecutor.__init__** - guards against PermissionError from system limit checks:
+```python
+orig_check = getattr(_cf_process, "_check_system_limits", None)
+if orig_check is not None:
+    def _safe_check_system_limits():
+        try:
+            orig_check()
+        except PermissionError:
+            return None
+    _cf_process._check_system_limits = _safe_check_system_limits
+    try:
+        super().__init__(max_workers=max_workers)
+    finally:
+        _cf_process._check_system_limits = orig_check
+```
+
+**Auto-shutdown**:
+```python
+# ProcessPoolExecutor registers atexit shutdown.
+# The binding macro also shuts down ProcessPoolExecutor on unbind
+# when _auto_shutdown is true (default).
 ```
 
 ## Usage
@@ -168,10 +201,12 @@ pip install basilisp[cloudpickle]
 ### Basic Example
 
 ```clojure
+(import [basilisp.lang.futures :as futures])
+
 (defn cpu-work [n]
   (python/sum (python/range n)))
 
-(binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (let [futures [(future (cpu-work 10000000))
                  (future (cpu-work 10000000))
                  (future (cpu-work 10000000))
@@ -183,30 +218,38 @@ pip install basilisp[cloudpickle]
 ### Using pmap
 
 ```clojure
-(binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+(import [basilisp.lang.futures :as futures])
+
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (doall (pmap cpu-work [10000000 10000000 10000000 10000000])))
 ```
 
 ## Limitations and Gotchas
 
+Assume `(import [basilisp.lang.futures :as futures])` for the examples below.
+
 ### 1. Only Explicitly Bound Vars Are Conveyed
 
-**Gotcha**: Only vars that are explicitly rebound in a `binding` form are conveyed to subprocesses. Root values of dynamic vars are NOT conveyed.
+**Gotcha**: Only vars that are explicitly rebound in a `binding` form are conveyed to subprocesses. Root values are not part of the binding map.
 
 ```clojure
 (def ^:dynamic *my-var* 10)
 
-;; WRONG - *my-var* is not bound, only has root value
-(binding [*executor-pool* (ProcessPoolExecutor)]
-  (future *my-var*))  ;; ERROR: Unable to resolve symbol
+;; *my-var* is not bound in the current thread
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
+  (future *my-var*))  ;; uses root value if available in subprocess
 
 ;; CORRECT - explicitly bind *my-var*
-(binding [*executor-pool* (ProcessPoolExecutor)
+(binding [*executor-pool* (futures/ProcessPoolExecutor)
           *my-var* 10]
   (future *my-var*))  ;; Works!
 ```
 
-**Why**: `bound-fn*` only captures thread-local bindings (set via `binding`), not root values. In the subprocess, the var doesn't exist unless it was in the bindings map.
+**Why**: `bound-fn*` only captures thread-local bindings (set via `binding`), not root values. In the subprocess, the var will use its root value if available; otherwise it may be unbound if the namespace isn't loaded.
+
+### 1b. *in*, *out*, *err* Are Not Conveyed for Process Pools
+
+**Gotcha**: When `*executor-pool*` is a `ProcessPoolExecutor`, Basilisp excludes `*in*`, `*out*`, and `*err*` from binding conveyance because those streams are not picklable. In the subprocess, they fall back to defaults.
 
 ### 2. User-Defined Functions Must Be Serializable
 
@@ -215,27 +258,27 @@ pip install basilisp[cloudpickle]
 ```clojure
 ;; This works - closes over a simple value
 (let [x 5]
-  (binding [*executor-pool* (ProcessPoolExecutor)]
+  (binding [*executor-pool* (futures/ProcessPoolExecutor)]
     @(future (* x 2))))  ;; => 10
 
 ;; This might fail - if `some-obj` isn't picklable
 (let [some-obj (create-unpicklable-thing)]
-  (binding [*executor-pool* (ProcessPoolExecutor)]
+  (binding [*executor-pool* (futures/ProcessPoolExecutor)]
     @(future (.method some-obj))))
 ```
 
 ### 3. Subprocess Startup Overhead
 
-**Gotcha**: Each subprocess must bootstrap Basilisp, adding ~1-2 seconds overhead on first task.
+**Gotcha**: Each subprocess must bootstrap Basilisp, which can add noticeable overhead on first task.
 
 ```clojure
 ;; First batch of tasks will be slower due to process startup + bootstrap
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (time (doall (pmap cpu-work [1000000 1000000]))))
 ;; "Elapsed time: 2500 msecs" (includes startup)
 
 ;; Subsequent batches reuse warm processes
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (time (doall (pmap cpu-work [1000000 1000000]))))
 ;; "Elapsed time: 200 msecs" (processes already warm)
 ```
@@ -251,7 +294,7 @@ pip install basilisp[cloudpickle]
   ;; This nested future runs on ThreadPoolExecutor in the subprocess
   @(future (+ 1 2)))
 
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   @(future (task-with-nested-futures)))
 ```
 
@@ -264,7 +307,7 @@ pip install basilisp[cloudpickle]
 ```clojure
 (def counter (atom 0))
 
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (doall (pmap (fn [_] (swap! counter inc)) (range 4))))
 
 @counter  ;; Still 0! Each process had its own copy of the atom
@@ -277,7 +320,7 @@ pip install basilisp[cloudpickle]
 **Gotcha**: Output from multiple processes may be interleaved unpredictably.
 
 ```clojure
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (doall (pmap #(println "Processing" %) (range 4))))
 ;; Output order is not guaranteed
 ```
@@ -287,7 +330,7 @@ pip install basilisp[cloudpickle]
 **Gotcha**: Exceptions in subprocess tasks are re-raised when you `deref` the future, but the stack trace points to the subprocess.
 
 ```clojure
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   @(future (throw (ex-info "Oops" {}))))
 ;; Raises the exception with subprocess stack trace
 ```
@@ -298,11 +341,11 @@ pip install basilisp[cloudpickle]
 
 ```clojure
 ;; Slow - serializes large-vector 4 times
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (doall (pmap process-fn [large-vector large-vector large-vector large-vector])))
 
 ;; Better - each task generates its own data
-(binding [*executor-pool* (ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (doall (pmap (fn [seed] (process-fn (generate-data seed))) [1 2 3 4])))
 ```
 
@@ -311,19 +354,20 @@ pip install basilisp[cloudpickle]
 Run the ProcessPoolExecutor tests:
 
 ```bash
-pytest tests/basilisp/core/test_futures.lpy -v -k "process_pool"
+poetry run pytest tests/basilisp/core/test_futures.lpy -v -k "process-pool"
 ```
 
 Or run manually:
 
 ```clojure
 (import time os)
+(import [basilisp.lang.futures :as futures])
 
 (defn cpu-work [n]
   (println (str "PID " (os/getpid) " processing"))
   (python/sum (python/range n)))
 
-(binding [*executor-pool* (basilisp.lang.futures/ProcessPoolExecutor)]
+(binding [*executor-pool* (futures/ProcessPoolExecutor)]
   (let [start (time/perf-counter)
         futures [(future (cpu-work 5000000))
                  (future (cpu-work 5000000))
