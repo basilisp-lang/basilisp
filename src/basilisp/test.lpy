@@ -119,7 +119,7 @@
       (sequential? expr) (let [maybe-f (first expr)]
                            (if (and (symbol? maybe-f)
                                     (or (= 'basilisp.core/= maybe-f)
-                                        (#{'thrown-with-msg? 'thrown?} (symbol (name maybe-f)))))
+                                        (#{'thrown-with-msg? 'thrown?} (symbol maybe-f))))
                              (symbol (name maybe-f))
                              maybe-f))
       :else              :default)))
