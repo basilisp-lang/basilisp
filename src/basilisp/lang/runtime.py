@@ -35,6 +35,7 @@ from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
     IDeref,
+    IIndexed,
     ILookup,
     IMapEntry,
     IPersistentCollection,
@@ -1454,6 +1455,7 @@ def _nth_none(_: None, i: int, notfound=__nth_sentinel) -> None:
 
 
 @nth.register(Sequence)
+@nth.register(IIndexed)
 def _nth_sequence(coll: Sequence, i: int, notfound=__nth_sentinel):
     try:
         return coll[i]

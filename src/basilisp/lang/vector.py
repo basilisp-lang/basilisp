@@ -51,6 +51,12 @@ class TransientVector(ITransientVector[T]):
     def __len__(self):
         return len(self._inner)
 
+    def __getitem__(self, item):
+        return self._inner[item]
+
+    def __call__(self, k: int) -> T | None:
+        return self._inner[k]
+
     def cons_transient(self, *elems: T) -> "TransientVector[T]":  # type: ignore[override]
         for elem in elems:
             self._inner.append(elem)
