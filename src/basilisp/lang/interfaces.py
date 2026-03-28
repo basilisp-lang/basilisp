@@ -76,8 +76,12 @@ class ICounted(Sized, ABC):
     __slots__ = ()
 
 
-class IIndexed(ICounted, ABC):
-    """``IIndexed`` is a marker interface for types can be accessed by index.
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+class IIndexed(ICounted, Generic[V], ABC):
+    """``IIndexed`` is an interface for types can be accessed by index.
 
     Of the builtin collections, only Vectors are ``IIndexed`` . ``IIndexed`` types
     respond ``True`` to the :lpy:fn:`indexed?` predicate.
@@ -87,6 +91,12 @@ class IIndexed(ICounted, ABC):
        :lpy:fn:`indexed?`"""
 
     __slots__ = ()
+
+    NTH_SENTINEL = object()
+
+    @abstractmethod
+    def nth(self, k: int, notfound: V | None = NTH_SENTINEL) -> V | None:  # type: ignore[assignment]
+        raise NotImplementedError()
 
 
 T_ExceptionInfo = TypeVar("T_ExceptionInfo", bound="IPersistentMap")
@@ -107,10 +117,6 @@ class IExceptionInfo(Exception, Generic[T_ExceptionInfo], ABC):
     @abstractmethod
     def data(self) -> T_ExceptionInfo:
         raise NotImplementedError()
-
-
-K = TypeVar("K")
-V = TypeVar("V")
 
 
 class IMapEntry(Generic[K, V], ABC):
