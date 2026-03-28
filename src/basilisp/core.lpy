@@ -4048,18 +4048,33 @@
     (throw
      (ex-info "Expected an even number of bindings"
               {:bindings bindings})))
-  (let [var-bindings (reduce* (fn [v pair]
+  (let [pairs        (partition 2 bindings)
+        pool-pair    (first (filter #(= (first %) '*executor-pool*) pairs))
+        pool-sym     (gensym "pool")
+        var-bindings (reduce* (fn [v pair]
                                 (let [vvar (first pair)
-                                      vval (second pair)]
+                                      vval (second pair)
+                                      vval (if (= vvar '*executor-pool*) pool-sym vval)]
                                   (conj v `(var ~vvar) vval)))
                               []
-                              (partition 2 bindings))]
-    `(do
-       (push-thread-bindings (hash-map ~@var-bindings))
-       (try
-         ~@body
-         (finally
-           (pop-thread-bindings))))))
+                              pairs)]
+    (if pool-pair
+      `(let [~pool-sym ~(second pool-pair)]
+         (push-thread-bindings (hash-map ~@var-bindings))
+         (try
+           ~@body
+           (finally
+             (pop-thread-bindings)
+             (when (and (instance? basilisp.lang.futures/ProcessPoolExecutor ~pool-sym)
+                        (.-_auto_shutdown ~pool-sym))
+               (.shutdown ~pool-sym)))))
+      `(do
+         (push-thread-bindings (hash-map ~@var-bindings))
+         (try
+           ~@body
+           (finally
+             (pop-thread-bindings))))))
+  )
 
 (defn with-bindings*
   "Execute the function ``f`` with the given arguments ``args`` (as by ``apply``\\) with

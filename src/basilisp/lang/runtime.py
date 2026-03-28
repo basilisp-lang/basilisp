@@ -15,6 +15,7 @@ import pickle  # nosec B403
 import platform
 import re
 import sys
+import sys
 import threading
 import types
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
@@ -31,6 +32,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.atom import Atom
+from basilisp.lang.futures import ProcessPoolExecutor
 from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
@@ -190,6 +192,27 @@ CompletionTrimmer = Callable[[tuple[sym.Symbol, Any]], str]
 class BasilispModule(types.ModuleType):
     __basilisp_namespace__: "Namespace"
     __basilisp_bootstrapped__: bool = False
+
+    def __reduce__(self):
+        """Enable pickling of BasilispModule objects.
+
+        Modules are serialized as their name and restored by importing the module.
+        This enables closures that reference basilisp modules in their __globals__
+        to be serialized for use with ProcessPoolExecutor.
+        """
+        return (_module_from_name, (self.__name__,))
+
+
+def _module_from_name(name: str) -> types.ModuleType:
+    """Reconstruct a module from its name during unpickling.
+
+    This first tries to get the module from sys.modules, then falls back to
+    importing it. This handles both standard Python modules and Basilisp modules.
+    """
+    import sys
+    if name in sys.modules:
+        return sys.modules[name]
+    return importlib.import_module(name)
 
 
 # pylint: disable=attribute-defined-outside-init
@@ -460,6 +483,58 @@ class Var(RefBase):
             )
         return v
 
+    def __reduce__(self):
+        """Enable pickling of Var objects.
+
+        Vars are serialized as their qualified symbol (namespace/name) and
+        restored by looking up the Var using Var.find_safe. This enables
+        closures containing Vars (such as those created by bound-fn*) to be
+        serialized for use with ProcessPoolExecutor.
+        """
+        qualified_sym = sym.symbol(self._name.name, ns=self._ns.name)
+        return (_var_from_symbol, (qualified_sym,))
+
+
+def _var_from_symbol(qualified_sym: sym.Symbol) -> Var:
+    """Reconstruct a Var from its qualified symbol during unpickling.
+
+    If the Var doesn't exist (e.g., because this is a subprocess that hasn't
+    loaded the user's namespace), create it as a dynamic Var. This enables
+    binding conveyance to work with ProcessPoolExecutor for user-defined
+    dynamic Vars.
+    """
+    v = Var.find(qualified_sym)
+    if v is not None:
+        return v
+
+    # Var doesn't exist - create it in the appropriate namespace
+    assert qualified_sym.ns is not None
+    ns_name = sym.symbol(qualified_sym.ns)
+    var_name = sym.symbol(qualified_sym.name)
+
+    # Ensure the namespace is loaded in this subprocess so that we can correctly
+    # resolve the Var. This works around issues where dynamic Vars defined in
+    # namespaces that aren't basilisp.core aren't automatically loaded.
+    try:
+        importlib.import_module(munge(ns_name.name))
+    except ImportError:
+        # If the import fails, it means the namespace probably doesn't have a
+        # backing Python module (e.g., dynamically created in REPL).
+        pass
+
+    # Get or create the namespace
+    ns = Namespace.get_or_create(ns_name)
+
+    # Intern a new dynamic Var (dynamic=True is required for binding conveyance)
+    unbound_sentinel = getattr(Var, "_Var__UNBOUND_SENTINEL")
+    return Var.intern(ns, var_name, unbound_sentinel, dynamic=True)
+
+
+def _namespace_from_symbol(name: sym.Symbol) -> "Namespace":
+    """Reconstruct a Namespace from its name symbol during unpickling."""
+    ns = Namespace.get_or_create(name)
+    return ns
+
 
 Frame = IPersistentSet[Var]
 FrameStack = IPersistentStack[Frame]
@@ -677,6 +752,16 @@ class Namespace(ReferenceBase):
 
     def __hash__(self):
         return hash(self._name)
+
+    def __reduce__(self):
+        """Enable pickling of Namespace objects.
+
+        Namespaces are serialized as their name symbol and restored by looking up
+        the Namespace using Namespace.get_or_create. This enables closures containing
+        Namespaces (such as bound dynamic bindings for *ns*) to be serialized for
+        use with ProcessPoolExecutor.
+        """
+        return (_namespace_from_symbol, (self._name,))
 
     def _get_required_namespaces(self) -> vec.PersistentVector["Namespace"]:
         """Return a vector of all required namespaces (loaded via `require`, `use`,
@@ -1053,9 +1138,30 @@ class Namespace(ReferenceBase):
 
 def get_thread_bindings() -> IPersistentMap[Var, Any]:
     """Return the current thread-local bindings."""
+    # Importing sys here rather than at the top of the file to prevent circular imports
+    # with basilisp.core which is required in this module to set up global vars.
+    import sys
+
     bindings = {}
     for frame in _THREAD_BINDINGS.get_bindings():
         bindings.update({var: var.value for var in frame})
+
+    if (
+        (executor_pool_var := Var.find(sym.symbol("*executor-pool*", ns=CORE_NS)))
+        is not None
+        and isinstance(executor_pool_var.value, ProcessPoolExecutor)
+    ):
+        # When using ProcessPoolExecutor, sys.stdin/stdout/stderr are not picklable,
+        # so we exclude them from the conveyed bindings. They will be reset to their
+        # defaults in the new process.
+        filtered_bindings = {}
+        # Importing global vars here to prevent circular imports with basilisp.core
+        # which is required in this module to set up global vars.
+        for k, v in bindings.items():
+            if k.name.name not in {"*in*", "*out*", "*err*"}:
+                filtered_bindings[k] = v
+        bindings = filtered_bindings
+
     return lmap.map(bindings)
 
 

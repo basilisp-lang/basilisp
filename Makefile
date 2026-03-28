@@ -63,6 +63,13 @@ lispcore.py:
 clean:
 	@rm -rf ./lispcore.py
 
+.PHONY: clean-cache
+clean-cache:
+	@rm -rf .pytest_cache .mypy_cache .ruff_cache .tox .hypothesis junit htmlcov
+	@rm -f .coverage .coverage.* coverage.xml
+	@find . -name "*.lpyc" -delete
+	@find . -name "__pycache__" -type d -prune -exec rm -rf {} +
+
 
 .PHONY: pypy-shell
 pypy-shell:
