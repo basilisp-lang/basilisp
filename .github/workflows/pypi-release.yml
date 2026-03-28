@@ -12,8 +12,8 @@ jobs:
     name: Build the distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ vars.PYTHON_VERSION }}
       - name: Install Poetry
@@ -23,7 +23,7 @@ jobs:
       - name: Build Basilisp distributions
         run: poetry build
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           path: dist/
           if-no-files-found: error
