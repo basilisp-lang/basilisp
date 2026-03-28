@@ -149,6 +149,44 @@ def test_val_at():
     assert "default" == vec.EMPTY.val_at("key", "default")
 
 
+@pytest.mark.parametrize(
+    "v,i", [(vec.v("a", "b"), 2), (vec.EMPTY, 0), (vec.EMPTY, 1), (vec.EMPTY, -1)]
+)
+def test_nth_invalid_index(v: vec.PersistentVector, i):
+    with pytest.raises(IndexError):
+        v.nth(i)
+
+
+@pytest.mark.parametrize(
+    "res,v,i",
+    [("a", vec.v("a"), 0), ("b", vec.v("a", "b"), 1), ("b", vec.v("a", "b"), -1)],
+)
+def test_nth(res, v: vec.PersistentVector, i: int):
+    assert res == v.nth(i)
+
+
+@pytest.mark.parametrize(
+    "res,v,i,default",
+    [
+        ("other", vec.EMPTY, -1, "other"),
+        ("other", vec.v("a"), 1, "other"),
+        ("b", vec.v("a", "b"), 1, "other"),
+        ("other", vec.v("a", "b"), 8, "other"),
+        ("b", vec.v("a", "b"), -1, "other"),
+    ],
+)
+def test_nth_default(res, v: vec.PersistentVector, i: int, default):
+    assert res == v.nth(i, notfound=default)
+
+
+def test_nth_invalid_keys():
+    with pytest.raises(TypeError):
+        vec.EMPTY.nth(keyword("key"))
+
+    with pytest.raises(TypeError):
+        vec.EMPTY.nth(keyword("blah"), "default")
+
+
 def test_peek():
     assert None is vec.v().peek()
 

@@ -35,6 +35,7 @@ from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
     IDeref,
+    IIndexed,
     ILookup,
     IMapEntry,
     IPersistentCollection,
@@ -1437,11 +1438,8 @@ def _count_sized(coll: Sized):
     return len(coll)
 
 
-__nth_sentinel = object()
-
-
 @functools.singledispatch
-def nth(coll, i: int, notfound=__nth_sentinel):
+def nth(coll, i: int, notfound=IIndexed.NTH_SENTINEL):
     """Returns the ith element of coll (0-indexed), if it exists.
     None otherwise. If i is out of bounds, throws an IndexError unless
     notfound is specified."""
@@ -1449,27 +1447,32 @@ def nth(coll, i: int, notfound=__nth_sentinel):
 
 
 @nth.register(type(None))
-def _nth_none(_: None, i: int, notfound=__nth_sentinel) -> None:
-    return notfound if notfound is not __nth_sentinel else None  # type: ignore[return-value]
+def _nth_none(_: None, i: int, notfound=IIndexed.NTH_SENTINEL) -> None:
+    return notfound if notfound is not IIndexed.NTH_SENTINEL else None  # type: ignore[return-value]
 
 
 @nth.register(Sequence)
-def _nth_sequence(coll: Sequence, i: int, notfound=__nth_sentinel):
+def _nth_sequence(coll: Sequence, i: int, notfound=IIndexed.NTH_SENTINEL):
     try:
         return coll[i]
     except IndexError as ex:
-        if notfound is not __nth_sentinel:
+        if notfound is not IIndexed.NTH_SENTINEL:
             return notfound
         raise ex
 
 
+@nth.register(IIndexed)
+def _nth_iindexed(coll: IIndexed, i: int, notfound=IIndexed.NTH_SENTINEL):
+    return coll.nth(i, notfound=notfound)
+
+
 @nth.register(ISeq)
-def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
+def _nth_iseq(coll: ISeq, i: int, notfound=IIndexed.NTH_SENTINEL):
     for j, e in enumerate(coll):
         if i == j:
             return e
 
-    if notfound is not __nth_sentinel:
+    if notfound is not IIndexed.NTH_SENTINEL:
         return notfound
 
     raise IndexError(f"Index {i} out of bounds")

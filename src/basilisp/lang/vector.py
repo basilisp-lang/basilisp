@@ -8,6 +8,7 @@ from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
+    IIndexed,
     ILispObject,
     IMapEntry,
     IPersistentMap,
@@ -51,6 +52,9 @@ class TransientVector(ITransientVector[T]):
     def __len__(self):
         return len(self._inner)
 
+    def __call__(self, k: int) -> T | None:
+        return self._inner[k]
+
     def cons_transient(self, *elems: T) -> "TransientVector[T]":  # type: ignore[override]
         for elem in elems:
             self._inner.append(elem)
@@ -81,6 +85,14 @@ class TransientVector(ITransientVector[T]):
             return self._inner[k]
         except IndexError:
             return default
+
+    def nth(self, k: int, notfound=IIndexed.NTH_SENTINEL):
+        try:
+            return self._inner[k]
+        except IndexError:
+            if notfound is not IIndexed.NTH_SENTINEL:
+                return notfound
+            raise
 
     def pop_transient(self) -> "TransientVector[T]":
         if len(self) == 0:
@@ -201,6 +213,14 @@ class PersistentVector(
             return self._inner[k]
         except (IndexError, TypeError):
             return default
+
+    def nth(self, k: int, notfound=IIndexed.NTH_SENTINEL):
+        try:
+            return self._inner[k]
+        except IndexError:
+            if notfound is not IIndexed.NTH_SENTINEL:
+                return notfound
+            raise
 
     def empty(self) -> "PersistentVector[T]":
         return EMPTY.with_meta(self._meta)

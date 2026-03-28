@@ -12,14 +12,14 @@ jobs:
   run-clojure-test-suite:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: basilisp
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: clojure-test-suite
           repository: basilisp-lang/clojure-test-suite
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
       - name: Install pip and dependencies

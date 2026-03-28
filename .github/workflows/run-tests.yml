@@ -35,13 +35,13 @@ jobs:
             version: '3.14'
             tox-env: py314,py314-lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .tox
@@ -76,7 +76,7 @@ jobs:
           for filename in .coverage.*; do mv "$filename" "coverage/$filename.py${{ matrix.version }}"; done;
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: code-coverage.py${{ matrix.version }}
           path: coverage/.coverage.*
@@ -95,13 +95,13 @@ jobs:
           - version: '3.11'
             tox-env: pypy311
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: pypy${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .tox
@@ -127,7 +127,7 @@ jobs:
           mkdir coverage
           for filename in .coverage.*; do mv "$filename" "coverage/$filename.pypy${{ matrix.version }}"; done;
       - name: Archive code coverage results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: code-coverage.pypy${{ matrix.version }}
           path: coverage/.coverage.*
@@ -154,13 +154,13 @@ jobs:
         version: ['3.10']
         tox-env: ['py310']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .tox
@@ -196,13 +196,13 @@ jobs:
      - run-tests
      - run-pypy-tests
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ vars.PYTHON_VERSION }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .tox

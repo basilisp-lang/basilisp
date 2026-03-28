@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Add `test` and `tests` directories to `PYTHONPATH` automatically during `basilisp test` CLI invocations (#1069)
 
+### Fixed
+ * Fix a bug where transient vectors were not callable and did not support `nth` (#1331)
+
 ## [v0.5.0]
 ### Added
  * Added support for Python 3.14 (#1282)
