@@ -88,7 +88,7 @@ class IIndexed(ICounted, Generic[V], ABC):
 
     .. seealso::
 
-       :lpy:fn:`indexed?`"""
+       :lpy:fn:`indexed?`, :lpy:fn:`nth`"""
 
     __slots__ = ()
 
