@@ -83,6 +83,37 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  # Neither Tox nor Poetry have any real support for GraalPy right now, so we're
+  # just installing using GraalPy's pip and running PyTest manually in the runner.
+  run-graalpy-tests:
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        version: ['3.12']
+        include:
+          - version: '3.12'
+            graalpy-version: '25.0.2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: graalpy-${{ matrix.graalpy-version }}
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+          key: ${{ runner.os }}-graalpy-${{ matrix.version }}-pip-${{ hashFiles('.github/workflows/run-tests.yml', 'pyproject.toml', 'tox.ini') }}
+      - name: Install Basilisp
+        run: |
+          pip install -U pip
+          pip install . "pytest>=7.0.0,<9.0.0" "pygments"
+      - name: Run tests
+        run: |
+          pytest --import-mode=importlib
+
   run-pypy-tests:
     runs-on: ${{matrix.os}}
     strategy:
