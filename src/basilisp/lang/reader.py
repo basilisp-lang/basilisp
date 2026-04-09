@@ -1797,7 +1797,7 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
     while True:
         v = _read_next(ctx)
         if v is ctx.eof:
-            return ctx.eof
+            return cast(RawReaderForm, ctx.eof)
         if v is COMMENT or isinstance(v, Comment):
             continue
         return v
