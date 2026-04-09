@@ -58,6 +58,14 @@ Contents
    releasenotes
    contributing
 
+.. toctree::
+   :caption: Meta
+   :maxdepth: 1
+
+   PyPI <https://pypi.org/project/basilisp/>
+   GitHub <https://github.com/basilisp-lang/basilisp>
+   Clojurians <https://clojurians.slack.com/archives/C071RFV2Z1D>
+
 Indices and tables
 ==================
 

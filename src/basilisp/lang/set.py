@@ -85,7 +85,7 @@ class PersistentSet(
     ) -> "PersistentSet":
         return PersistentSet(_Map((m, m) for m in (members or ())), meta=meta)
 
-    _from_iterable = from_iterable
+    _from_iterable = from_iterable  # type: ignore[assignment]
 
     def __bool__(self):
         return True
