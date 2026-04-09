@@ -65,6 +65,7 @@ docs = [
 ]
 
 [project.optional-dependencies]
+cloudpickle = ["cloudpickle (>=2.0.0,<4.0.0)"]
 pygments = ["pygments (>=2.9.0,<3.0.0)"]
 pytest = ["pytest (>=7.0.0,<9.0.0)"]
 
@@ -243,6 +244,7 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = [
+    "cloudpickle",
     "prompt_toolkit.*",
     "pygments.*",
     "pytest.*",

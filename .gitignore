@@ -3,6 +3,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Emacs stuff
+*#
+*~
+.\#*
+\#*\#
+.emacs.desktop
+.emacs.desktop.lock
+*.elc
+auto-save-list/
+tramp
+
 # C extensions
 *.so
 
@@ -72,3 +83,6 @@ lispcore.py
 poetry.lock
 **/*.~undo-tree~
 .nrepl-port
+.DS_Store
+.dir-locals.el
+process_pool_repl.lpy
