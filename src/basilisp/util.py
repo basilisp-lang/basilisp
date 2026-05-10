@@ -1,4 +1,5 @@
 import contextlib
+import sys
 import time
 from collections.abc import Callable, Iterable, Sequence
 from typing import Generic, TypeVar
@@ -66,15 +67,23 @@ class Maybe(Generic[T]):
         return self._inner is not None
 
 
-def partition(coll: Sequence[T], n: int) -> Iterable[tuple[T, ...]]:
-    """Partition `coll` into groups of size `n`."""
-    assert n > 0
-    start = 0
-    stop = n
-    while stop <= len(coll):
-        yield tuple(e for e in coll[start:stop])
-        start += n
-        stop += n
-    if start < len(coll) < stop:
-        stop = len(coll)
-        yield tuple(e for e in coll[start:stop])
+if sys.version_info >= (3, 12):
+    from itertools import batched
+
+    def partition(coll: Sequence[T], n: int) -> Iterable[tuple[T, ...]]:
+        return batched(coll, n)
+
+else:
+
+    def partition(coll: Sequence[T], n: int) -> Iterable[tuple[T, ...]]:
+        """Partition `coll` into groups of size `n`."""
+        assert n > 0
+        start = 0
+        stop = n
+        while stop <= len(coll):
+            yield tuple(e for e in coll[start:stop])
+            start += n
+            stop += n
+        if start < len(coll) < stop:
+            stop = len(coll)
+            yield tuple(e for e in coll[start:stop])

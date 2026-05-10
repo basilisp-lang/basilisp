@@ -55,7 +55,7 @@ from basilisp.lang.source import format_source_context
 from basilisp.lang.tagged import TaggedLiteral, tagged_literal
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
-from basilisp.util import Maybe, partition
+from basilisp.util import partition
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|:|\.")
 alphanumeric_chars = re.compile(r"\w")
@@ -386,14 +386,18 @@ class ReaderContext:
         process_reader_cond: bool = True,
         default_data_reader_fn: DefaultDataReaderFn | None = None,
     ) -> None:
-        self._data_readers = Maybe(data_readers).or_else_get(lmap.EMPTY)
-        self._default_data_reader_fn = Maybe(default_data_reader_fn).or_else_get(
+        self._data_readers = lmap.EMPTY if data_readers is None else data_readers
+        self._default_data_reader_fn = (
             _raise_unknown_tag
+            if default_data_reader_fn is None
+            else default_data_reader_fn
         )
-        self._features = Maybe(features).or_else_get(READER_COND_DEFAULT_FEATURE_SET)
+        self._features = (
+            READER_COND_DEFAULT_FEATURE_SET if features is None else features
+        )
         self._process_reader_cond = process_reader_cond
         self._reader = reader
-        self._resolve = Maybe(resolver).or_else_get(lambda x: x)
+        self._resolve = (lambda x: x) if resolver is None else resolver
         self._process_tagged_literals: collections.deque[bool] = collections.deque([])
         self._in_anon_fn: collections.deque[bool] = collections.deque([])
         self._syntax_quoted: collections.deque[bool] = collections.deque([])

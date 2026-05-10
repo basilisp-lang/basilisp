@@ -10,7 +10,6 @@ from basilisp.lang.interfaces import (
     ISequential,
     IWithMeta,
 )
-from basilisp.util import Maybe
 
 T = TypeVar("T")
 
@@ -72,7 +71,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
         meta: IPersistentMap | None = None,
     ) -> None:
         self._first = first
-        self._rest = Maybe(seq).or_else_get(EMPTY)
+        self._rest = EMPTY if seq is None else seq
         self._meta = meta
 
     @property

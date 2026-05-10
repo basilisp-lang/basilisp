@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, MutableMapping, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from enum import Enum
 from typing import Any, Generic, Optional, TypeVar, Union
 
@@ -199,19 +199,11 @@ class Node(ABC, Generic[T]):
             or self.env.end_line is None
             or self.env.end_col is None
         ):
-            loc = form_loc
-        else:
-            loc = (self.env.line, self.env.col, self.env.end_line, self.env.end_col)
+            assert form_loc is not None and all(
+                e is not None for e in form_loc
+            ), "Must specify location information"
+            self.env.set_loc(form_loc)
 
-        assert loc is not None and all(
-            e is not None for e in loc
-        ), "Must specify location information"
-
-        new_attrs: MutableMapping[str, NodeEnv | Node | Iterable[Node]] = {
-            "env": attr.evolve(
-                self.env, line=loc[0], col=loc[1], end_line=loc[2], end_col=loc[3]
-            )
-        }
         for child_kw in self.children:
             child_attr = munge(child_kw.name)
             assert child_attr != "env", "Node environment already set"
@@ -219,15 +211,14 @@ class Node(ABC, Generic[T]):
             if child_attr.endswith("s"):
                 iter_child: Iterable[Node] = getattr(self, child_attr)
                 assert iter_child is not None, "Listed child must not be none"
-                new_attrs[child_attr] = vec.vector(
-                    item.fix_missing_locations(form_loc) for item in iter_child
-                )
+                for item in iter_child:
+                    item.fix_missing_locations(form_loc)
             else:
                 child: Node = getattr(self, child_attr)
                 assert child is not None, "Listed child must not be none"
-                new_attrs[child_attr] = child.fix_missing_locations(form_loc)
+                child.fix_missing_locations(form_loc)
 
-        return self.assoc(**new_attrs)
+        return self
 
 
 def deftype_or_reify_python_member_names(
@@ -326,7 +317,7 @@ class LocalType(Enum):
     THIS = kw.keyword("this")
 
 
-@attr.frozen
+@attr.define
 class NodeEnv:
     ns: Namespace
     file: str
@@ -336,6 +327,9 @@ class NodeEnv:
     end_col: int | None = None
     pos: NodeSyntacticPosition | None = None
     func_ctx: FunctionContext | None = None
+
+    def set_loc(self, form_loc: tuple[int, int, int, int]) -> None:
+        self.line, self.col, self.end_line, self.end_col = form_loc
 
 
 @attr.frozen

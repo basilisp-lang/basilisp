@@ -351,7 +351,7 @@ class AnalyzerContext:
         allow_unresolved_symbols: bool = False,
     ) -> None:
         self._allow_unresolved_symbols = allow_unresolved_symbols
-        self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
+        self._filename = DEFAULT_COMPILER_FILE_PATH if filename is None else filename
         self._func_ctx: collections.deque[FunctionContext] = collections.deque([])
         self._is_quoted: collections.deque[bool] = collections.deque([])
         self._opts = (
