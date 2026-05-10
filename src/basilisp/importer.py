@@ -48,7 +48,7 @@ def _basilisp_bytecode(
     data.extend(_w_long(mtime))
     data.extend(_w_long(source_size))
     data.extend(marshal.dumps(code))
-    return data
+    return bytes(data)
 
 
 def _get_basilisp_bytecode(
