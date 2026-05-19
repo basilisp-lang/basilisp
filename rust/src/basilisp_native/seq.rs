@@ -267,7 +267,7 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
                 .unwrap()
                 .unbind()
         });
-        Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,)).unwrap())?
+        Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,))?)?
             .bind(py)
             .clone())
     }
