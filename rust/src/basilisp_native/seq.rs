@@ -121,7 +121,6 @@ impl LazySeq {
                 "cannot construct LazySeq with generator function and realized seq",
             ))
         } else {
-            // println!("gen = {:?}; seq = {:?}", gen, seq);
             Ok(LazySeq {
                 lock: Mutex::new(LazySeqState {
                     gen: if gen.is_none() {
@@ -209,8 +208,6 @@ impl LazySeq {
     }
 }
 
-static LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
-
 #[pyfunction]
 fn seq_or_nil(py: Python, s: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     if s.is_none() {
@@ -226,6 +223,7 @@ fn seq_or_nil(py: Python, s: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     }
 }
 
+static LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static SEQUENCE_FN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 #[pyfunction]
