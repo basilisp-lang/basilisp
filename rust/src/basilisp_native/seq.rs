@@ -30,14 +30,11 @@ struct LazySeqState {
 
 impl LazySeqState {
     fn _compute_seq(&mut self, py: Python) -> PyResult<Py<PyAny>> {
-        // println!("_compute_seq: self = {:?}", self);
         if let Some(_) = self.gen {
             let gen = self.gen.as_ref().unwrap().clone_ref(py);
             self.gen = None;
             self.obj = Some(gen.call0(py)?);
-            // println!("_compute_seq: self = {:?}", self);
         }
-        // println!("_compute_seq: self = {:?}", self);
         if let Some(o) = &self.obj {
             Ok(o.clone_ref(py))
         } else {
@@ -47,7 +44,6 @@ impl LazySeqState {
 
     fn seq(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         let _ = self._compute_seq(py)?;
-        // println!("computed = {}", computed);
         if let Some(_) = self.obj {
             let mut wrapped: Option<Py<PyAny>> = None;
             mem::swap(&mut self.obj, &mut wrapped);
@@ -56,19 +52,14 @@ impl LazySeqState {
                 .get_or_init(py, || LazySeq::type_object(py).unbind())
                 .bind(py);
             loop {
-                // println!("obj = {}", o.getattr(py, "__class__")?);
                 if o.bind(py).is_instance(lazy_seq_tp)? {
-                    // println!("is_lazy_seq = true");
                     o = o.call_method0(py, intern!(py, "_compute_seq"))?;
                 } else {
-                    // println!("is_lazy_seq = false");
                     break;
                 }
             }
-            // println!("LazySeqState.seq() = {}", o);
 
             self.seq = Some(to_seq(py, o.bind(py))?.unbind());
-            // println!("self.seq = {}", self.seq.as_ref().unwrap());
         }
         Ok(self.seq.as_ref().unwrap().clone_ref(py))
     }
@@ -222,7 +213,6 @@ static LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 
 #[pyfunction]
 fn seq_or_nil(py: Python, s: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    // println!("seq_or_nil: s = {}", s);
     if s.is_none() {
         Ok(s.clone().unbind())
     } else if s
@@ -240,26 +230,20 @@ static SEQUENCE_FN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 #[pyfunction]
 pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    // println!("=> to_seq({})", s);
     if s.is_none() {
-        // println!("<= None");
         Ok(py.None().into_bound(py))
     } else if s.is_instance(
         LAZY_SEQ_TYPE
             .get_or_init(py, || LazySeq::type_object(py).unbind())
             .bind(py),
     )? {
-        // println!("<= LazySeq.seq()");
         s.call_method0(intern!(py, "seq"))
     } else if is_iseq(py, s)? {
-        // println!("<= already ISeq");
         Ok(seq_or_nil(py, &s)?.bind(py).clone())
     } else if is_iseqable(py, s)? {
         let seq = s.call_method0(intern!(py, "seq"))?.clone();
-        // println!("<= ISeqable.seq() = {}", seq);
         Ok(seq_or_nil(py, &seq)?.bind(py).clone())
     } else {
-        // println!("<= default");
         let sequence_fn = SEQUENCE_FN.get_or_init(py, || {
             py.import("basilisp.lang.seq")
                 .unwrap()
