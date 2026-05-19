@@ -9,7 +9,6 @@ use std::sync::Mutex;
 
 use super::interfaces::{is_iseq, is_iseqable};
 
-
 fn empty_seq<'py>(py: Python<'py>) -> &'py Bound<'py, PyAny> {
     EMPTY_SEQ
         .get_or_init(py, || {
@@ -80,10 +79,12 @@ impl LazySeqState {
 
     fn first(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         match self.seq(py) {
-            Ok(v) => if v.is_none(py) {
-                Ok(py.None())
-            } else {
-                v.getattr(py, intern!(py, "first"))
+            Ok(v) => {
+                if v.is_none(py) {
+                    Ok(py.None())
+                } else {
+                    v.getattr(py, intern!(py, "first"))
+                }
             }
             Err(e) => Err(e),
         }
@@ -91,10 +92,12 @@ impl LazySeqState {
 
     fn rest(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         match self.seq(py) {
-            Ok(v) => if v.is_none(py) {
-                Ok(empty_seq(py).clone().unbind())
-            } else {
-                v.getattr(py, intern!(py, "rest"))
+            Ok(v) => {
+                if v.is_none(py) {
+                    Ok(empty_seq(py).clone().unbind())
+                } else {
+                    v.getattr(py, intern!(py, "rest"))
+                }
             }
             Err(e) => Err(e),
         }
@@ -249,6 +252,8 @@ fn seq_or_nil(py: Python, s: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     }
 }
 
+static SEQUENCE_FN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
 #[pyfunction]
 pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     // println!("=> to_seq({})", s);
@@ -271,6 +276,15 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
         Ok(seq_or_nil(py, &seq)?.bind(py).clone())
     } else {
         // println!("<= default");
-        Ok(seq_or_nil(py, s)?.bind(py).clone())
+        let sequence_fn = SEQUENCE_FN.get_or_init(py, || {
+            py.import("basilisp.lang.seq")
+                .unwrap()
+                .getattr(intern!(py, "sequence"))
+                .unwrap()
+                .unbind()
+        });
+        Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,)).unwrap())?
+            .bind(py)
+            .clone())
     }
 }
