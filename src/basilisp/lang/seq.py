@@ -279,6 +279,9 @@ else:
         ):
             return super().__new__(cls, gen, seq, meta=meta)
 
+        def with_meta(self, meta: IPersistentMap | None) -> "LazySeq[T]":
+            return LazySeq(None, seq=self.seq(), meta=meta)
+
         def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
             l: ISeq = self
             for elem in elems:

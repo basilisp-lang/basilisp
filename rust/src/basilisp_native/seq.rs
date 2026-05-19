@@ -173,22 +173,6 @@ impl LazySeq {
         Ok(self.meta.bind(py))
     }
 
-    fn with_meta(&self, py: Python, meta: Bound<'_, PyAny>) -> PyResult<Self> {
-        match self.lock.lock() {
-            Ok(mut state) => Ok(LazySeq {
-                lock: Mutex::new(LazySeqState {
-                    gen: None,
-                    obj: None,
-                    seq: Some(state.seq(py)?),
-                }),
-                meta: meta.unbind(),
-            }),
-            Err(e) => Err(PyRuntimeError::new_err(format!(
-                "LazySeq mutex poisoned: {e}"
-            ))),
-        }
-    }
-
     #[getter(first)]
     fn first(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         match self.lock.lock() {
