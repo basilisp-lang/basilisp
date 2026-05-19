@@ -110,7 +110,7 @@ impl LazySeqState {
 
 static EMPTY_SEQ: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
-#[pyclass(subclass, module = "basilisp._basilisp_native.seq")]
+#[pyclass(subclass, module = "basilisp._lang.seq")]
 pub struct LazySeq {
     lock: Mutex<LazySeqState>,
     meta: Py<PyAny>,
@@ -175,11 +175,11 @@ impl LazySeq {
 
     fn with_meta(&self, py: Python, meta: Bound<'_, PyAny>) -> PyResult<Self> {
         match self.lock.lock() {
-            Ok(_) => Ok(LazySeq {
+            Ok(mut state) => Ok(LazySeq {
                 lock: Mutex::new(LazySeqState {
                     gen: None,
                     obj: None,
-                    seq: Some(self.seq(py)?),
+                    seq: Some(state.seq(py)?),
                 }),
                 meta: meta.unbind(),
             }),
