@@ -1,0 +1,16 @@
+[package]
+name = "basilisp-native"
+version = "0.5.1"
+edition = "2021"
+
+[lib]
+name = "_basilisp_native"
+crate-type = ["cdylib"]
+
+
+[dependencies]
+
+[dependencies.pyo3]
+version = "0.28.3"
+# "abi3-py39" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.9
+features = ["abi3-py39"]
