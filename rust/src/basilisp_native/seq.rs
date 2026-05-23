@@ -1,10 +1,11 @@
-use pyo3::exceptions::{PyRuntimeError, PyTypeError};
+use parking_lot::ReentrantMutex;
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::sync::{PyOnceLock, RwLockExt};
+use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBool, PyType};
 use pyo3::{intern, PyTypeInfo};
-use std::ops::{Deref, DerefMut};
-use std::sync::RwLock;
+use std::cell::RefCell;
+use std::ops::Deref;
 
 use super::interfaces::{is_iseq, is_iseqable};
 
@@ -70,13 +71,14 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
 
 enum LazySeqState {
     Initialized(Py<PyAny>),
+    Computing,
     Computed(Py<PyAny>),
     Realized(Py<PyAny>),
 }
 
 #[pyclass(subclass, module = "basilisp._lang.seq")]
 pub struct LazySeq {
-    lock: RwLock<LazySeqState>,
+    lock: ReentrantMutex<RefCell<LazySeqState>>,
     meta: Py<PyAny>,
 }
 
@@ -95,112 +97,81 @@ impl LazySeq {
             ))
         } else {
             Ok(LazySeq {
-                lock: RwLock::new(if gen.is_none() {
+                lock: ReentrantMutex::new(RefCell::new(if gen.is_none() {
                     LazySeqState::Realized(seq.unbind())
                 } else {
                     LazySeqState::Initialized(gen.unbind())
-                }),
+                })),
                 meta: meta.unbind(),
             })
         }
     }
 
     fn _compute_seq(&self, py: Python) -> PyResult<Py<PyAny>> {
-        for _ in 0..10 {
-            {
-                match self.lock.try_read() {
-                    Ok(v) => match v.deref() {
-                        LazySeqState::Initialized(_) => (),
-                        LazySeqState::Computed(obj) => {
-                            return Ok(obj.clone_ref(py));
-                        }
-                        LazySeqState::Realized(seq) => {
-                            return Ok(seq.as_ref().clone_ref(py));
-                        }
-                    },
-                    Err(std::sync::TryLockError::Poisoned(inner)) => {
-                        return Err(PyRuntimeError::new_err(format!(
-                            "LazySeq mutex poisoned: {inner}"
-                        )))
-                    }
-                    Err(_) => (),
-                }
+        let mutex = self.lock.lock();
+        let state = mutex.borrow();
+        match state.deref() {
+            LazySeqState::Computing => return Ok(py.None()),
+            LazySeqState::Computed(obj) => {
+                return Ok(obj.clone_ref(py));
             }
-
-            {
-                match self.lock.try_write() {
-                    Ok(mut state) => {
-                        if let LazySeqState::Initialized(gen) = state.deref_mut() {
-                            let obj = gen.call0(py)?;
-                            *state = LazySeqState::Computed(obj.clone_ref(py));
-                            return Ok(obj.clone_ref(py));
-                        }
-                    }
-                    Err(std::sync::TryLockError::Poisoned(inner)) => {
-                        return Err(PyRuntimeError::new_err(format!(
-                            "LazySeq mutex poisoned: {inner}"
-                        )))
-                    }
-                    Err(_) => (),
-                }
+            LazySeqState::Realized(seq) => {
+                return Ok(seq.as_ref().clone_ref(py));
             }
+            _ => (),
         }
+        drop(state);
 
-        Err(PyRuntimeError::new_err(format!("Unable to acquire lock!")))
-        // panic!("Unable to acquire lock!")
+        let mut state = mutex.borrow_mut();
+        let mut genfn: Option<Py<PyAny>> = None;
+        if let LazySeqState::Initialized(gen) = state.deref() {
+            genfn = Some(gen.clone_ref(py));
+            *state = LazySeqState::Computing;
+        }
+        drop(state);
+
+        if let Some(gen) = genfn {
+            let obj = gen.call0(py)?;
+            let mut state = mutex.borrow_mut();
+            *state = LazySeqState::Computed(obj.clone_ref(py));
+            Ok(obj.clone_ref(py))
+        } else {
+            panic!("Expected a reference to a generator function!");
+        }
     }
 
     fn seq(&self, py: Python) -> PyResult<Py<PyAny>> {
-        for _ in 0..10 {
-            {
-                match self.lock.try_read() {
-                    Ok(v) => {
-                        if let LazySeqState::Realized(seq) = v.deref() {
-                            return Ok(seq.as_ref().clone_ref(py));
-                        }
-                    }
-                    Err(std::sync::TryLockError::Poisoned(inner)) => {
-                        return Err(PyRuntimeError::new_err(format!(
-                            "LazySeq mutex poisoned: {inner}"
-                        )))
-                    }
-                    Err(_) => (),
-                }
-            }
-
-            self._compute_seq(py)?;
-
-            {
-                match self.lock.try_write() {
-                    Ok(mut state) => {
-                        if let LazySeqState::Computed(ref mut obj) = state.deref_mut() {
-                            let lazy_seq_tp = LAZY_SEQ_TYPE
-                                .get_or_init(py, || LazySeq::type_object(py).unbind())
-                                .bind(py);
-                            loop {
-                                if obj.bind(py).is_instance(lazy_seq_tp)? {
-                                    *obj = obj.call_method0(py, intern!(py, "_compute_seq"))?;
-                                } else {
-                                    break;
-                                }
-                            }
-                            let result = to_seq(py, obj.bind(py))?.unbind();
-                            *state = LazySeqState::Realized(result.clone_ref(py));
-                            return Ok(result.clone_ref(py));
-                        }
-                    }
-                    Err(std::sync::TryLockError::Poisoned(inner)) => {
-                        return Err(PyRuntimeError::new_err(format!(
-                            "LazySeq mutex poisoned: {inner}"
-                        )))
-                    }
-                    Err(_) => (),
-                }
-            }
+        let mutex = self.lock.lock();
+        let state = mutex.borrow();
+        if let LazySeqState::Realized(seq) = state.deref() {
+            return Ok(seq.as_ref().clone_ref(py));
         }
+        drop(state);
 
-        Err(PyRuntimeError::new_err(format!("Unable to acquire lock!")))
-        // panic!("Unable to acquire lock!")
+        self._compute_seq(py)?;
+
+        let state = mutex.borrow();
+        match state.deref() {
+            LazySeqState::Computed(obj) => {
+                let mut wrapped = obj.clone_ref(py);
+                let lazy_seq_tp = LAZY_SEQ_TYPE
+                    .get_or_init(py, || LazySeq::type_object(py).unbind())
+                    .bind(py);
+                drop(state);
+                loop {
+                    if wrapped.bind(py).is_instance(lazy_seq_tp)? {
+                        wrapped = wrapped.call_method0(py, intern!(py, "_compute_seq"))?;
+                    } else {
+                        break;
+                    }
+                }
+                let mut state = mutex.borrow_mut();
+                let result = to_seq(py, wrapped.bind(py))?.unbind();
+                *state = LazySeqState::Realized(result.clone_ref(py));
+                Ok(result.clone_ref(py))
+            }
+            _ => Ok(py.None()),
+        }
     }
 
     #[getter(meta)]
@@ -243,19 +214,16 @@ impl LazySeq {
 
     #[getter(is_realized)]
     fn is_realized<'py>(&mut self, py: Python<'py>) -> PyResult<Borrowed<'py, 'py, PyBool>> {
-        match self.lock.read_py_attached(py) {
-            Ok(v) => Ok(PyBool::new(
-                py,
-                if let LazySeqState::Realized(_) = v.deref() {
-                    true
-                } else {
-                    false
-                },
-            )),
-            Err(e) => Err(PyRuntimeError::new_err(format!(
-                "LazySeq mutex poisoned: {e}"
-            ))),
-        }
+        let mutex = self.lock.lock();
+        let state = mutex.deref().borrow();
+        Ok(PyBool::new(
+            py,
+            if let LazySeqState::Realized(_) = *state {
+                true
+            } else {
+                false
+            },
+        ))
     }
 
     fn empty<'py>(&self, py: Python<'py>) -> &Bound<'py, PyAny> {

@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 
 [dependencies]
+parking_lot = "0.12.5"
 
 [dependencies.pyo3]
 version = "0.28.3"
