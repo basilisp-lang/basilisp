@@ -18,6 +18,7 @@ livedocs:
 .PHONY: format
 format:
 	@poetry run sh -c 'isort . && black .'
+	@cargo fmt --manifest-path rust/Cargo.toml
 
 
 .PHONY: check
