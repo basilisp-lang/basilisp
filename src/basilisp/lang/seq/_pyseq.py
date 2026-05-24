@@ -1,7 +1,14 @@
+import functools
 import threading
-from typing import Callable, TypeVar
+from typing import Callable, Iterable, TypeVar, overload
 
-from basilisp.lang.interfaces import IPersistentMap, ISeq, ISequential, IWithMeta
+from basilisp.lang.interfaces import (
+    IPersistentMap,
+    ISeq,
+    ISeqable,
+    ISequential,
+    IWithMeta,
+)
 
 T = TypeVar("T")
 
@@ -207,6 +214,31 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     def empty(self):
         return EMPTY
+
+
+def sequence(s: Iterable[T], support_single_use: bool = False) -> ISeq[T]:
+    """Create a Sequence from Iterable `s`.
+
+    By default, raise a ``TypeError`` if `s` is a single-use
+    Iterable, unless `fail_single_use` is ``True``.
+
+    """
+    i = iter(s)
+
+    if not support_single_use and i is s:
+        raise TypeError(
+            f"Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {type(s)}"
+        )
+
+    def _next_elem() -> ISeq[T]:
+        try:
+            e = next(i)
+        except StopIteration:
+            return EMPTY
+        else:
+            return Cons(e, LazySeq(_next_elem))
+
+    return LazySeq(_next_elem)
 
 
 @overload

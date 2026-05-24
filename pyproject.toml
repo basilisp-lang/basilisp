@@ -177,7 +177,7 @@ ignore = [
   "pip-wheel-metadata",
   "lispcore.py",
 ]
-ignore-patterns = ["^\\.#"]
+ignore-patterns = ["^\\.#", ".*\\.pyi"]
 load-plugins = [
   "pylint.extensions.code_style",
   "pylint.extensions.docstyle",

@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=abstract-class-instantiated,too-many-lines
 import builtins
 import collections.abc
 import contextlib
