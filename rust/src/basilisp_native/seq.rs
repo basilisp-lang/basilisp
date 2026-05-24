@@ -3,14 +3,15 @@ use parking_lot::ReentrantMutex;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyBool, PyDict, PyTuple, PyType};
+use pyo3::types::{PyBool, PyDict, PyIterator, PyTuple, PyType};
 use pyo3::{intern, IntoPyObjectExt, PyTypeInfo};
 use std::cell::RefCell;
-use std::ops::{Deref};
+use std::ops::Deref;
 
 static CONS_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static EMPTY_SEQ: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
+static PY_LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static SEQUENCE_FN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 /// Create a new Cons type from the final class type defined in Python.
@@ -49,6 +50,23 @@ fn new_py_cons<'py>(
         }
         None => tp.call((first, rest), None),
     }
+}
+
+fn new_py_lazy_seq<'py>(py: Python<'py>, gen: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let tp = PY_LAZY_SEQ_TYPE
+        .get_or_init(py, || {
+            py.import("basilisp.lang.seq")
+                .unwrap()
+                .getattr("LazySeq")
+                .unwrap()
+                .cast()
+                .unwrap()
+                .clone()
+                .unbind()
+        })
+        .bind(py);
+
+    tp.call1((gen,))
 }
 
 /// Return a statically defined empty seq from Python.
@@ -104,6 +122,63 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
         });
         Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,))?)?)
     }
+}
+
+#[pyclass(subclass, module = "basilisp._lang.seq")]
+pub struct Sequence {
+    it: Py<PyIterator>,
+}
+
+#[pymethods]
+impl Sequence {
+    #[new]
+    #[pyo3(signature = (s, support_single_use=None))]
+    fn __new__<'py>(
+        py: Python<'py>,
+        s: Bound<'py, PyAny>,
+        support_single_use: Option<Bound<'py, PyBool>>,
+    ) -> PyResult<Self> {
+        let it = s.try_iter()?;
+
+        if !support_single_use
+            .or_else(|| Some(PyBool::new(py, false).to_owned()))
+            .unwrap()
+            .is_true()
+            && it.is(s.clone())
+        {
+            return Err(PyTypeError::new_err(format!(
+                "Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {}",
+                s.get_type()
+            )));
+        }
+
+        Ok(Sequence { it: it.unbind() })
+    }
+
+    fn __call__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut it = slf.it.bind(py).clone();
+        match it.next() {
+            Some(Ok(v)) => Ok(new_py_cons(
+                py,
+                v,
+                Some(new_py_lazy_seq(py, slf.into_bound_py_any(py)?)?),
+                None,
+            )?),
+            Some(Err(e)) => Err(e),
+            None => Ok(empty_seq(py).clone()),
+        }
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (s, support_single_use=None))]
+pub fn sequence<'py>(
+    py: Python<'py>,
+    s: Bound<'py, PyAny>,
+    support_single_use: Option<Bound<'py, PyBool>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let seq = Sequence::__new__(py, s, support_single_use)?;
+    new_py_lazy_seq(py, seq.into_bound_py_any(py)?)
 }
 
 #[pyclass(subclass, module = "basilisp._lang.seq")]

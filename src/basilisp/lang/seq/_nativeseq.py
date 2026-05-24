@@ -1,5 +1,5 @@
 # pylint: disable=abstract-class-instantiated
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 import basilisp._lang
 from basilisp.lang.interfaces import (
@@ -14,6 +14,7 @@ T = TypeVar("T")
 _Cons: type = basilisp._lang.seq.Cons  # type: ignore[attr-defined]
 _EmptySequenceNative: type = basilisp._lang.seq.EmptySequence  # type: ignore[attr-defined]
 _LazySeq: type = basilisp._lang.seq.LazySeq  # type: ignore[attr-defined]
+sequence = basilisp._lang.seq.sequence  # type: ignore[attr-defined]
 to_seq = basilisp._lang.seq.to_seq  # type: ignore[attr-defined]
 
 
@@ -37,28 +38,3 @@ class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     support `with_meta` returning a new LazySeq instance."""
 
     __slots__ = ()
-
-
-def sequence(s: Iterable[T], support_single_use: bool = False) -> ISeq[T]:
-    """Create a Sequence from Iterable `s`.
-
-    By default, raise a ``TypeError`` if `s` is a single-use
-    Iterable, unless `fail_single_use` is ``True``.
-
-    """
-    i = iter(s)
-
-    if not support_single_use and i is s:
-        raise TypeError(
-            f"Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {type(s)}"
-        )
-
-    def _next_elem() -> ISeq[T]:
-        try:
-            e = next(i)
-        except StopIteration:
-            return EMPTY
-        else:
-            return Cons(e, LazySeq(_next_elem))
-
-    return LazySeq(_next_elem)

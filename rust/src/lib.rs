@@ -11,5 +11,5 @@ mod _lang {
 #[pymodule]
 mod seq {
     #[pymodule_export]
-    pub use crate::basilisp_native::seq::{to_seq, Cons, EmptySequence, LazySeq};
+    pub use crate::basilisp_native::seq::{sequence, to_seq, Cons, EmptySequence, LazySeq};
 }
