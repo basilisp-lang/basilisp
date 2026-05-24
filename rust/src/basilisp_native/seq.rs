@@ -197,7 +197,6 @@ impl EmptySequence {
         meta: Py<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tp = slf.get_type();
-        println!("tp = {}", tp);
         let kwargs = PyDict::new(py);
         kwargs.set_item("meta", meta)?;
         tp.call((), Some(&kwargs))
