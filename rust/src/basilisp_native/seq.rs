@@ -6,18 +6,53 @@ use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBool, PyDict, PyTuple, PyType};
 use pyo3::{intern, IntoPyObjectExt, PyTypeInfo};
 use std::cell::RefCell;
-use std::ops::Deref;
+use std::ops::{Deref};
 
+static CONS_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static EMPTY_SEQ: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static SEQUENCE_FN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
+/// Create a new Cons type from the final class type defined in Python.
+///
+/// Rust types cannot inherit from Python types as of PyO3 0.28.3, so in order to
+/// have the ISeq types defined in Rust correctly implement the ISeq interface (and
+/// other interfaces), we define the "final" class type in Python. This creates a
+/// circular reference where the Rust types need to have references to the final
+/// type in order to create new versions of the same from Rust code.
+///
+/// This function is a bit of a kludge to enable that construction.
+fn new_py_cons<'py>(
+    py: Python<'py>,
+    first: Bound<'py, PyAny>,
+    rest: Option<Bound<'py, PyAny>>,
+    meta: Option<Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let tp = CONS_TYPE
+        .get_or_init(py, || {
+            py.import("basilisp.lang.seq")
+                .unwrap()
+                .getattr("Cons")
+                .unwrap()
+                .cast()
+                .unwrap()
+                .clone()
+                .unbind()
+        })
+        .bind(py);
+
+    match meta {
+        Some(m) => {
+            let d = PyDict::new(py);
+            d.set_item("meta", m)?;
+            tp.call((first, rest), Some(&d))
+        }
+        None => tp.call((first, rest), None),
+    }
+}
+
+/// Return a statically defined empty seq from Python.
 fn empty_seq<'py>(py: Python<'py>) -> &'py Bound<'py, PyAny> {
-    // EMPTY_SEQ
-    //     .get_or_init(py, || {
-    //         EmptySequence { meta: py.None() }.into_py_any(py).unwrap()
-    //     })
-    //     .bind(py)
     EMPTY_SEQ
         .get_or_init(py, || {
             py.import("basilisp.lang.seq")
@@ -29,18 +64,18 @@ fn empty_seq<'py>(py: Python<'py>) -> &'py Bound<'py, PyAny> {
         .bind(py)
 }
 
-#[pyfunction]
-fn seq_or_nil(py: Python, s: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+/// Given a seq, return that seq if it contains elements or Python None otherwise.
+fn seq_or_nil<'py>(py: Python<'py>, s: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     if s.is_none() {
-        Ok(s.clone().unbind())
+        Ok(s.clone())
     } else if s
         .getattr(intern!(s.py(), "is_empty"))?
         .cast::<PyBool>()?
         .is_true()
     {
-        Ok(py.None())
+        Ok(py.None().into_bound(py))
     } else {
-        Ok(s.clone().unbind())
+        Ok(s.clone())
     }
 }
 
@@ -55,10 +90,10 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
     )? {
         s.call_method0(intern!(py, "seq"))
     } else if is_iseq(py, s)? {
-        Ok(seq_or_nil(py, &s)?.bind(py).clone())
+        Ok(seq_or_nil(py, &s)?)
     } else if is_iseqable(py, s)? {
         let seq = s.call_method0(intern!(py, "seq"))?.clone();
-        Ok(seq_or_nil(py, &seq)?.bind(py).clone())
+        Ok(seq_or_nil(py, &seq)?)
     } else {
         let sequence_fn = SEQUENCE_FN.get_or_init(py, || {
             py.import("basilisp.lang.seq")
@@ -67,9 +102,7 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
                 .unwrap()
                 .unbind()
         });
-        Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,))?)?
-            .bind(py)
-            .clone())
+        Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,))?)?)
     }
 }
 
@@ -152,29 +185,16 @@ impl EmptySequence {
 
     #[pyo3(signature = (*elems))]
     fn cons<'py>(
-        &self,
+        slf: &Bound<'py, Self>,
         py: Python<'py>,
-        elems: &Bound<'_, PyTuple>,
+        elems: &Bound<'py, PyTuple>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mut eiter = elems.iter();
         match eiter.nth(0) {
             Some(e) => {
-                let mut l = Cons {
-                    first: e.unbind(),
-                    rest: Some(
-                        EmptySequence {
-                            meta: self.meta.clone_ref(py),
-                        }
-                        .into_py_any(py)?,
-                    ),
-                    meta: py.None(),
-                };
+                let mut l = new_py_cons(py, e, Some(slf.clone().into_bound_py_any(py)?), None)?;
                 for elem in elems.iter().skip(1) {
-                    l = Cons {
-                        first: elem.unbind(),
-                        rest: Some(l.into_py_any(py)?),
-                        meta: py.None(),
-                    }
+                    l = new_py_cons(py, elem, Some(l.into_bound_py_any(py)?), None)?;
                 }
                 Ok(l.into_bound_py_any(py)?)
             }
@@ -265,23 +285,21 @@ impl Cons {
 
     #[pyo3(signature = (*elems))]
     fn cons<'py>(
-        &self,
+        slf: &Bound<'py, Self>,
         py: Python<'py>,
-        elems: &Bound<'_, PyTuple>,
+        elems: &Bound<'py, PyTuple>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let mut l = Cons {
-            first: self.first.clone_ref(py),
-            rest: self.rest.as_ref().map(|r| r.clone_ref(py)),
-            meta: self.meta.clone_ref(py),
-        };
-        for elem in elems {
-            l = Cons {
-                first: elem.unbind(),
-                rest: Some(l.into_py_any(py)?),
-                meta: py.None(),
+        let mut eiter = elems.iter();
+        match eiter.nth(0) {
+            Some(e) => {
+                let mut l = new_py_cons(py, e, Some(slf.clone().into_bound_py_any(py)?), None)?;
+                for elem in elems.iter().skip(1) {
+                    l = new_py_cons(py, elem, Some(l.into_bound_py_any(py)?), None)?;
+                }
+                Ok(l.into_bound_py_any(py)?)
             }
+            None => Ok(empty_seq(py).clone()),
         }
-        Ok(l.into_bound_py_any(py)?)
     }
 
     fn empty<'py>(&self, py: Python<'py>) -> &Bound<'py, PyAny> {
@@ -493,32 +511,16 @@ impl LazySeq {
 
     #[pyo3(signature = (*elems))]
     fn cons<'py>(
-        &self,
+        slf: &Bound<'py, Self>,
         py: Python<'py>,
-        elems: &Bound<'_, PyTuple>,
+        elems: &Bound<'py, PyTuple>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mut eiter = elems.iter();
         match eiter.nth(0) {
             Some(e) => {
-                let mut l = Cons {
-                    first: e.unbind(),
-                    rest: Some(
-                        LazySeq {
-                            lock: ReentrantMutex::new(RefCell::new(LazySeqState::Realized(
-                                self.seq(py)?.clone_ref(py),
-                            ))),
-                            meta: self.meta.clone_ref(py),
-                        }
-                        .into_py_any(py)?,
-                    ),
-                    meta: py.None(),
-                };
+                let mut l = new_py_cons(py, e, Some(slf.clone().into_bound_py_any(py)?), None)?;
                 for elem in elems.iter().skip(1) {
-                    l = Cons {
-                        first: elem.unbind(),
-                        rest: Some(l.into_py_any(py)?),
-                        meta: py.None(),
-                    }
+                    l = new_py_cons(py, elem, Some(l.into_bound_py_any(py)?), None)?;
                 }
                 Ok(l.into_bound_py_any(py)?)
             }

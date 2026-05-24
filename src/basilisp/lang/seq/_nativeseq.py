@@ -20,24 +20,12 @@ to_seq = basilisp._lang.seq.to_seq  # type: ignore[attr-defined]
 class _EmptySequence(_EmptySequenceNative, IWithMeta, ISequential, ISeq[T]):
     __slots__ = ()
 
-    def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
-        l: ISeq = self
-        for elem in elems:
-            l = Cons(elem, l)
-        return l
-
 
 EMPTY: ISeq = _EmptySequence()
 
 
 class Cons(_Cons, ISeq[T], ISequential, IWithMeta):
     __slots__ = ()
-
-    def cons(self, *elems: T) -> "Cons[T]":
-        l = self
-        for elem in elems:
-            l = Cons(elem, l)
-        return l
 
 
 class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
@@ -49,12 +37,6 @@ class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     support `with_meta` returning a new LazySeq instance."""
 
     __slots__ = ()
-
-    def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
-        l: ISeq = self
-        for elem in elems:
-            l = Cons(elem, l)
-        return l
 
 
 def sequence(s: Iterable[T], support_single_use: bool = False) -> ISeq[T]:
