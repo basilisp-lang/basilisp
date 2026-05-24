@@ -74,6 +74,44 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
 }
 
 #[pyclass(subclass, module = "basilisp._lang.seq")]
+pub struct SeqIterator {
+    cur: Py<PyAny>,
+}
+
+#[pymethods]
+impl SeqIterator {
+    #[new]
+    #[pyo3(signature = (cur))]
+    fn __new__<'py>(cur: Bound<'py, PyAny>) -> Self {
+        SeqIterator { cur: cur.unbind() }
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<'_, Self>, py: Python) -> PyResult<Option<Py<PyAny>>> {
+        if slf.cur.is_none(py) {
+            return Ok(None);
+        }
+
+        let s = slf.cur.call_method0(py, intern!(py, "seq"))?;
+        if s.is_none(py)
+            || s.getattr(py, intern!(py, "is_empty"))?
+                .cast_bound::<PyBool>(py)?
+                .is_true()
+        {
+            return Ok(None);
+        }
+
+        let v = s.getattr(py, intern!(py, "first"))?;
+        let r = s.getattr(py, intern!(py, "rest"))?;
+        slf.cur = r;
+        Ok(Some(v))
+    }
+}
+
+#[pyclass(subclass, module = "basilisp._lang.seq")]
 pub struct EmptySequence {
     meta: Py<PyAny>,
 }
@@ -89,6 +127,12 @@ impl EmptySequence {
                 None => py.None(),
             },
         }
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>, py: Python) -> PyResult<SeqIterator> {
+        Ok(SeqIterator {
+            cur: slf.into_py_any(py)?,
+        })
     }
 
     #[getter(is_empty)]
@@ -188,6 +232,12 @@ impl Cons {
         }
     }
 
+    fn __iter__(slf: PyRef<'_, Self>, py: Python) -> PyResult<SeqIterator> {
+        Ok(SeqIterator {
+            cur: slf.into_py_any(py)?,
+        })
+    }
+
     #[getter(is_empty)]
     fn is_empty(&self) -> bool {
         false
@@ -285,6 +335,12 @@ impl LazySeq {
                 },
             })
         }
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>, py: Python) -> PyResult<SeqIterator> {
+        Ok(SeqIterator {
+            cur: slf.into_py_any(py)?,
+        })
     }
 
     fn _compute_seq(&self, py: Python) -> PyResult<Py<PyAny>> {

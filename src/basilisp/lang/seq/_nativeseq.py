@@ -1,5 +1,5 @@
 # pylint: disable=abstract-class-instantiated
-from typing import Iterable, Iterator, TypeVar
+from typing import Iterable, TypeVar
 
 import basilisp._lang
 from basilisp.lang.interfaces import (
@@ -47,32 +47,6 @@ class Cons(_Cons, ISeq[T], ISequential, IWithMeta):
         return l
 
 
-class _LazySeqIter(Iterator[T]):
-    """Stateful iterator for LazySeq types.
-
-    This is primarily useful for avoiding blowing the stack on a long (or infinite)
-    sequence. It is not safe to use `yield` statements to iterate over sequences,
-    since they accrete one Python stack frame per sequence element."""
-
-    __slots__ = ("_cur",)
-
-    def __init__(self, seq: "ISeq[T]"):
-        self._cur = seq
-
-    def __next__(self):
-        s = self._cur.seq()
-        if not s:
-            raise StopIteration
-        v = s.first
-        if s.is_empty:
-            raise StopIteration
-        self._cur = s.rest
-        return v
-
-    def __repr__(self):  # pragma: no cover
-        return repr(self._cur)
-
-
 class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
@@ -82,9 +56,6 @@ class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     support `with_meta` returning a new LazySeq instance."""
 
     __slots__ = ()
-
-    def __iter__(self):
-        return _LazySeqIter(self)
 
     def with_meta(self, meta: IPersistentMap | None) -> "LazySeq[T]":
         return LazySeq(None, seq=self.seq(), meta=meta)
