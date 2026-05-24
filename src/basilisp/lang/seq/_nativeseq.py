@@ -3,7 +3,6 @@ from typing import Iterable, TypeVar
 
 import basilisp._lang
 from basilisp.lang.interfaces import (
-    IPersistentMap,
     ISeq,
     ISequential,
     IWithMeta,
@@ -21,9 +20,6 @@ to_seq = basilisp._lang.seq.to_seq  # type: ignore[attr-defined]
 class _EmptySequence(_EmptySequenceNative, IWithMeta, ISequential, ISeq[T]):
     __slots__ = ()
 
-    def with_meta(self, meta: IPersistentMap | None) -> "_EmptySequence[T]":
-        return _EmptySequence(meta=meta)
-
     def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
         l: ISeq = self
         for elem in elems:
@@ -36,9 +32,6 @@ EMPTY: ISeq = _EmptySequence()
 
 class Cons(_Cons, ISeq[T], ISequential, IWithMeta):
     __slots__ = ()
-
-    def with_meta(self, meta: IPersistentMap | None) -> "Cons[T]":
-        return Cons(self.first, rest=self.rest, meta=meta)
 
     def cons(self, *elems: T) -> "Cons[T]":
         l = self
@@ -56,9 +49,6 @@ class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     support `with_meta` returning a new LazySeq instance."""
 
     __slots__ = ()
-
-    def with_meta(self, meta: IPersistentMap | None) -> "LazySeq[T]":
-        return LazySeq(None, seq=self.seq(), meta=meta)
 
     def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
         l: ISeq = self

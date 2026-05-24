@@ -3,7 +3,7 @@ use parking_lot::ReentrantMutex;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyBool, PyTuple, PyType};
+use pyo3::types::{PyBool, PyDict, PyTuple, PyType};
 use pyo3::{intern, IntoPyObjectExt, PyTypeInfo};
 use std::cell::RefCell;
 use std::ops::Deref;
@@ -191,8 +191,16 @@ impl EmptySequence {
         Ok(self.meta.bind(py))
     }
 
-    fn with_meta<'py>(&self, meta: Py<PyAny>) -> Self {
-        EmptySequence { meta }
+    fn with_meta<'py>(
+        slf: &Bound<'py, Self>,
+        py: Python<'py>,
+        meta: Py<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let tp = slf.get_type();
+        println!("tp = {}", tp);
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("meta", meta)?;
+        tp.call((), Some(&kwargs))
     }
 }
 
@@ -286,12 +294,22 @@ impl Cons {
         Ok(self.meta.bind(py))
     }
 
-    fn with_meta<'py>(&self, py: Python<'py>, meta: Py<PyAny>) -> Self {
-        Cons {
-            first: self.first.clone_ref(py),
-            rest: self.rest.as_ref().map(|r| r.clone_ref(py)),
-            meta,
-        }
+    fn with_meta<'py>(
+        slf: &Bound<'py, Self>,
+        py: Python<'py>,
+        meta: Py<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let tp = slf.get_type();
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("meta", meta)?;
+        let cur = slf.borrow();
+        tp.call(
+            (
+                cur.first.clone_ref(py),
+                cur.rest.as_ref().unwrap().clone_ref(py),
+            ),
+            Some(&kwargs),
+        )
     }
 }
 
@@ -413,6 +431,18 @@ impl LazySeq {
     #[getter(meta)]
     fn meta<'py>(&self, py: Python<'py>) -> PyResult<&Bound<'py, PyAny>> {
         Ok(self.meta.bind(py))
+    }
+
+    fn with_meta<'py>(
+        slf: &Bound<'py, Self>,
+        py: Python<'py>,
+        meta: Py<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let tp = slf.get_type();
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("meta", meta)?;
+        let cur = slf.borrow();
+        tp.call((py.None(), cur.seq(py)?), Some(&kwargs))
     }
 
     #[getter(first)]
