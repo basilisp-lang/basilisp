@@ -158,8 +158,7 @@ impl Sequence {
     }
 }
 
-/// Create a seq from Iterable `s`, wrapping the Iterable in successive
-/// LazySeqs.
+/// Create a seq from Iterable `s`, wrapping the Iterable in successive LazySeqs.
 ///
 /// By default, raise a TypeError if `s` is a single-use Iterable, unless
 /// `support_single_use` is ``True``.
@@ -222,7 +221,11 @@ impl SeqIterator {
     }
 }
 
-#[pyclass(subclass, module = "basilisp._lang.seq")]
+/// An empty seq.
+///
+/// Generally referenced using the static value `basilisp.lang.seq.EMPTY` rather
+/// than created dynamically.
+#[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
 pub struct EmptySequence {
     meta: Py<PyAny>,
 }
@@ -301,7 +304,8 @@ impl EmptySequence {
     }
 }
 
-#[pyclass(subclass, module = "basilisp._lang.seq")]
+/// Cons cells are essentially linked-list types for ISeq.
+#[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
 pub struct Cons {
     first: Py<PyAny>,
     rest: Option<Py<PyAny>>,
@@ -415,7 +419,7 @@ enum LazySeqState {
     Realized(Py<PyAny>),
 }
 
-#[pyclass(subclass, module = "basilisp._lang.seq")]
+#[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
 pub struct LazySeq {
     lock: ReentrantMutex<RefCell<LazySeqState>>,
     meta: Py<PyAny>,
