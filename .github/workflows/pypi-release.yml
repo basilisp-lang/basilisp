@@ -3,74 +3,289 @@ name: Release to PyPI
 on:
   release:
     types: [ published ]
+  push:
+    branches: [ main, "refactor/rust-lazy-seq" ]
 
 concurrency:
-  group: pypi-release
+  group: ${{ github.workflow }}-${{ github.ref }}
 
+# The platform specific build jobs below were adapted from maturin. An updated
+# skeleton can be generated using the following command, but will require manual
+# adaptation to this file's format:
+#
+#    maturin generate-ci github
+#
 jobs:
-  build:
-    name: Build the distribution
-    runs-on: ubuntu-latest
+  ###################
+  # Platform Builds #
+  ###################
+  linux:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-22.04
+            target: x86_64
+          - runner: ubuntu-22.04
+            target: x86
+          - runner: ubuntu-22.04
+            target: aarch64
+          - runner: ubuntu-22.04
+            target: armv7
+          - runner: ubuntu-22.04
+            target: s390x
+          - runner: ubuntu-22.04
+            target: ppc64le
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ vars.PYTHON_VERSION }}
-      - name: Install Poetry
-        run: curl -sSL https://install.python-poetry.org | python3 -
-      - name: Validate Release Version
-        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | sed -e 's/^v//')"
-      - name: Build Basilisp distributions
-        run: poetry build
-      - name: Upload build artifact
+          python-version: "3.10"
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
+      - name: Upload wheels
         uses: actions/upload-artifact@v6
         with:
-          path: dist/
-          if-no-files-found: error
+          name: wheels-linux-${{ matrix.platform.target }}
+          path: dist
 
+  musllinux:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-22.04
+            target: x86_64
+          - runner: ubuntu-22.04
+            target: x86
+          - runner: ubuntu-22.04
+            target: aarch64
+          - runner: ubuntu-22.04
+            target: armv7
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: musllinux_1_2
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: musllinux_1_2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-musllinux-${{ matrix.platform.target }}
+          path: dist
+
+  windows:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: windows-latest
+            target: x64
+            python_arch: x64
+          - runner: windows-latest
+            target: x86
+            python_arch: x86
+          - runner: windows-11-arm
+            target: aarch64
+            python_arch: arm64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.platform.python_arch }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14t"
+          architecture: ${{ matrix.platform.python_arch }}
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-windows-${{ matrix.platform.target }}
+          path: dist
+
+  macos:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-15-intel
+            target: x86_64
+          - runner: macos-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14t"
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-sdist
+          path: dist
+
+  #############
+  # Test PyPI #
+  #############
+  sign-dists:
+    if: ${{ contains(fromJSON('[ "refs/heads/main", "refs/heads/refactor/rust-lazy-seq" ]'), github.ref) }}
+    runs-on: ubuntu-latest
+    environment:
+      name: test-pypi
+    name: >-
+      Sign the Python distribution with Sigstore.
+    needs: [ linux, musllinux, windows, macos, sdist ]
+    permissions:
+      id-token: write
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v7
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.2.0
+        with:
+          inputs: >-
+            ./wheels-*/*.tar.gz
+            ./wheels-*/*.whl
+      - name: Print all files recursively
+        run: find .
+
+  test-pypi-release:
+    if: ${{ contains(fromJSON('[ "refs/heads/main", "refs/heads/refactor/rust-lazy-seq" ]'), github.ref) }}
+    runs-on: ubuntu-latest
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/p/basilisp
+    name: Release to Test PyPI
+    needs: [ linux, musllinux, windows, macos, sdist ]
+    permissions:
+      id-token: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v7
+      - name: Move wheels into dist directory for publishing
+        run: |
+          mkdir dist
+          mv wheels-*/*.whl dist/
+          find dist
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  ########
+  # PyPI #
+  ########
   github-release:
+    if: ${{ startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
     environment:
       name: release
     name: >-
       Sign the Python distribution with Sigstore and upload them to GitHub Release
-    needs:
-      - build
+    needs: [ linux, musllinux, windows, macos, sdist ]
     permissions:
       contents: write
       id-token: write
     steps:
     - name: Download all the dists
-      uses: actions/download-artifact@v5
-      with:
-        path: dist/
+      uses: actions/download-artifact@v7
     - name: Sign the dists with Sigstore
       uses: sigstore/gh-action-sigstore-python@v3.2.0
       with:
         inputs: >-
-          ./dist/*.tar.gz
-          ./dist/*.whl
+          ./wheels-*/*.tar.gz
+          ./wheels-*/*.whl
     - name: Print all files recursively
       run: find .
     - name: Upload artifact signatures to GitHub Release
       env:
         GITHUB_TOKEN: ${{ github.token }}
-      run: gh release upload "$GITHUB_REF_NAME" dist/** --repo "$GITHUB_REPOSITORY"
+      run: gh release upload "$GITHUB_REF_NAME" dist/** --clobber --repo "$GITHUB_REPOSITORY"
 
   pypi-release:
+    if: ${{ startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
     environment:
       name: release
     name: Release to PyPI
-    needs:
-      - build
+    needs: [ linux, musllinux, windows, macos, sdist ]
     permissions:
       id-token: write
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: dist/
-          merge-multiple: true
+        uses: actions/download-artifact@v7
+      - name: Move wheels into dist directory for publishing
+        run: |
+          mkdir dist
+          mv wheels-*/*.whl dist/
+          find dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
