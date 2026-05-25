@@ -51,6 +51,9 @@ fn new_py_cons<'py>(
     }
 }
 
+/// Create a new LazySeq type from the final class type defined in Python.
+///
+/// See the docstring for `new_py_cons` for more details as to why this is necessary.
 fn new_py_lazy_seq<'py>(py: Python<'py>, gen: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let tp = PY_LAZY_SEQ_TYPE
         .get_or_init(py, || {
@@ -69,6 +72,8 @@ fn new_py_lazy_seq<'py>(py: Python<'py>, gen: Bound<'py, PyAny>) -> PyResult<Bou
 }
 
 /// Return a statically defined empty seq from Python.
+///
+/// See the docstring for `new_py_cons` for more details as to why this is necessary.
 fn empty_seq<'py>(py: Python<'py>) -> &'py Bound<'py, PyAny> {
     EMPTY_SEQ
         .get_or_init(py, || {
@@ -300,7 +305,6 @@ impl EmptySequence {
     }
 }
 
-/// Cons cells are essentially linked-list types for ISeq.
 #[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
 pub struct Cons {
     first: Py<PyAny>,

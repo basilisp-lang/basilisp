@@ -4,7 +4,7 @@ on:
   release:
     types: [ published ]
   push:
-    branches: [ main, "refactor/rust-lazy-seq" ]
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -195,7 +195,7 @@ jobs:
   # Test PyPI #
   #############
   sign-dists:
-    if: ${{ contains(fromJSON('[ "refs/heads/main", "refs/heads/refactor/rust-lazy-seq" ]'), github.ref) }}
+    if: ${{ contains(fromJSON('[ "refs/heads/main" ]'), github.ref) }}
     runs-on: ubuntu-latest
     environment:
       name: test-pypi
@@ -217,7 +217,7 @@ jobs:
         run: find .
 
   test-pypi-release:
-    if: ${{ contains(fromJSON('[ "refs/heads/main", "refs/heads/refactor/rust-lazy-seq" ]'), github.ref) }}
+    if: ${{ contains(fromJSON('[ "refs/heads/main" ]'), github.ref) }}
     runs-on: ubuntu-latest
     environment:
       name: test-pypi

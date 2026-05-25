@@ -19,6 +19,13 @@ to_seq = basilisp._lang.seq.to_seq  # type: ignore[attr-defined]
 
 
 class _EmptySequence(_EmptySequenceNative, IWithMeta, ISequential, ISeq[T]):
+    """
+    An empty seq.
+
+    Generally referenced using the static value :py:data:`EMPTY` rather than created
+    dynamically.
+    """
+
     __slots__ = ()
 
 
@@ -26,6 +33,13 @@ EMPTY: ISeq = _EmptySequence()
 
 
 class Cons(_Cons, ISeq[T], ISequential, IWithMeta):
+    """
+    Cons cells are essentially linked-list types for ISeq.
+
+    When ``(cons ...)`` is called on most other ISeq types, the resulting type will be
+    Cons cells.
+    """
+
     __slots__ = ()
 
 
@@ -34,8 +48,8 @@ class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq.
 
-    Callers should never provide the `seq` argument -- this is provided only to
-    support `with_meta` returning a new LazySeq instance."""
+    Callers should never provide the ``seq`` argument -- this is provided only to
+    support ``with_meta`` returning a new LazySeq instance."""
 
     __slots__ = ()
 
