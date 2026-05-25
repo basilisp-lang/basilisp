@@ -21,7 +21,7 @@ jobs:
           repository: basilisp-lang/clojure-test-suite
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Install pip and dependencies
         run: |
           cd clojure-test-suite

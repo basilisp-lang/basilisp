@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
  * Performance improvements for compile time and runtime
+ * Arity 0 of `concat` now returns an unrealized lazy seq, rather than an empty seq g
 
 ## [v0.5.1]
 ### Added

@@ -1308,7 +1308,7 @@ T_concat = TypeVar("T_concat")
 def concat_from_seq(seqs: Iterable[Iterable[T_concat] | None] | None) -> ISeq[T_concat]:
     """Given a seq of seqs, return a flat seq."""
     if seqs is None:
-        return lseq.EMPTY
+        return lseq.LazySeq(lambda: None)
     return lseq.iterator_sequence(
         itertools.chain.from_iterable(filter(None, map(to_seq, seqs)))
     )
