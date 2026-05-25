@@ -12,7 +12,6 @@ static CONS_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static EMPTY_SEQ: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static PY_LAZY_SEQ_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
-static SEQUENCE_FN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 /// Create a new Cons type from the final class type defined in Python.
 ///
@@ -97,6 +96,7 @@ fn seq_or_nil<'py>(py: Python<'py>, s: &Bound<'py, PyAny>) -> PyResult<Bound<'py
     }
 }
 
+/// Coerce a value to a seq or return None otherwise.
 #[pyfunction]
 pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     if s.is_none() {
@@ -113,14 +113,7 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
         let seq = s.call_method0(intern!(py, "seq"))?.clone();
         Ok(seq_or_nil(py, &seq)?)
     } else {
-        let sequence_fn = SEQUENCE_FN.get_or_init(py, || {
-            py.import("basilisp.lang.seq")
-                .unwrap()
-                .getattr(intern!(py, "sequence"))
-                .unwrap()
-                .unbind()
-        });
-        Ok(seq_or_nil(py, &sequence_fn.bind(py).call1((s,))?)?)
+        Ok(seq_or_nil(py, &sequence(py, s.clone(), None)?)?)
     }
 }
 
@@ -134,17 +127,12 @@ impl Sequence {
     #[new]
     #[pyo3(signature = (s, support_single_use=None))]
     fn __new__<'py>(
-        py: Python<'py>,
         s: Bound<'py, PyAny>,
-        support_single_use: Option<Bound<'py, PyBool>>,
+        support_single_use: Option<bool>,
     ) -> PyResult<Self> {
         let it = s.try_iter()?;
 
-        if !support_single_use
-            .or_else(|| Some(PyBool::new(py, false).to_owned()))
-            .unwrap()
-            .is_true()
-            && it.is(s.clone())
+        if !support_single_use.or(Some(false)).unwrap() && it.is(s.clone())
         {
             return Err(PyTypeError::new_err(format!(
                 "Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {}",
@@ -170,17 +158,27 @@ impl Sequence {
     }
 }
 
+/// Create a seq from Iterable `s`, wrapping the Iterable in successive
+/// LazySeqs.
+///
+/// By default, raise a TypeError if `s` is a single-use Iterable, unless
+/// `support_single_use` is ``True``.
 #[pyfunction]
 #[pyo3(signature = (s, support_single_use=None))]
 pub fn sequence<'py>(
     py: Python<'py>,
     s: Bound<'py, PyAny>,
-    support_single_use: Option<Bound<'py, PyBool>>,
+    support_single_use: Option<bool>,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let seq = Sequence::__new__(py, s, support_single_use)?;
+    let seq = Sequence::__new__(s, support_single_use)?;
     new_py_lazy_seq(py, seq.into_bound_py_any(py)?)
 }
 
+/// Stateful iterator for sequence types.
+///
+/// This is primarily useful for avoiding blowing the stack on a long (or infinite)
+/// sequence. It is not safe to use `yield` statements to iterate over sequences,
+/// since they accrete one Python stack frame per sequence element.
 #[pyclass(subclass, module = "basilisp._lang.seq")]
 pub struct SeqIterator {
     cur: Py<PyAny>,
@@ -203,6 +201,11 @@ impl SeqIterator {
             return Ok(None);
         }
 
+        // Call `seq` on the current element first and then check `is_empty`/`first`/`rest`
+        // afterward. This is primarily important for LazySeqs, where each of the property
+        // accesses will attempt to grab the inner lock. Grabbing `seq` and then accessing
+        // those properties directly means we only take the lock once, which should
+        // improve throughput on iteration over LazySeqs.
         let s = slf.cur.call_method0(py, intern!(py, "seq"))?;
         if s.is_none(py)
             || s.getattr(py, intern!(py, "is_empty"))?
@@ -468,6 +471,21 @@ impl LazySeq {
         }
         drop(state);
 
+        // This local caching of the generator function and clearing of the generator
+        // is absolutely critical for supporting co-recursive lazy sequences.
+        //
+        // The original example that prompted this change is below:
+        //
+        //   (def primes (remove
+        //                (fn [x] (some #(zero? (mod x %)) primes))
+        //                (iterate inc 2)))
+        //
+        //   (take 5 primes)  ;; => stack overflow
+        //
+        // If we don't clear the generator, each successive call to (some ... primes)
+        // will end up forcing the primes LazySeq object to call the generator, rather
+        // than caching the results, allowing examination of the partial seq
+        // computed up to that point.
         let mut state = mutex.borrow_mut();
         let mut genfn: Option<Py<PyAny>> = None;
         if let LazySeqState::Initialized(gen) = state.deref() {
@@ -503,7 +521,16 @@ impl LazySeq {
                 let lazy_seq_tp = LAZY_SEQ_TYPE
                     .get_or_init(py, || LazySeq::type_object(py).unbind())
                     .bind(py);
-                drop(state);
+                drop(state);  // Drop the borrow while we compute intermediate seqs.
+
+                // Consume any additional lazy sequences returned immediately, so we
+                // have a "real" concrete sequence to proxy to.
+                //
+                // The common idiom with LazySeqs is to return
+                // (cons value (lazy-seq ...)) from the generator function, so this will
+                // only result in evaluating away instances where _another_ LazySeq is
+                // returned rather than a cons cell with a concrete first value. This
+                // loop will not consume the LazySeq in the rest position of the cons.
                 loop {
                     if wrapped.bind(py).is_instance(lazy_seq_tp)? {
                         wrapped = wrapped.call_method0(py, intern!(py, "_compute_seq"))?;
@@ -511,6 +538,8 @@ impl LazySeq {
                         break;
                     }
                 }
+
+                // Mutably borrow the object again so we can update the inner state.
                 let mut state = mutex.borrow_mut();
                 let result = to_seq(py, wrapped.bind(py))?.unbind();
                 *state = LazySeqState::Realized(result.clone_ref(py));
@@ -571,7 +600,7 @@ impl LazySeq {
     }
 
     #[getter(is_realized)]
-    fn is_realized<'py>(&mut self, py: Python<'py>) -> PyResult<Borrowed<'py, 'py, PyBool>> {
+    fn is_realized<'py>(&self, py: Python<'py>) -> PyResult<Borrowed<'py, 'py, PyBool>> {
         let mutex = self.lock.lock();
         let state = mutex.deref().borrow();
         Ok(PyBool::new(
