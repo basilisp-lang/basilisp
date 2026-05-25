@@ -213,6 +213,11 @@ jobs:
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v7
+      - name: Move wheels into dist directory for publishing
+        run: |
+          mkdir dist
+          mv wheels-*/*.whl dist/
+          find dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
