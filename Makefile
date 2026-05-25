@@ -5,6 +5,7 @@ DOCBUILDDIR = "./docs/_build"
 clean-docs:
 	@rm -rf ./docs/_build
 
+
 .PHONY: docs
 docs:
 	@poetry run sphinx-build -M html "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)"
@@ -21,8 +22,13 @@ format:
 	@cargo fmt --manifest-path rust/Cargo.toml
 
 
+.PHONY: compile
+compile:
+	@maturin develop
+
+
 .PHONY: check
-check:
+check: compile
 	@rm -f .coverage*
 	@TOX_SKIP_ENV='pypy3|bandit|coverage' poetry run tox run-parallel -p auto
 
@@ -42,8 +48,9 @@ LOGLEVEL ?= INFO
 nrepl-server:
 	@BASILISP_USE_DEV_LOGGER=true BASILISP_LOGGING_LEVEL=$(LOGLEVEL) poetry run basilisp nrepl-server
 
+
 .PHONY: test
-test:
+test: compile
 	@rm -f .coverage*
 	@TOX_SKIP_ENV='pypy3' poetry run tox run-parallel -m test
 
@@ -63,6 +70,7 @@ lispcore.py:
 .PHONY: clean
 clean:
 	@rm -rf ./lispcore.py
+	@rm -rf rust/target/
 
 
 .PHONY: pypy-shell
@@ -71,5 +79,5 @@ pypy-shell:
 		--mount src=`pwd`,target=/usr/src/app,type=bind \
 		--mount src="${HOME}/.local/share/basilisp",target="/root/.local/share/basilisp",type=bind \
 		--workdir /usr/src/app \
-		pypy:3.10-7.3-slim \
+		pypy:3.1-7.3-slim \
 		/bin/sh -c 'pip install -e . && basilisp repl'
