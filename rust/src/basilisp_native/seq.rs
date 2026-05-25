@@ -126,14 +126,10 @@ pub struct Sequence {
 impl Sequence {
     #[new]
     #[pyo3(signature = (s, support_single_use=None))]
-    fn __new__<'py>(
-        s: Bound<'py, PyAny>,
-        support_single_use: Option<bool>,
-    ) -> PyResult<Self> {
+    fn __new__<'py>(s: Bound<'py, PyAny>, support_single_use: Option<bool>) -> PyResult<Self> {
         let it = s.try_iter()?;
 
-        if !support_single_use.or(Some(false)).unwrap() && it.is(s.clone())
-        {
+        if !support_single_use.or(Some(false)).unwrap() && it.is(s.clone()) {
             return Err(PyTypeError::new_err(format!(
                 "Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {}",
                 s.get_type()
@@ -460,6 +456,14 @@ impl LazySeq {
         })
     }
 
+    // LazySeqs have a fairly complex inner state, in spite of the simple interface.
+    // Calls from Basilisp code should be providing the only generator seed function.
+    // Calls to `(seq ...)` cause the LazySeq to cache the generator function locally
+    // (as explained in _compute_seq), clear it, and cache the results of that generator
+    // function call. The result may be None, some other ISeq, or perhaps another
+    // LazySeq. Finally, the LazySeq attempts to consume all returned LazySeq objects
+    // before calling `(seq ...)` on the result, which is cached.
+
     fn _compute_seq(&self, py: Python) -> PyResult<Py<PyAny>> {
         let mutex = self.lock.lock();
         let state = mutex.borrow();
@@ -525,7 +529,7 @@ impl LazySeq {
                 let lazy_seq_tp = LAZY_SEQ_TYPE
                     .get_or_init(py, || LazySeq::type_object(py).unbind())
                     .bind(py);
-                drop(state);  // Drop the borrow while we compute intermediate seqs.
+                drop(state); // Drop the borrow while we compute intermediate seqs.
 
                 // Consume any additional lazy sequences returned immediately, so we
                 // have a "real" concrete sequence to proxy to.

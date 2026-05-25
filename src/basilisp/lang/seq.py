@@ -1,5 +1,5 @@
 # pylint: disable=abstract-class-instantiated
-from typing import TypeVar
+from typing import Iterable, TypeVar
 
 import basilisp._lang
 from basilisp.lang.interfaces import (
@@ -38,3 +38,11 @@ class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
     support `with_meta` returning a new LazySeq instance."""
 
     __slots__ = ()
+
+
+def iterator_sequence(s: Iterable[T]) -> ISeq[T]:
+    """Create a Sequence from any iterable `s`."""
+    return sequence(s, support_single_use=True)
+
+
+__all__ = ("EMPTY", "Cons", "LazySeq", "iterator_sequence", "sequence", "to_seq")
