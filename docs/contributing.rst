@@ -88,14 +88,14 @@ Developers working on the Basilisp compiler should periodically update their dep
 Linting, Running Tests, and Type Checking
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Basilisp automates linting, running tests, and type checking using `Tox <https://github.com/tox-dev/tox>`_.
+Basilisp automates linting, running tests, and type checking of Python code using `Tox <https://github.com/tox-dev/tox>`_.
 All three steps can be performed across all supported versions of CPython using a provided ``make`` target:
 
 .. code-block:: bash
 
    make check
 
-Likewise, individual steps can be run across all supported verions using their respective targets:
+Likewise, individual steps can be run across all supported versions using their respective targets:
 
 .. code-block::
 
@@ -118,3 +118,33 @@ Linting is performed using `PyLint <https://github.com/pylint-dev/pylint>`_ and 
 Formatting is performed using `Black <https://github.com/psf/black>`_.
 
 New *code* contributions should include test coverage covering all new branches unless otherwise directed by the project maintainers.
+
+.. _compiling_rust_code:
+
+Compiling Rust Code
+^^^^^^^^^^^^^^^^^^^
+
+Some performance sensitive components of the Basilisp runtime are written in Rust (using `PyO3 <https://pyo3.rs>`_).
+This involves a separate toolchain to compile the native code into a binary extension which can be loaded at runtime by the Python interpreter.
+
+`Maturin <https://www.maturin.rs>`_ is installed as the build backend by default when installing project dependencies locally.
+It will install Rust and Cargo for you, but should you wish to install it on your own you can follow the `Cargo Guide <https://doc.rust-lang.org/cargo/getting-started/installation.html>`_ to installing Rust for your system.
+
+You can build the native components locally using the following command:
+
+.. code-block:: bash
+
+   maturin develop
+
+Once you've done that, you should immediately be able to use the native types and functions in a REPL session.
+
+You can check that Rust code is properly formatted and linted using this command:
+
+.. code-block:: bash
+
+   make rust-check
+
+Rust code committed to Basilisp should generally be tested from the Python side using PyTest.
+Type checking is performed by the Rust compiler.
+Linting is performed using `Clippy <https://github.com/rust-lang/rust-clippy>`_.
+Formatting is performed using `rustfmt <https://github.com/rust-lang/rustfmt>`_.

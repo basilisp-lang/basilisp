@@ -11,6 +11,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Rust components
+        run: |
+          rustup component add clippy
+          rustup component add rustfmt
+      - name: Lint and check Rust code format
+        run: |
+          make rust-check
+
   run-tests:
     runs-on: ${{matrix.os}}
     strategy:

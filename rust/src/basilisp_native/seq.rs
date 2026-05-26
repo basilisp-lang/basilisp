@@ -113,7 +113,7 @@ pub fn to_seq<'py>(py: Python<'py>, s: &'py Bound<'py, PyAny>) -> PyResult<Bound
     )? {
         s.call_method0(intern!(py, "seq"))
     } else if is_iseq(py, s)? {
-        Ok(seq_or_nil(py, &s)?)
+        Ok(seq_or_nil(py, s)?)
     } else if is_iseqable(py, s)? {
         let seq = s.call_method0(intern!(py, "seq"))?.clone();
         Ok(seq_or_nil(py, &seq)?)
@@ -134,7 +134,7 @@ impl Sequence {
     fn __new__<'py>(s: Bound<'py, PyAny>, support_single_use: Option<bool>) -> PyResult<Self> {
         let it = s.try_iter()?;
 
-        if !support_single_use.or(Some(false)).unwrap() && it.is(s.clone()) {
+        if !support_single_use.unwrap_or(false) && it.is(s.clone()) {
             return Err(PyTypeError::new_err(format!(
                 "Can't create sequence out of single-use iterable object, please use iterator-seq instead. Iterable Object type: {}",
                 s.get_type()
@@ -435,7 +435,7 @@ impl LazySeq {
         seq: Option<Bound<'py, PyAny>>,
         meta: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Self> {
-        if !gen.is_none() && !seq.is_none() && seq.clone().unwrap().is_none() {
+        if !gen.is_none() && seq.is_some() && seq.clone().unwrap().is_none() {
             Err(PyTypeError::new_err(
                 "cannot construct LazySeq with generator function and realized seq",
             ))
@@ -615,14 +615,7 @@ impl LazySeq {
     fn is_realized<'py>(&self, py: Python<'py>) -> PyResult<Borrowed<'py, 'py, PyBool>> {
         let mutex = self.lock.lock();
         let state = mutex.deref().borrow();
-        Ok(PyBool::new(
-            py,
-            if let LazySeqState::Realized(_) = *state {
-                true
-            } else {
-                false
-            },
-        ))
+        Ok(PyBool::new(py, matches!(*state, LazySeqState::Realized(_))))
     }
 
     #[pyo3(signature = (*elems))]

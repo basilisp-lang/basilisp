@@ -33,8 +33,14 @@ check: compile
 	@TOX_SKIP_ENV='pypy3|bandit|coverage' poetry run tox run-parallel -p auto
 
 
+.PHONY: rust-check
+rust-check:  # Check Rust code for lints and formatting
+	@cargo fmt --manifest-path rust/Cargo.toml --check
+	@cargo clippy --manifest-path rust/Cargo.toml
+
+
 .PHONY: lint
-lint:
+lint: rust-check
 	@poetry run tox run-parallel -m lint
 
 
