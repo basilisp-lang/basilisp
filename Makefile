@@ -2,33 +2,33 @@ DOCSOURCEDIR = "./docs"
 DOCBUILDDIR = "./docs/_build"
 
 .PHONY: clean-docs
-clean-docs:
+clean-docs:  # Clean the local documentation build cache.
 	@rm -rf ./docs/_build
 
 
 .PHONY: docs
-docs:
+docs:  # Build the documentation locally.
 	@poetry run sphinx-build -M html "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)"
 
 
 .PHONY: livedocs
-livedocs:
+livedocs:  # Start up an HTTP server which watches for documentation changes to allow for live refreshes.
 	@poetry run sphinx-autobuild "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)" -b html --watch "./src"
 
 
 .PHONY: format
-format:
+format:  # Format both Python and Rust code in place.
 	@poetry run sh -c 'isort . && black .'
 	@cargo fmt --manifest-path rust/Cargo.toml
 
 
 .PHONY: compile
-compile:
+compile:  # Compile the Rust portion of the project in a development build.
 	@maturin develop
 
 
 .PHONY: check
-check: compile
+check: compile rust-check  # Run all tests, linting, and format checks.
 	@rm -f .coverage*
 	@TOX_SKIP_ENV='pypy3|bandit|coverage' poetry run tox run-parallel -p auto
 
@@ -40,7 +40,7 @@ rust-check:  # Check Rust code for lints and formatting
 
 
 .PHONY: lint
-lint: rust-check
+lint: rust-check  # Lint both Python and Rust code.
 	@poetry run tox run-parallel -m lint
 
 
@@ -56,13 +56,13 @@ nrepl-server:
 
 
 .PHONY: test
-test: compile
+test: compile  # Run all tests for all supported versions of Python.
 	@rm -f .coverage*
 	@TOX_SKIP_ENV='pypy3' poetry run tox run-parallel -m test
 
 
 .PHONY: type-check
-type-check:
+type-check: compile  # Run type-checking for Python and Rust code.
 	@poetry run tox run-parallel -m mypy
 
 
