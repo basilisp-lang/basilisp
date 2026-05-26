@@ -4,7 +4,6 @@ from collections.abc import (
     Callable,
     Hashable,
     Iterable,
-    Iterator,
     Mapping,
     Sequence,
     Sized,
@@ -23,6 +22,7 @@ from typing import (
 
 from typing_extensions import Self, Unpack
 
+import basilisp._lang
 from basilisp.lang.obj import LispObject as _LispObject
 from basilisp.lang.obj import PrintSettings, seq_lrepr
 
@@ -749,29 +749,7 @@ class ISeq(ILispObject, IPersistentCollection[T]):
 
     __slots__ = ()
 
-    class _SeqIter(Iterator[T_inner]):
-        """Stateful iterator for sequence types.
-
-        This is primarily useful for avoiding blowing the stack on a long (or infinite)
-        sequence. It is not safe to use `yield` statements to iterate over sequences,
-        since they accrete one Python stack frame per sequence element."""
-
-        __slots__ = ("_cur",)
-
-        def __init__(self, seq: "ISeq[T_inner]"):
-            self._cur = seq
-
-        def __next__(self):
-            if not self._cur:
-                raise StopIteration
-            v = self._cur.first
-            if self._cur.is_empty:
-                raise StopIteration
-            self._cur = self._cur.rest
-            return v
-
-        def __repr__(self):  # pragma: no cover
-            return repr(self._cur)
+    _SeqIter = basilisp._lang.seq.SeqIterator  # type: ignore[attr-defined]
 
     @property
     @abstractmethod
