@@ -6,8 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
- * Performance improvements for compile time and runtime
- * Arity 0 of `concat` now returns an unrealized lazy seq, rather than an empty seq g
+ * Reimplemented `basilisp.lang.seq` in Rust using PyO3 to improve performance (#1338, #1340)
+ * Performance improvements for compile time and runtime (#1337)
+ * Arity 0 of `concat` now returns an unrealized lazy seq, rather than an empty seq (#1339)
 
 ## [v0.5.1]
 ### Added

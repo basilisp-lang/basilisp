@@ -179,7 +179,7 @@ pub fn sequence<'py>(
 /// This is primarily useful for avoiding blowing the stack on a long (or infinite)
 /// sequence. It is not safe to use `yield` statements to iterate over sequences,
 /// since they accrete one Python stack frame per sequence element.
-#[pyclass(subclass, module = "basilisp._lang.seq")]
+#[pyclass(subclass, generic, module = "basilisp._lang.seq")]
 pub struct SeqIterator {
     cur: Py<PyAny>,
 }
@@ -226,7 +226,7 @@ impl SeqIterator {
 ///
 /// Generally referenced using the static value `basilisp.lang.seq.EMPTY` rather
 /// than created dynamically.
-#[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
+#[pyclass(subclass, generic, frozen, module = "basilisp._lang.seq")]
 pub struct EmptySequence {
     meta: Py<PyAny>,
 }
@@ -305,7 +305,7 @@ impl EmptySequence {
     }
 }
 
-#[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
+#[pyclass(subclass, generic, frozen, module = "basilisp._lang.seq")]
 pub struct Cons {
     first: Py<PyAny>,
     rest: Option<Py<PyAny>>,
@@ -419,7 +419,7 @@ enum LazySeqState {
     Realized(Py<PyAny>),
 }
 
-#[pyclass(subclass, frozen, module = "basilisp._lang.seq")]
+#[pyclass(subclass, generic, frozen, module = "basilisp._lang.seq")]
 pub struct LazySeq {
     lock: ReentrantMutex<RefCell<LazySeqState>>,
     meta: Py<PyAny>,
