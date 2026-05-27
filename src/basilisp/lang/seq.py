@@ -14,7 +14,7 @@ from basilisp.lang.interfaces import (
 T = TypeVar("T")
 
 
-class _EmptySequence(_EmptySequenceNative, IWithMeta, ISequential, ISeq[T]):
+class _EmptySequence(_EmptySequenceNative[T], IWithMeta, ISequential, ISeq[T]):
     """
     An empty seq.
 
@@ -28,7 +28,7 @@ class _EmptySequence(_EmptySequenceNative, IWithMeta, ISequential, ISeq[T]):
 EMPTY: ISeq = _EmptySequence()
 
 
-class Cons(_Cons, ISeq[T], ISequential, IWithMeta):
+class Cons(_Cons[T], ISeq[T], ISequential, IWithMeta):
     """
     Cons cells are essentially linked-list types for ISeq.
 
@@ -39,7 +39,7 @@ class Cons(_Cons, ISeq[T], ISequential, IWithMeta):
     __slots__ = ()
 
 
-class LazySeq(_LazySeq, IWithMeta, ISequential, ISeq[T]):
+class LazySeq(_LazySeq[T], IWithMeta, ISequential, ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq.
