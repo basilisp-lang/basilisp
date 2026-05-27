@@ -361,7 +361,7 @@ impl Cons {
     fn rest(&self, py: Python) -> Py<PyAny> {
         match &self.rest {
             Some(r) => r.clone_ref(py),
-            None => py.None(),
+            None => empty_seq(py).clone().unbind(),
         }
     }
 

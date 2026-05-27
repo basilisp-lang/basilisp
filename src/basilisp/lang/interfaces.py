@@ -22,7 +22,8 @@ from typing import (
 
 from typing_extensions import Self, Unpack
 
-import basilisp._lang
+# pylint: disable=import-error,no-name-in-module
+from basilisp._lang.seq import SeqIterator as _SeqIterator
 from basilisp.lang.obj import LispObject as _LispObject
 from basilisp.lang.obj import PrintSettings, seq_lrepr
 
@@ -353,7 +354,7 @@ class IPersistentCollection(ISeqable[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def empty(self) -> "IPersistentCollection[T]":
+    def empty(self: Self) -> Self:
         raise NotImplementedError()
 
 
@@ -749,8 +750,6 @@ class ISeq(ILispObject, IPersistentCollection[T]):
 
     __slots__ = ()
 
-    _SeqIter = basilisp._lang.seq.SeqIterator  # type: ignore[attr-defined]
-
     @property
     @abstractmethod
     def is_empty(self) -> bool:
@@ -785,7 +784,7 @@ class ISeq(ILispObject, IPersistentCollection[T]):
         return hash(tuple(self))
 
     def __iter__(self):
-        return self._SeqIter(self)
+        return _SeqIterator(self)
 
 
 class IType(ABC):

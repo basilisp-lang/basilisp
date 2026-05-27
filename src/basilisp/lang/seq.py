@@ -1,7 +1,10 @@
-# pylint: disable=abstract-class-instantiated
+# pylint: disable=abstract-class-instantiated,import-error,no-name-in-module
 from typing import Iterable, TypeVar
 
-import basilisp._lang
+from basilisp._lang.seq import Cons as _Cons
+from basilisp._lang.seq import EmptySequence as _EmptySequenceNative
+from basilisp._lang.seq import LazySeq as _LazySeq
+from basilisp._lang.seq import sequence, to_seq
 from basilisp.lang.interfaces import (
     ISeq,
     ISequential,
@@ -9,13 +12,6 @@ from basilisp.lang.interfaces import (
 )
 
 T = TypeVar("T")
-
-
-_Cons: type = basilisp._lang.seq.Cons  # type: ignore[attr-defined]
-_EmptySequenceNative: type = basilisp._lang.seq.EmptySequence  # type: ignore[attr-defined]
-_LazySeq: type = basilisp._lang.seq.LazySeq  # type: ignore[attr-defined]
-sequence = basilisp._lang.seq.sequence  # type: ignore[attr-defined]
-to_seq = basilisp._lang.seq.to_seq  # type: ignore[attr-defined]
 
 
 class _EmptySequence(_EmptySequenceNative, IWithMeta, ISequential, ISeq[T]):
