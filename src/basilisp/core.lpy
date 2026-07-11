@@ -7375,7 +7375,7 @@
 (defn ^:private validate-record-fields
   "Validate that record fields do not contain any reserved entries, are not declared as
   mutable, and do not declare any default values."
-  [fields field-kws]
+  [interface-fields fields field-kws]
   (when (some #(#{:meta :_recmap} %) field-kws)
     (throw
      (ex-info "Reserved fields cannot be used for Record field names"
@@ -7389,7 +7389,16 @@
   (when (some #(contains? (meta %) :default) fields)
     (throw
      (ex-info "Record fields may not specify defaults"
-              {:fields (filter #(contains? (meta %) :default) fields)}))))
+              {:fields (filter #(contains? (meta %) :default) fields)})))
+
+  ;; Python objects fields and methods all share a single namespace on
+  ;; the final class which is created, so if field names clash the method
+  ;; may take precedence over the field.
+  (let [fields+munged-fields (set (mapcat #(vector (name %) (munge %)) fields))]
+    (when (some #(contains? interface-fields %) fields+munged-fields)
+      (throw
+       (ex-info "Interface method names cannot be used for Record field names"
+                {:fields (.intersection fields+munged-fields interface-fields)})))))
 
 (defn ^:private validate-record-methods
   "Validate that record methods are not declared as class methods, properties, or
@@ -7446,12 +7455,21 @@
 
         {:keys [interfaces methods]} (collect-methods method-impls)
 
-        interfaces (concat interfaces
-                           '[basilisp.lang.interfaces/IPersistentMap
-                             basilisp.lang.interfaces/IWithMeta
-                             basilisp.lang.interfaces/IRecord
-                             basilisp.lang.interfaces/IReduceKV
-                             python/object])
+        interfaces       (concat interfaces
+                                 '[basilisp.lang.interfaces/IPersistentMap
+                                   basilisp.lang.interfaces/IWithMeta
+                                   basilisp.lang.interfaces/IRecord
+                                   basilisp.lang.interfaces/IReduceKV
+                                   python/object])
+
+        ;; Compute the list of methods and fields on the associated interfaces.
+        ;; Used to validate that field names do not clash with interface field
+        ;; or method names.
+        interface-fields (->> (vec interfaces)
+                              eval
+                              (mapcat #(inspect/getmembers %))
+                              (map first)
+                              set)
 
         ;; We can use these gensyms repeatedly and interpolate them in
         ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
@@ -7460,7 +7478,7 @@
         map-gs   (gensym "m")
         key-gs   (gensym "k")]
 
-    (validate-record-fields fields field-kws)
+    (validate-record-fields interface-fields fields field-kws)
     (validate-record-methods methods)
 
     `(do
