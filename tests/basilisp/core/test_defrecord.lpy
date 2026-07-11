@@ -325,7 +325,15 @@
 
   (testing "fields defaults"
     (is (thrown? basilisp.lang.compiler/CompilerException
-                 (eval '(defrecord NewType [a ^{:default "b"} b]))))))
+                 (eval '(defrecord NewType [a ^{:default "b"} b])))))
+
+  (testing "field names clashing with interface names"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [seq a b]))))
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [val-at a b]))))
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [val_at a b]))))))
 
 (def ^:private WithCls
   (python/type "WithCls"
