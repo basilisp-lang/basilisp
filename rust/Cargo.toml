@@ -12,6 +12,6 @@ crate-type = ["cdylib"]
 parking_lot = "0.12.5"
 
 [dependencies.pyo3]
-version = "0.28.3"
+version = "0.29.0"
 # "abi3-py310" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.10
 features = ["abi3-py310", "experimental-inspect"]
