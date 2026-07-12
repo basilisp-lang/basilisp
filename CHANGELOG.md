@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where the Basilisp reader and `basilisp.edn/read-string` failed to accept qualified symbols and keywords with the name `/` (#1346)
 
 ### Removed
- * `basilisp.test/gen-assert` has been removed and replaced with `basilisp.test/assert-expr` (#????)
+ * `basilisp.test/gen-assert` has been removed and replaced with `basilisp.test/assert-expr` (#1347)
 
 ## [v0.5.1]
 ### Added
