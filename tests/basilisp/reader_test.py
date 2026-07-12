@@ -612,6 +612,7 @@ class TestKeyword:
             ("a:b", "ab", ":ab/a:b"),
             ("a:b", "a:b", ":a:b/a:b"),
             ("#", "html", ":html/#"),
+            ("/", "ns", ":ns//"),
         ],
     )
     def test_legal_ns_keyword(self, k: str, ns: str, raw: str):
@@ -684,6 +685,7 @@ class TestSymbol:
             (".interop", "ns.second", "ns.second/.interop"),
             ("sy:m", "ns", "ns/sy:m"),
             ("sy:m", "n:s", "n:s/sy:m"),
+            ("/", "ns", "ns//"),
         ],
     )
     def test_legal_ns_symbol(self, s: str, ns: str, raw: str):

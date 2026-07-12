@@ -627,7 +627,10 @@ def _read_namespaced(
         if char == "/":
             reader.next_char()
             if has_ns:
-                raise ctx.syntax_error("Found '/'; expected word character")
+                if len(name) == 0:
+                    name.append("/")
+                else:
+                    raise ctx.syntax_error("Found '/'; expected word character")
             elif len(name) == 0:
                 name.append("/")
             else:
@@ -649,9 +652,8 @@ def _read_namespaced(
     name_str = "".join(name)
 
     # A small exception for the symbol '/ used for division
-    if ns_str is None:
-        if "/" in name_str and name_str != "/":
-            raise ctx.syntax_error("'/' character disallowed in names")
+    if "/" in name_str and name_str != "/":
+        raise ctx.syntax_error("'/' character disallowed in names")
 
     assert ns_str is None or len(ns_str) > 0
 
