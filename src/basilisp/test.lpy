@@ -111,8 +111,7 @@
     (reduce #(compose-fixtures %1 %2) fixtures)
     (constantly nil)))
 
-(defn -line-no
-  "Private implementation detail of :lpy:fn:`do-report`."
+(defn ^:private line-no
   []
   (try
     (.-lineno (nth (inspect/stack) 2))
