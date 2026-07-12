@@ -125,8 +125,6 @@
   Custom implementations of :lpy:fn:`assert-expr` should call this function to
   report results of their assertion."
   [{result-type :type :as m}]
-  (when (= :error result-type)
-    (println {:actual (:actual m) :tb-lineno (.-tb_lineno (.-__traceback__ (:actual m))) :line-no (-line-no)}))
   (cond
     (contains? #{:fail :failure} result-type)
     (vswap! *test-failures*

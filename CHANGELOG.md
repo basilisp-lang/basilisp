@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug where `basilisp.test/are` based tests could fail to report line numbers for test failures (#635)
 
+### Deprecated
+ * `basilisp.test/gen-assert`
+
 ## [v0.5.1]
 ### Added
  * Added `basilisp.csv` namespace (#753)
