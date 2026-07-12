@@ -258,7 +258,7 @@
 
 (defmethod gen-assert :default
   [expr msg ^:no-warn-when-unused line-num]
-  `(assert-expr expr msg))
+  `(assert-expr ~expr ~msg))
 
 (defmacro is
   "Assert that a test condition, ``expr``, is true. :lpy:fn:`is` assertion failures are
