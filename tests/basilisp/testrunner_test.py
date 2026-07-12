@@ -153,7 +153,7 @@ class TestTestrunner:
                 "ERROR in (error-test) (test_testrunner.lpy:34)",
                 "Traceback (most recent call last):",
                 '  File "*test_testrunner.lpy", line 34, in error_test',
-                "      (throw",
+                "    (deftest error-test",
                 "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
             ]
         )
