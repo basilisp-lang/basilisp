@@ -102,7 +102,7 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                "FAIL in (assertion-test) (test_testrunner.lpy:19)",
+                "FAIL in (assertion-test) (test_testrunner.lpy:22)",
                 "     is assertions :: Regex pattern did not match",
                 "",
                 '    expected: #"Known exception"',
@@ -113,9 +113,7 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                # Note the lack of line number, since `are` assertions generally lose
-                # the original line number during templating
-                "FAIL in (assertion-test) (test_testrunner.lpy)",
+                "FAIL in (assertion-test) (test_testrunner.lpy:29)",
                 '     are assertions :: Test failure: (= "true" false)',
                 "",
                 '    expected: "true"',
@@ -126,7 +124,7 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                "FAIL in (syntax-quote-seq-test) (test_testrunner.lpy)",
+                "FAIL in (syntax-quote-seq-test) (test_testrunner.lpy:42)",
                 "    Test failure: (basilisp.core/= 5 4)",
                 "",
                 "    expected: 5",
@@ -135,13 +133,6 @@ class TestTestrunner:
             consecutive=True,
         )
 
-    @pytest.mark.xfail(
-        platform.python_implementation() == "PyPy" and sys.version_info < (3, 10),
-        reason=(
-            "PyPy 3.9 fails this test because it intermittently produces an incorrect"
-            "line number (128014) in the exception traceback, which is clearly erroneous."
-        ),
-    )
     def test_error_repr(self, run_result: pytest.RunResult):
         expected = [
             "ERROR in (assertion-test) (test_testrunner.lpy:14)",
@@ -159,10 +150,10 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                "ERROR in (error-test) (test_testrunner.lpy)",
+                "ERROR in (error-test) (test_testrunner.lpy:34)",
                 "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 35, in error_test',
-                "    (throw",
+                '  File "*test_testrunner.lpy", line 34, in error_test',
+                "    (deftest error-test",
                 "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
             ]
         )
