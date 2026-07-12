@@ -81,6 +81,7 @@
     "*'"            '*'
 
     "ns/sym"                  'ns/sym
+    "ns//"                    'ns//
     "qualified.ns/sym"        'qualified.ns/sym
     "really.qualified.ns/sym" 'really.qualified.ns/sym)
 
@@ -122,6 +123,7 @@
     ":*'"               :*'
 
     ":ns/kw"                  :ns/kw
+    ":ns//"                   :ns//
     ":qualified.ns/kw"        :qualified.ns/kw
     ":really.qualified.ns/kw" :really.qualified.ns/kw)
 

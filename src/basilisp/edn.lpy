@@ -120,10 +120,12 @@
           (.next-char reader)
           (cond
             has-ns
-            (throw
-             (ex-info "Found '/'; expected word char"
-                      {:char  c
-                       :error :unexpected-char}))
+            (if (zero? (count name))
+              (recur ns (conj name "/") has-ns)
+              (throw
+               (ex-info "Found '/'; expected word char"
+                        {:char  c
+                         :error :unexpected-char})))
 
             (zero? (count name))
             (recur ns (conj name "/") has-ns)
@@ -145,8 +147,7 @@
         :else
         (let [ns-str   (when (seq ns) (str/join ns))
               name-str (str/join name)]
-          (when (and (nil? ns-str)
-                     (str/includes? name-str "/")
+          (when (and (str/includes? name-str "/")
                      (not= "/" name-str))
             (throw
              (ex-info "'/' character disallowed in names"
