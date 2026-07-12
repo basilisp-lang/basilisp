@@ -19,7 +19,6 @@ from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.lang.util import munge
-from basilisp.util import Maybe
 
 _EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
 _ONCE_FIXTURES_NUM_META_KW = kw.keyword("once-fixtures", "basilisp.test")
@@ -326,6 +325,8 @@ _ACTUAL_KW = kw.keyword("actual")
 _ERROR_KW = kw.keyword("error")
 _EXPECTED_KW = kw.keyword("expected")
 _FAILURE_KW = kw.keyword("failure")
+_FAIL_KW = kw.keyword("fail")
+_ALL_FAIL_KWS = frozenset([_FAIL_KW, _FAILURE_KW])
 _FAILURES_KW = kw.keyword("failures")
 _MESSAGE_KW = kw.keyword("message")
 _LINE_KW = kw.keyword("line")
@@ -404,14 +405,14 @@ class BasilispTestItem(pytest.Item):
 
             for details in failures:
                 type_ = details.val_at(_TYPE_KW)
-                if type_ == _FAILURE_KW:
+                if type_ in _ALL_FAIL_KWS:
                     messages.append(self._failure_msg(details))
                 elif type_ == _ERROR_KW:
                     exc = details.val_at(_ACTUAL_KW)
                     line = details.val_at(_LINE_KW)
                     messages.append(self._error_msg(exc, line=line))
                 else:  # pragma: no cover
-                    assert False, "Test failure type must be in #{:error :failure}"
+                    assert False, "Test failure type must be in #{:error :fail}"
 
             return "\n\n".join(messages)
         elif isinstance(excinfo.value, Exception):
@@ -423,13 +424,13 @@ class BasilispTestItem(pytest.Item):
         return self.fspath, 0, self.name
 
     def _error_msg(self, exc: Exception, line: int | None = None) -> str:
-        line_msg = Maybe(line).map(lambda l: f":{l}").or_else_get("")
+        line_msg = f":{line}" if line is not None else ""
         messages = [f"ERROR in ({self.name}) ({self._filename}{line_msg})", "\n\n"]
         messages.extend(traceback.format_exception(Exception, exc, exc.__traceback__))
         return "".join(messages)
 
     def _failure_msg(self, details: lmap.PersistentMap) -> str:
-        assert details.val_at(_TYPE_KW) == _FAILURE_KW
+        assert details.val_at(_TYPE_KW) in _ALL_FAIL_KWS
         msg: str = details.val_at(_MESSAGE_KW)
 
         actual = details.val_at(_ACTUAL_KW)
@@ -437,8 +438,8 @@ class BasilispTestItem(pytest.Item):
 
         test_section = details.val_at(_TEST_SECTION_KW)
         line = details.val_at(_LINE_KW)
-        line_msg = Maybe(line).map(lambda l: f":{l}").or_else_get("")
-        section_msg = Maybe(test_section).map(lambda s: f" {s} :: ").or_else_get("")
+        line_msg = f":{line}" if line is not None else ""
+        section_msg = f" {test_section} :: " if test_section is not None else ""
 
         return "\n".join(
             [
