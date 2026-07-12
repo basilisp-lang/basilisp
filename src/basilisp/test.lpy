@@ -131,7 +131,7 @@
             (merge
              {:test-name    *test-name*
               :test-section *test-section*
-              :line         (-line-no)}
+              :line         (line-no)}
              m))
 
     (= :error result-type)
@@ -142,7 +142,7 @@
               :test-section *test-section*
               :line         (if (instance? python/Exception (:actual m))
                               (.-tb_lineno (.-__traceback__ (:actual m)))
-                              (-line-no))}
+                              (line-no))}
              m))))
 
 (defmulti
