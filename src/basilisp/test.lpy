@@ -234,32 +234,6 @@
                    :expected (list (symbol "not") computed#)
                    :type     :fail}))))
 
-(defmulti
-  ^{:arglists '([expr msg line-num])}
-  gen-assert
-  "Deprecated implementation detail of :lpy:fn:`is` for generating macros.
-
-  Not generally called directly, but you may wish to add additional methods
-  to this multimethod to support different kinds of assertions.
-
-  .. deprecated:: 0.6.0
-
-     Use :lpy:fn:`assert-expr` instead."
-  (fn [expr _ _]
-    (cond
-      (vector? expr)     :default
-      (sequential? expr) (let [maybe-f (first expr)]
-                           (if (and (symbol? maybe-f)
-                                    (or (= 'basilisp.core/= maybe-f)
-                                        (#{'thrown-with-msg? 'thrown?} (symbol maybe-f))))
-                             (symbol (name maybe-f))
-                             maybe-f))
-      :else              :default)))
-
-(defmethod gen-assert :default
-  [expr msg ^:no-warn-when-unused line-num]
-  `(assert-expr ~expr ~msg))
-
 (defmacro is
   "Assert that a test condition, ``expr``, is true. :lpy:fn:`is` assertion failures are
   recorded and reported as test failures, causing the entire containing ``deftest`` to
@@ -278,6 +252,7 @@
     ``pattern`` using :lpy:fn:`re-find`
   - ``(is expr)`` is the most basic assertion type that just asserts that ``expr`` is
     truthy
+  - Additional test forms can be added by extending the multimethod :lpy:fn:`assert-expr`
 
   ``is`` assertions must appear inside of a :lpy:fn:`deftest` form."
   ([expr]

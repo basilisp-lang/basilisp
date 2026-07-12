@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `basilisp.test/are` based tests could fail to report line numbers for test failures (#635)
  * Fix a bug where the Basilisp reader and `basilisp.edn/read-string` failed to accept qualified symbols and keywords with the name `/` (#1346)
 
-### Deprecated
- * `basilisp.test/gen-assert`
+### Removed
+ * `basilisp.test/gen-assert` has been removed and replaced with `basilisp.test/assert-expr` (#1347)
 
 ## [v0.5.1]
 ### Added
