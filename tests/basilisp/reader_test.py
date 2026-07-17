@@ -617,14 +617,14 @@ class TestKeyword:
             ("a:b", "a:b", ":a:b/a:b"),
             ("#", "html", ":html/#"),
             ("/", "ns", ":ns//"),
+            ("/kw", "ns", ":ns//kw"),
+            ("ns/sym", "some", ":some/ns/sym"),
         ],
     )
     def test_legal_ns_keyword(self, k: str, ns: str, raw: str):
         assert kw.keyword(k, ns=ns) == read_str_first(raw)
 
-    @pytest.mark.parametrize(
-        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw"]
-    )
+    @pytest.mark.parametrize("v", ["://", ":ns/sym/", ":/kw"])
     def test_illegal_keyword(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
@@ -690,6 +690,8 @@ class TestSymbol:
             ("sy:m", "ns", "ns/sy:m"),
             ("sy:m", "n:s", "n:s/sy:m"),
             ("/", "ns", "ns//"),
+            ("/sym", "ns", "ns//sym"),
+            ("ns/sym", "some", "some/ns/sym"),
         ],
     )
     def test_legal_ns_symbol(self, s: str, ns: str, raw: str):
@@ -699,8 +701,6 @@ class TestSymbol:
         "v",
         [
             "//",
-            "ns//sym",
-            "some/ns/sym",
             "ns/sym/",
             "/sym",
             ".second.ns/name",
