@@ -278,8 +278,11 @@ def _lrepr_complex(o: complex, **_) -> str:
     return repr(o).upper()
 
 
-@lrepr.register(float)
-def _lrepr_float(o: float, human_readable: bool = False, **_) -> str:
+def _special_number_repr(
+    o: float | Decimal, human_readable: bool = False
+) -> str | None:
+    """Return the representation of the special numeric values infinity, negative
+    infinity, and NaN."""
     if math.isinf(o):
         if o > 0:
             return "Infinity" if human_readable else "##Inf"
@@ -287,6 +290,13 @@ def _lrepr_float(o: float, human_readable: bool = False, **_) -> str:
             return "-Infinity" if human_readable else "##-Inf"
     if math.isnan(o):
         return "NaN" if human_readable else "##NaN"
+    return None
+
+
+@lrepr.register(float)
+def _lrepr_float(o: float, human_readable: bool = False, **_) -> str:
+    if (r := _special_number_repr(o, human_readable=human_readable)) is not None:
+        return r
     return repr(o)
 
 
@@ -296,7 +306,11 @@ def _lrepr_datetime(o: datetime.datetime, **_) -> str:
 
 
 @lrepr.register(Decimal)
-def _lrepr_decimal(o: Decimal, print_dup: bool = PRINT_DUP, **_) -> str:
+def _lrepr_decimal(
+    o: Decimal, print_dup: bool = PRINT_DUP, human_readable: bool = False, **_
+) -> str:
+    if (r := _special_number_repr(o, human_readable=human_readable)) is not None:
+        return r
     if print_dup:
         return f"{str(o)}M"
     return str(o)

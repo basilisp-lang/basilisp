@@ -529,6 +529,10 @@ class TestScientificNotationLiteral:
             ("3.14e8", 3.14e8),
             ("3.14e+8", 3.14e8),
             ("3.14e-8", 3.14e-8),
+            ("-3.14e8M", langutil.decimal_from_str("-3.14e8")),
+            ("3.14e8M", langutil.decimal_from_str("3.14e8")),
+            ("3.14e+8M", langutil.decimal_from_str("3.14e+8")),
+            ("3.14e-8M", langutil.decimal_from_str("3.14e-8")),
             ("0.443e12", 0.443e12),
             ("0.443e+12", 0.443e12),
             ("-0.443e+12", -0.443e12),
@@ -541,7 +545,7 @@ class TestScientificNotationLiteral:
     def test_legal_scientific_notation_literal(self, v: int, raw: str):
         assert v == read_str_first(raw)
 
-    @pytest.mark.parametrize("raw", ["2e-3.6", "2e--4"])
+    @pytest.mark.parametrize("raw", ["2e-3.6", "2e--4", "2ee-3.6", "2EE-3.6"])
     def test_malformed_scientific_notation_literal(self, raw: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(raw)

@@ -69,7 +69,7 @@ octal_literal = re.compile("-?0([0-7]+)N?")
 hex_chars = re.compile("[0-9A-Fa-f]")
 hex_literal = re.compile("-?0[Xx]([0-9A-Fa-f]+)N?")
 ratio_literal = re.compile(r"(-?\d+)/(\d+)")
-scientific_notation_literal = re.compile(r"-?(\d+(?:\.\d*)?)[Ee]([+\-]?\d+)")
+scientific_notation_literal = re.compile(r"-?(\d+(?:\.\d*)?)[Ee]([+\-]?\d+M?)")
 whitespace_chars = re.compile(r"[\s,]")
 newline_chars = re.compile("(\r\n|\r|\n)")
 fn_macro_args = re.compile("(%)(&|[0-9])?")
@@ -920,10 +920,13 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-stateme
                 return frac.numerator
             return frac
     elif (match := scientific_notation_literal.fullmatch(s)) is not None:
-        sig = float(m) if "." in (m := match.group(1)) else int(m)
-        exp = int(match.group(2))
-        res = sig * (10**exp)
-        return -res if neg else res
+        if s.endswith("M"):
+            return decimal.Decimal(s[:-1])
+        else:
+            sig = float(m) if "." in (m := match.group(1)) else int(m)
+            exp = int(match.group(2))
+            res = sig * (10**exp)
+            return -res if neg else res
     elif (match := arbitrary_base_literal.fullmatch(s)) is not None:
         base = int(match.group(1))
         if not 2 <= base <= 36:
