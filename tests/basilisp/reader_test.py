@@ -602,6 +602,9 @@ class TestKeyword:
             ("a:b", ":a:b"),
             ("#", ":#"),
             ("div#id", ":div#id"),
+            ("привет", ":привет"),
+            ("אַ", ":אַ"),
+            ("אַ", ":\u05d0\u05b7 \u05d2\u05d5\u05d8 \u05d9\u05d0\u05b8\u05e8"),
         ],
     )
     def test_legal_bare_keyword(self, v: str, raw: str):
@@ -675,10 +678,17 @@ class TestSymbol:
             "*'",
             "a:b",
             "div#id",
+            "привет",
+            "א",
         ],
     )
     def test_legal_bare_symbol(self, s: str):
         assert sym.symbol(s) == read_str_first(s)
+
+    def test_bare_utf8_symbol(self):
+        assert sym.symbol("אַ") == read_str_first(
+            "\u05d0\u05b7 \u05d2\u05d5\u05d8 \u05d9\u05d0\u05b8\u05e8"
+        )
 
     @pytest.mark.parametrize(
         "s,ns,raw",
@@ -739,6 +749,8 @@ class TestString:
             ("Regular string", '"Regular string"'),
             ("String with 'inner string'", "\"String with 'inner string'\""),
             ('String with "inner string"', r'"String with \"inner string\""'),
+            ("привет", '"привет"'),
+            ("אַ גוט יאָר", '"אַ גוט יאָר"'),
         ],
     )
     def test_legal_string(self, v: str, raw: str):
