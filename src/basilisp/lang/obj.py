@@ -11,7 +11,7 @@ from functools import singledispatch
 from itertools import islice
 from pathlib import Path
 from re import Pattern
-from typing import Any, SupportsFloat, SupportsIndex, Union, cast
+from typing import Any, Union, cast
 
 from typing_extensions import TypedDict, Unpack
 

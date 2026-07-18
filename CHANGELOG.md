@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fix a bug where `basilisp.test/are` based tests could fail to report line numbers for test failures (#635)
- * Fix a bug where not all UTF-8 symbols and keywords were accepted by the Basilisp reader and `basilisp.edn/read-string` (#1349)
+ * Fix a bug where not all UTF-8 symbols and keywords were accepted by the Basilisp reader and `basilisp.edn/read-string` (#1346, #1349)
  * Fix a bug where scientific notation literals could not be read with an `M` prefix into decimal types (#1351)
 
 ### Removed
