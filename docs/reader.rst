@@ -89,7 +89,7 @@ Scientific Notation
 Basilisp supports scientific notation using the ``e`` syntax common to many programming languages.
 The significand (the number to the left of the ``e`` ) may be an integer or floating point and may be prefixed with a single negative sign ``-`` or plus sign ``+``.
 The exponent (the number to the right of the ``e`` ) must be an integer and may be prefixed with a single negative sign ``-``.
-The resulting value will be either an integer or float depending on the type of the significand.
+The resulting value will be either an integer or float depending on the type of the significand or a :external:py:class:`decimal.Decimal` if suffixed with an ``M`` regardless of the significand.
 
 .. _reader_complex_numbers:
 
