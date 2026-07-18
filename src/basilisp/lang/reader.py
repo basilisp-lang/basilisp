@@ -920,10 +920,13 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-stateme
                 return frac.numerator
             return frac
     elif (match := scientific_notation_literal.fullmatch(s)) is not None:
-        sig = float(m) if "." in (m := match.group(1)) else int(m)
-        exp = int(match.group(2))
-        res = sig * (10**exp)
-        return -res if neg else res
+        if s.endswith("M"):
+            return decimal.Decimal(s[:-1])
+        else:
+            sig = float(m) if "." in (m := match.group(1)) else int(m)
+            exp = int(match.group(2))
+            res = sig * (10**exp)
+            return -res if neg else res
     elif (match := arbitrary_base_literal.fullmatch(s)) is not None:
         base = int(match.group(1))
         if not 2 <= base <= 36:
