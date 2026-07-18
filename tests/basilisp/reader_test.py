@@ -602,6 +602,9 @@ class TestKeyword:
             ("a:b", ":a:b"),
             ("#", ":#"),
             ("div#id", ":div#id"),
+            ("привет", ":привет"),
+            ("אַ", ":אַ"),
+            ("אַ", ":\u05d0\u05b7 \u05d2\u05d5\u05d8 \u05d9\u05d0\u05b8\u05e8"),
         ],
     )
     def test_legal_bare_keyword(self, v: str, raw: str):
@@ -617,14 +620,14 @@ class TestKeyword:
             ("a:b", "a:b", ":a:b/a:b"),
             ("#", "html", ":html/#"),
             ("/", "ns", ":ns//"),
+            ("/kw", "ns", ":ns//kw"),
+            ("ns/sym", "some", ":some/ns/sym"),
         ],
     )
     def test_legal_ns_keyword(self, k: str, ns: str, raw: str):
         assert kw.keyword(k, ns=ns) == read_str_first(raw)
 
-    @pytest.mark.parametrize(
-        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw"]
-    )
+    @pytest.mark.parametrize("v", ["://", ":ns/sym/", ":/kw"])
     def test_illegal_keyword(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
@@ -675,10 +678,17 @@ class TestSymbol:
             "*'",
             "a:b",
             "div#id",
+            "привет",
+            "א",
         ],
     )
     def test_legal_bare_symbol(self, s: str):
         assert sym.symbol(s) == read_str_first(s)
+
+    def test_bare_utf8_symbol(self):
+        assert sym.symbol("אַ") == read_str_first(
+            "\u05d0\u05b7 \u05d2\u05d5\u05d8 \u05d9\u05d0\u05b8\u05e8"
+        )
 
     @pytest.mark.parametrize(
         "s,ns,raw",
@@ -690,6 +700,8 @@ class TestSymbol:
             ("sy:m", "ns", "ns/sy:m"),
             ("sy:m", "n:s", "n:s/sy:m"),
             ("/", "ns", "ns//"),
+            ("/sym", "ns", "ns//sym"),
+            ("ns/sym", "some", "some/ns/sym"),
         ],
     )
     def test_legal_ns_symbol(self, s: str, ns: str, raw: str):
@@ -699,8 +711,6 @@ class TestSymbol:
         "v",
         [
             "//",
-            "ns//sym",
-            "some/ns/sym",
             "ns/sym/",
             "/sym",
             ".second.ns/name",
@@ -739,6 +749,8 @@ class TestString:
             ("Regular string", '"Regular string"'),
             ("String with 'inner string'", "\"String with 'inner string'\""),
             ('String with "inner string"', r'"String with \"inner string\""'),
+            ("привет", '"привет"'),
+            ("אַ גוט יאָר", '"אַ גוט יאָר"'),
         ],
     )
     def test_legal_string(self, v: str, raw: str):

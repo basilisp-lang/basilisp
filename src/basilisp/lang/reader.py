@@ -15,7 +15,7 @@ from fractions import Fraction
 from itertools import chain
 from re import Pattern
 from types import TracebackType
-from typing import Any, NoReturn, TypeVar, Union, cast
+from typing import Any, Mapping, NoReturn, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Unpack
@@ -57,8 +57,8 @@ from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import partition
 
-ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|:|\.")
-alphanumeric_chars = re.compile(r"\w")
+begin_ns_name_chars = re.compile(r":|[^\s\d]")
+identifier_literal = re.compile(r"([^\d/]\S*/)?(/|[^\d/][^/]*)")
 begin_num_chars = re.compile(r"[0-9\-]")
 maybe_num_chars = re.compile(r"[0-9A-Za-z/.+]")
 integer_literal = re.compile(r"(-?(?:\d|[1-9]\d+))N?")
@@ -120,6 +120,7 @@ class Comment:
 COMMENT = Comment()
 
 LispReaderForm = Union[ReaderForm, Comment, "ReaderConditional"]
+RawLispReaderFn = Callable[["ReaderContext"], LispReaderForm]
 RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 DefaultDataReaderFn = Callable[[sym.Symbol, RawReaderForm], Any]
 
@@ -614,50 +615,31 @@ def _consume_whitespace(ctx: ReaderContext) -> str:
     return char
 
 
-def _read_namespaced(
-    ctx: ReaderContext, allowed_suffix: str | None = None
-) -> tuple[str | None, str]:
+def _read_namespaced(ctx: ReaderContext) -> tuple[str | None, str]:
     """Read a namespaced token (keyword or symbol) from the input stream."""
-    ns: list[str] = []
-    name: list[str] = []
+    tokens = []
     reader = ctx.reader
-    has_ns = False
     while True:
         char = reader.peek()
-        if char == "/":
-            reader.next_char()
-            if has_ns:
-                if len(name) == 0:
-                    name.append("/")
-                else:
-                    raise ctx.syntax_error("Found '/'; expected word character")
-            elif len(name) == 0:
-                name.append("/")
-            else:
-                if "/" in name:
-                    raise ctx.syntax_error("Found '/' after a previous '/'")
-                has_ns = True
-                ns = name
-                name = []
-        elif ns_name_chars.match(char) or (name and char == "'") or char == "#":
-            reader.next_char()
-            name.append(char)
-        elif allowed_suffix is not None and char == allowed_suffix:
-            reader.next_char()
-            name.append(char)
-        else:
+        if (
+            char == ""
+            or whitespace_chars.match(char)
+            or (char not in {"#", "'", "%"} and char in _read_dispatch)
+        ):
             break
 
-    ns_str = None if not has_ns else "".join(ns)
-    name_str = "".join(name)
+        reader.next_char()
+        tokens.append(char)
 
-    # A small exception for the symbol '/ used for division
-    if "/" in name_str and name_str != "/":
-        raise ctx.syntax_error("'/' character disallowed in names")
+    ident = "".join(tokens)
+    if identifier_literal.fullmatch(ident) is None:
+        raise ctx.syntax_error(f"Invalid symbol or keyword '{ident}'")
 
-    assert ns_str is None or len(ns_str) > 0
+    if ident != "/" and ident.find("/") != -1:
+        ns_str, name_str = ident.split("/", maxsplit=1)
+        return ns_str, name_str
 
-    return ns_str, name_str
+    return None, ident
 
 
 def _read_coll(
@@ -1132,10 +1114,10 @@ def _read_sym(ctx: ReaderContext, is_reader_macro_sym: bool = False) -> MaybeSym
     If a symbol appears in a syntax quoted form, the reader will attempt
     to resolve the symbol using the resolver in the ReaderContext `ctx`.
     The resolver will look into the current namespace for an alias or
-    namespace matching the symbol's namespace. If no namespace is specififed
+    namespace matching the symbol's namespace. If no namespace is specified
     for the symbol, it will be assigned to the current namespace, unless the
     symbol is `&`."""
-    ns, name = _read_namespaced(ctx, allowed_suffix="#")
+    ns, name = _read_namespaced(ctx)
     if not ctx.is_syntax_quoted and name.endswith("#"):
         raise ctx.syntax_error("Gensym may not appear outside syntax quote")
     if ns is not None:
@@ -1167,6 +1149,15 @@ def _read_kw(ctx: ReaderContext) -> kw.Keyword:
     if ctx.reader.peek() == ":":
         ctx.reader.advance()
         should_autoresolve = True
+    # Read fully numeric keywords to support the bug documented in CLJ-1252 which
+    # ultimately Clojure decided not to fix due to how widespread such keywords
+    # already were by the time the issue was discovered.
+    elif ctx.reader.peek().isnumeric():
+        tokens = []
+        while (char := ctx.reader.peek()).isnumeric():
+            ctx.reader.next_char()
+            tokens.append(char)
+        return kw.keyword("".join(tokens))
     else:
         should_autoresolve = False
 
@@ -1506,7 +1497,7 @@ def _read_character(ctx: ReaderContext) -> str:
     char = reader.peek()
     is_first_char = True
     while True:
-        if char == "" or (not is_first_char and not alphanumeric_chars.match(char)):
+        if char == "" or (not is_first_char and not char.isalnum()):
             break
         s.append(char)
         char = reader.next_char()
@@ -1731,41 +1722,74 @@ def _resolve_tagged_literal(
             raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
 
 
+def _read_comment(ctx: ReaderContext) -> LispReaderForm:
+    """Read (and ignore) a single-line comment from the input stream.
+    Return the next form after the next line break."""
+    reader = ctx.reader
+    start = reader.advance()
+    assert start in {";", "!"}
+    while True:
+        char = reader.peek()
+        if newline_chars.match(char):
+            reader.advance()
+            return COMMENT
+        if char == "":
+            return ctx.eof
+        reader.advance()
+
+
+def _read_var_macro(ctx: ReaderContext) -> llist.PersistentList:
+    """Read a var-quoted form #'x which transforms to the form (var x)."""
+    assert ctx.reader.peek() == "'"
+    ctx.reader.advance()
+    char_next = ctx.reader.peek()
+    if char_next == "~":
+        s = _read_unquote(ctx)
+    else:
+        s = _read_sym(ctx)
+    return llist.l(_VAR, s)
+
+
+def _read_comment_macro(ctx: ReaderContext) -> Comment:
+    """Read the 'ignore next form' macro #_form which consumes the form and returns
+    a comment."""
+    assert ctx.reader.peek() == "_"
+    ctx.reader.advance()
+    _read_next_consuming_comment(ctx)  # Ignore the entire next form
+    return COMMENT
+
+
+def _read_reader_conditional_macro(ctx: ReaderContext) -> LispReaderForm:
+    """Wrapper to suppress the chain of tracebacks on syntax errors in reader
+    conditionals."""
+    try:
+        return _read_reader_conditional(ctx)
+    except SyntaxError as e:
+        raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
+
+
+_read_macro_dispatch: Mapping[str, RawLispReaderFn] = {
+    "{": _read_set,
+    "(": _read_function,
+    ":": _read_namespaced_map,
+    "'": _read_var_macro,
+    '"': _read_regex,
+    "_": _read_comment_macro,
+    "!": _read_comment,
+    "?": _read_reader_conditional_macro,
+    "#": _read_numeric_constant,
+}
+
+
 def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     """Return a data structure evaluated as a reader macro from the input stream."""
     start = ctx.reader.advance()
     assert start == "#"
     char = ctx.reader.peek()
-    if char == "{":
-        return _read_set(ctx)
-    elif char == "(":
-        return _read_function(ctx)
-    elif char == ":":
-        return _read_namespaced_map(ctx)
-    elif char == "'":
-        ctx.reader.advance()
-        char_next = ctx.reader.peek()
-        if char_next == "~":
-            s = _read_unquote(ctx)
-        else:
-            s = _read_sym(ctx)
-        return llist.l(_VAR, s)
-    elif char == '"':
-        return _read_regex(ctx)
-    elif char == "_":
-        ctx.reader.advance()
-        _read_next_consuming_comment(ctx)  # Ignore the entire next form
-        return COMMENT
-    elif char == "!":
-        return _read_comment(ctx)
-    elif char == "?":
-        try:
-            return _read_reader_conditional(ctx)
-        except SyntaxError as e:
-            raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
-    elif char == "#":
-        return _read_numeric_constant(ctx)
-    elif ns_name_chars.match(char):
+
+    if (read_macro := _read_macro_dispatch.get(char)) is not None:
+        return read_macro(ctx)
+    elif begin_ns_name_chars.match(char):
         s = _read_sym(ctx, is_reader_macro_sym=True)
         assert isinstance(s, sym.Symbol)
         if s.ns is None:
@@ -1782,22 +1806,6 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         return _resolve_tagged_literal(ctx, s, v)
 
     raise ctx.syntax_error(f"Unexpected char '{char}' in reader macro")
-
-
-def _read_comment(ctx: ReaderContext) -> LispReaderForm:
-    """Read (and ignore) a single-line comment from the input stream.
-    Return the next form after the next line break."""
-    reader = ctx.reader
-    start = reader.advance()
-    assert start in {";", "!"}
-    while True:
-        char = reader.peek()
-        if newline_chars.match(char):
-            reader.advance()
-            return COMMENT
-        if char == "":
-            return ctx.eof
-        reader.advance()
 
 
 def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
@@ -1818,46 +1826,43 @@ def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
     return _read_next(ctx)
 
 
+_read_dispatch: Mapping[str, RawLispReaderFn | None] = {
+    "(": _read_list,
+    ")": None,
+    "[": _read_vector,
+    "]": None,
+    "{": _read_map,
+    "}": None,
+    '"': _read_str,
+    "'": _read_quoted,
+    "\\": _read_character,
+    "#": _read_reader_macro,
+    "^": _read_meta,  # type: ignore[dict-item]
+    ";": _read_comment,
+    "`": _read_syntax_quoted,
+    "~": _read_unquote,
+    "@": _read_deref,
+    "": lambda ctx: ctx.eof,
+}
+
+
 def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
     """Read the next full form from the input stream."""
     reader = ctx.reader
     char = reader.peek()
-    if char == "(":
-        return _read_list(ctx)
-    elif char == "[":
-        return _read_vector(ctx)
-    elif char == "{":
-        return _read_map(ctx)
-    elif begin_num_chars.match(char):
+    if begin_num_chars.match(char):
         return _read_num(ctx)
-    elif whitespace_chars.match(char):
+
+    if whitespace_chars.match(char):
         return _read_next_consuming_whitespace(ctx)
-    elif char == ":":
-        return _read_kw(ctx)
-    elif char == '"':
-        return _read_str(ctx)
-    elif char == "'":
-        return _read_quoted(ctx)
-    elif char == "\\":
-        return _read_character(ctx)
-    elif ns_name_chars.match(char):
-        return _read_sym(ctx)
-    elif char == "#":
-        return _read_reader_macro(ctx)
-    elif char == "^":
-        return _read_meta(ctx)  # type: ignore
-    elif char == ";":
-        return _read_comment(ctx)
-    elif char == "`":
-        return _read_syntax_quoted(ctx)
-    elif char == "~":
-        return _read_unquote(ctx)
-    elif char == "@":
-        return _read_deref(ctx)
-    elif char == "":
-        return ctx.eof
-    else:
-        raise ctx.syntax_error(f"Unexpected char '{char}'")
+
+    if (read_fn := _read_dispatch.get(char)) is not None:
+        return read_fn(ctx)
+
+    if begin_ns_name_chars.match(char):
+        return _read_kw(ctx) if char == ":" else _read_sym(ctx)
+
+    raise ctx.syntax_error(f"Unexpected char '{char}'")
 
 
 def syntax_quote(  # pylint: disable=too-many-arguments

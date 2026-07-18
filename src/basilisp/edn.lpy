@@ -75,8 +75,9 @@
    "t"  "\t"
    "v"  "\v"})
 
-(def ^:private alphanumeric-chars
-  basilisp.lang.reader/alphanumeric-chars)
+(def ^:private dispatch-chars
+  "Dispatch characters for new forms. Used to signal the end of symbols and keywords."
+  #{"(" ")" "[" "]" "{" "}" ":" "\"" "\\" ";"})
 
 (def ^:private begin-num-chars
   basilisp.lang.reader/begin-num-chars)
@@ -84,8 +85,8 @@
 (def ^:private newline-chars
   basilisp.lang.reader/newline-chars)
 
-(def ^:private ns-name-chars
-  basilisp.lang.reader/ns-name-chars)
+(def ^:private identifier-literal
+  basilisp.lang.reader/identifier-literal)
 
 (def ^:private num-chars
   #"[0-9]")
@@ -110,50 +111,21 @@
 (defn ^:private read-namespaced
   "Read a namespaced token from the reader."
   [reader]
-  (loop [ns     []
-         name   []
-         has-ns false]
-    (let [c (.peek reader)]
-      (cond
-        (= c "/")
-        (do
-          (.next-char reader)
-          (cond
-            has-ns
-            (if (zero? (count name))
-              (recur ns (conj name "/") has-ns)
-              (throw
-               (ex-info "Found '/'; expected word char"
-                        {:char  c
-                         :error :unexpected-char})))
-
-            (zero? (count name))
-            (recur ns (conj name "/") has-ns)
-
-            :default
-            (if (some #(= "/" %) name)
-              (throw
-               (ex-info "Found '/' after '/'"
-                        {:char  c
-                         :error :unexpected-char}))
-              (recur name [] true))))
-
-        (or (re-matches ns-name-chars c)
-            (and (seq name) (= c "'")))
-        (do
-          (.next-char reader)
-          (recur ns (conj name c) has-ns))
-
-        :else
-        (let [ns-str   (when (seq ns) (str/join ns))
-              name-str (str/join name)]
-          (when (and (str/includes? name-str "/")
-                     (not= "/" name-str))
-            (throw
-             (ex-info "'/' character disallowed in names"
-                      {:char  "/"
-                       :error :unexpected-char})))
-          [ns-str name-str])))))
+  (let [ident (loop [tokens []]
+                (let [c (.peek reader)]
+                  (if (or (= c "")
+                          (re-matches whitespace-chars c)
+                          (contains? dispatch-chars c))
+                    (str/join tokens)
+                    (do
+                      (.next-char reader)
+                      (recur (conj tokens c))))))]
+    (when-not (re-matches identifier-literal ident)
+      (throw
+       (ex-info "Invalid symbol or keyword" {:ident ident})))
+    (if (and (not= ident "/") (str/index-of ident "/"))
+      (vec (str/split ident "/" 2))
+      [nil ident])))
 
 (defn ^:private read-coll
   "Read a sequence of objects from the reader and apply the function f to
@@ -294,14 +266,8 @@
         (re-matches whitespace-chars c)
         :whitespace
 
-        (re-matches ns-name-chars c)
-        :sym-or-singleton
-
         :default
-        (throw
-         (ex-info "Unexpected token"
-                  {:char  c
-                   :error :unexpected-char}))))))
+        :sym-or-singleton))))
 
 (defmethod read-sym-or-num :numeric
   [reader _]
@@ -461,7 +427,7 @@
                     (let [c (.peek reader)]
                       (if (or (= "" c)
                               (re-matches whitespace-chars c)
-                              (not (re-matches alphanumeric-chars c)))
+                              (not (.isalnum c)))
                         (str/join s)
                         (do
                           (.advance reader)
@@ -683,8 +649,8 @@
   "Read the next object from the input string. If ``nil`` or the empty string,
   returns ``nil``."
   ([s]
-   (read-string s {}))
-  ([s opts]
+   (read-string {} s))
+  ([opts s]
    (when-not (and (nil? s) (= "" s))
      (-> (io/StringIO s)
          (read opts)))))

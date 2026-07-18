@@ -15,7 +15,7 @@
 
 (def ^:private logger
   "The logger for this namespace."
-  (logging/getLogger (namespace ::)))
+  (logging/getLogger (ns-name *ns*)))
 
 (defmacro ^:private trace [& values]
   `(when (.isEnabledFor logger basilisp.logconfig/TRACE)
