@@ -82,14 +82,14 @@
 
     "ns/sym"                  'ns/sym
     "ns//"                    'ns//
+    "ns//sym"                 'ns//sym
+    "some/ns/sym"             'some/ns/sym
     "qualified.ns/sym"        'qualified.ns/sym
     "really.qualified.ns/sym" 'really.qualified.ns/sym)
 
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))
     "//"
-    "ns//sym"
-    "some/ns/sym"
     "ns/sym/"
     "/sym"
     ".second.ns/name"
@@ -124,14 +124,14 @@
 
     ":ns/kw"                  :ns/kw
     ":ns//"                   :ns//
+    ":ns//kw"                 :ns//kw
+    ":some/ns/kw"             :some/ns/kw
     ":qualified.ns/kw"        :qualified.ns/kw
     ":really.qualified.ns/kw" :really.qualified.ns/kw)
 
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))
     "://"
-    ":ns//kw"
-    ":some/ns/kw"
     ":ns/kw/"
     ":/kw"
     ":dotted.kw"))
@@ -181,11 +181,11 @@
     "#inst \"2018-01-18T03:26:57.296-00:00\""        #inst "2018-01-18T03:26:57.296-00:00"
     "#uuid \"4ba98ef0-0620-4966-af61-f0f6c2dbf230\"" #uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230")
 
-  (is (= [:a :b :c] (edn/read-string "#my.ns/passthru [:a :b :c]"
-                                     {:readers {'my.ns/passthru identity}})))
+  (is (= [:a :b :c] (edn/read-string {:readers {'my.ns/passthru identity}}
+                                     "#my.ns/passthru [:a :b :c]")))
 
-  (is (= ['my.ns/passthru [:a :b :c]] (edn/read-string "#my.ns/passthru [:a :b :c]"
-                                                       {:default (fn [tag v] [tag v])})))
+  (is (= ['my.ns/passthru [:a :b :c]] (edn/read-string {:default (fn [tag v] [tag v])}
+                                                       "#my.ns/passthru [:a :b :c]")))
 
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))

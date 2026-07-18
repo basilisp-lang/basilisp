@@ -649,8 +649,8 @@
   "Read the next object from the input string. If ``nil`` or the empty string,
   returns ``nil``."
   ([s]
-   (read-string s {}))
-  ([s opts]
+   (read-string {} s))
+  ([opts s]
    (when-not (and (nil? s) (= "" s))
      (-> (io/StringIO s)
          (read opts)))))
