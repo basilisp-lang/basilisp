@@ -79,7 +79,8 @@
     ".interop"      '.interop
     "ns.name"       'ns.name
     "*'"            '*'
-
+    "привет"        'привет
+    "אַ גוט יאָר"              'אַ
     "ns/sym"                  'ns/sym
     "ns//"                    'ns//
     "ns//sym"                 'ns//sym
@@ -121,6 +122,8 @@
     ":*muffs*"          :*muffs*
     ":yay!"             :yay!
     ":*'"               :*'
+    ":привет"           :привет
+    ":אַ גוט יאָר"                  :אַ
 
     ":ns/kw"                  :ns/kw
     ":ns//"                   :ns//
@@ -169,7 +172,10 @@
     "\"Hello,\\nmy name is\\tChris.\""     "Hello,\nmy name is\tChris."
     "\"Regular string\""                   "Regular string"
     "\"String with 'inner string'\""       "String with 'inner string'"
-    "\"String with \\\"inner string\\\"\"" "String with \"inner string\"")
+    "\"String with \\\"inner string\\\"\"" "String with \"inner string\""
+
+    "\"אַ גוט יאָר\"" "אַ גוט יאָר"
+    "\"привет\""   "привет")
 
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))
