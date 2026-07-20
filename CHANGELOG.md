@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Performance improvements for compile time and runtime (#1337)
  * Arity 0 of `concat` now returns an unrealized lazy seq, rather than an empty seq (#1339)
  * Records disallow interface method and field names in field names (#758)
+ * `contains?` now matches Clojure's behavior and checks only if a fast lookup key or index is in the collection (#????)
 
 ### Fixed
  * Fix a bug where `basilisp.test/are` based tests could fail to report line numbers for test failures (#635)
  * Fix a bug where not all UTF-8 symbols and keywords were accepted by the Basilisp reader and `basilisp.edn/read-string` (#1346, #1349)
  * Fix a bug where scientific notation literals could not be read with an `M` prefix into decimal types (#1351)
+ * Fix a bug where `partition` could return an extra partition unexpectedly (#????)
 
 ### Removed
  * `basilisp.test/gen-assert` has been removed and replaced with `basilisp.test/assert-expr` (#1347)

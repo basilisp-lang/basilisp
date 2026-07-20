@@ -2307,7 +2307,17 @@
 
 (defn ^:inline contains?
   "Return ``true`` if ``coll`` contains ``k``\\. For vectors, ``k`` is an index. For
-  maps, ``k`` is a key. For sets, ``k`` is a value in the set."
+  maps, ``k`` is a key. For sets, ``k`` is a value in the set.
+
+  .. note::
+
+     Contains should generally be considered a constant-time lookup to check if a
+     call to :lpy:fn:`get` would return a value, rather than checking if an arbitrary
+     value is part of a collection.
+
+     To perform such a check, consider :lpy:fn:`some` instead::
+
+        (some #(= k %) coll)"
   [coll k]
   (basilisp.lang.runtime/contains coll k))
 
@@ -3218,11 +3228,10 @@
    (lazy-seq
     (when-let [coll (seq coll)]
       (let [s  (take n coll)
-            ns (count s)
-            s  (if (< ns n)
-                 (concat s (take (- n ns) pad))
-                 s)]
-        (cons s (partition n step pad (drop step coll))))))))
+            ns (count s)]
+        (if (< ns n)
+          (list (concat s (take (- n ns) pad)))
+          (cons s (partition n step pad (drop step coll)))))))))
 
 (defn partition-all
   "Return a lazy sequence of partitions of ``coll`` of size ``n`` at offsets of

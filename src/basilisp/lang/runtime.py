@@ -1479,9 +1479,9 @@ def _nth_iseq(coll: ISeq, i: int, notfound=IIndexed.NTH_SENTINEL):
 
 
 @functools.singledispatch
-def contains(coll, k) -> bool:
+def contains(coll, _) -> bool:
     """Return true if o contains the key k."""
-    return k in coll
+    raise TypeError(f"contains? not supported for type '{type(coll)}'")
 
 
 @contains.register(type(None))
@@ -1489,14 +1489,21 @@ def _contains_none(_, __) -> bool:
     return False
 
 
-@contains.register(str)
-def _contains_str(s: str, k: Any) -> bool:
+@contains.register(Sequence)
+def _contains_sequence(s: Sequence, k: Any) -> bool:
     if isinstance(k, int):
         return 0 <= k < len(s)
-    elif isinstance(k, str):
-        return k in s
     else:
-        raise TypeError(f"contains? key must be a string; got '{type(k)}'")
+        raise TypeError(f"contains? key must be a int; got '{type(k)}'")
+
+
+@contains.register(frozenset)
+@contains.register(set)
+@contains.register(IPersistentSet)
+@contains.register(ITransientSet)
+@contains.register(Mapping)
+def _contains_set(s: AbstractSet, k: Any) -> bool:
+    return k in s
 
 
 @contains.register(IAssociative)

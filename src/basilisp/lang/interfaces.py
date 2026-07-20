@@ -535,12 +535,12 @@ class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T]):
 
 
 class IPersistentVector(
-    Sequence[T],
     IAssociative[int, T],
     IIndexed,
     IReversible[T],
     ISequential,
     IPersistentStack[T],
+    Sequence[T],
 ):
     """``IPersistentVector`` types support creating and modifying persistent vectors.
 
