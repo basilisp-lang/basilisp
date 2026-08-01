@@ -327,8 +327,11 @@ def _lrepr_path(o: Path, **_) -> str:
 
 
 @lrepr.register(type(re.compile("")))
-def _lrepr_pattern(o: Pattern, **_) -> str:
-    return f'#"{o.pattern}"'
+def _lrepr_pattern(o: Pattern, print_readably: bool = PRINT_READABLY, **_) -> str:
+    if not print_readably:
+        return f'#"{o.pattern}"'
+    escaped = o.pattern.encode("unicode_escape").replace(b'"', rb"\"").decode("utf-8")
+    return f'#"{escaped}"'
 
 
 @lrepr.register(uuid.UUID)
