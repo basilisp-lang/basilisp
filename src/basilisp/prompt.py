@@ -17,8 +17,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
+from basilisp.lang import reader, runtime
 from basilisp.lang.exception import print_exception
 
 _USER_DATA_HOME = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))

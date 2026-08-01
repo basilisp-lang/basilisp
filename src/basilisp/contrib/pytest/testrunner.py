@@ -14,7 +14,7 @@ import pytest
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
-from basilisp.lang import runtime as runtime
+from basilisp.lang import runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
@@ -197,11 +197,7 @@ def _is_package(path: Path) -> bool:
     """Return `True` if the given path refers to a Python or Basilisp package."""
     _, _, files = next(os.walk(path))
     for file in files:
-        if (
-            file in {"__init__.lpy", "__init__.py"}
-            or file.endswith(".lpy")
-            or file.endswith(".cljc")
-        ):
+        if file in {"__init__.lpy", "__init__.py"} or file.endswith((".lpy", ".cljc")):
             return True
     return False
 

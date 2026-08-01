@@ -189,7 +189,9 @@ def compile_and_exec_form(
         bytecode = compile(ast_module, ctx.filename, "exec")
         if collect_bytecode:
             collect_bytecode(bytecode)
-        exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used  # nosec 6102
+        exec(  # pylint: disable=exec-used  # noqa S102  # nosec 6102
+            bytecode, ns.module.__dict__
+        )
         try:
             last = getattr(ns.module, final_wrapped_name)()
         finally:
@@ -225,7 +227,9 @@ def _incremental_compile_module(
     bytecode = compile(module_ast, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, module.__dict__)  # pylint: disable=exec-used  # nosec 6102
+    exec(  # pylint: disable=exec-used  # noqa S102  # nosec 6102
+        bytecode, module.__dict__
+    )
 
 
 def _bootstrap_module(
@@ -287,7 +291,9 @@ def compile_bytecode(
     and then proceeds to compile a collection of bytecodes into the module."""
     _bootstrap_module(gctx, optimizer, module)
     for bytecode in code:
-        exec(bytecode, module.__dict__)  # pylint: disable=exec-used  # nosec 6102
+        exec(  # pylint: disable=exec-used  # noqa S102  # nosec 6102
+            bytecode, module.__dict__
+        )
 
 
 _LOAD_SYM = sym.symbol("load", ns=runtime.CORE_NS)

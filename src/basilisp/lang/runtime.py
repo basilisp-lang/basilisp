@@ -17,8 +17,10 @@ import re
 import sys
 import threading
 import types
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
-from typing import AbstractSet, Any, NoReturn, Optional, TypeVar, Union, cast
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Set as AbstractSet
+from collections.abc import Sized
+from typing import Any, NoReturn, Optional, TypeVar, Union, cast
 
 import attr
 
@@ -493,7 +495,7 @@ class ImportRefer:
 
 AliasMap = lmap.PersistentMap[sym.Symbol, sym.Symbol]
 ImportReferMap = lmap.PersistentMap[sym.Symbol, Any]
-Module = Union[BasilispModule, types.ModuleType]
+Module = BasilispModule | types.ModuleType
 ModuleMap = lmap.PersistentMap[sym.Symbol, Module]
 NamespaceMap = lmap.PersistentMap[sym.Symbol, "Namespace"]
 VarMap = lmap.PersistentMap[sym.Symbol, Var]
@@ -601,12 +603,7 @@ class Namespace(ReferenceBase):
 
         self._aliases: NamespaceMap = lmap.EMPTY
         self._imports: ModuleMap = lmap.map(
-            dict(
-                map(
-                    lambda s: (s, importlib.import_module(s.name)),
-                    Namespace.DEFAULT_IMPORTS,
-                )
-            )
+            {s: importlib.import_module(s.name) for s in Namespace.DEFAULT_IMPORTS}
         )
         self._import_aliases: AliasMap = lmap.EMPTY
         self._import_refers: lmap.PersistentMap[sym.Symbol, ImportRefer] = lmap.EMPTY
@@ -1010,23 +1007,23 @@ class Namespace(ReferenceBase):
             def is_match(entry: tuple[sym.Symbol, Var]) -> bool:
                 return _is_match(entry) and not entry[1].is_private
 
-        return map(
-            lambda entry: f"{entry[0].name}",
-            filter(is_match, ((s, v) for s, v in self.interns.items())),
+        return (
+            f"{entry[0].name}"
+            for entry in filter(is_match, ((s, v) for s, v in self.interns.items()))
         )
 
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given prefix from
         the list of referred Vars and referred Python module members."""
-        return map(
-            lambda entry: f"{entry[0].name}",
-            filter(
+        return (
+            f"{entry[0].name}"
+            for entry in filter(
                 Namespace.__completion_matcher(value),
                 itertools.chain(
                     ((s, v) for s, v in self.refers.items()),
                     ((s, v) for s, v in self.import_refers.items()),
                 ),
-            ),
+            )
         )
 
     def complete(self, text: str) -> Iterable[str]:
@@ -1455,10 +1452,10 @@ def _nth_none(_: None, i: int, notfound=IIndexed.NTH_SENTINEL) -> None:
 def _nth_sequence(coll: Sequence, i: int, notfound=IIndexed.NTH_SENTINEL):
     try:
         return coll[i]
-    except IndexError as ex:
+    except IndexError:
         if notfound is not IIndexed.NTH_SENTINEL:
             return notfound
-        raise ex
+        raise
 
 
 @nth.register(IIndexed)
@@ -2354,14 +2351,12 @@ def _basilisp_type(
                 all_interface_methods.update(interface_names)
             elif interface in artificially_abstract_bases:
                 artificially_abstract_base_members.update(
-                    map(
-                        lambda v: v[0],
-                        inspect.getmembers(
-                            interface,
-                            predicate=lambda v: inspect.isfunction(v)
-                            or isinstance(v, (property, staticmethod))
-                            or inspect.ismethod(v),
-                        ),
+                    v[0]
+                    for v in inspect.getmembers(
+                        interface,
+                        predicate=lambda v: inspect.isfunction(v)
+                        or isinstance(v, (property, staticmethod))
+                        or inspect.ismethod(v),
                     )
                 )
             else:

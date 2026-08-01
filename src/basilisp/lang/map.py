@@ -1,4 +1,3 @@
-from builtins import map as pymap
 from collections.abc import Callable, Iterable, Mapping
 from itertools import islice
 from typing import Any, TypeVar, cast
@@ -401,5 +400,5 @@ def from_entries(entries: Iterable[MapEntry[K, V]]) -> PersistentMap[K, V]:  # t
 
 
 def hash_map(*pairs) -> PersistentMap:
-    entries = pymap(lambda v: MapEntry.of(v[0], v[1]), partition(pairs, 2))
+    entries = (MapEntry.of(v[0], v[1]) for v in partition(pairs, 2))
     return from_entries(entries)

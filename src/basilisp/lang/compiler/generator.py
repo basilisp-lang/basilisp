@@ -25,7 +25,7 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from re import Pattern
-from typing import TYPE_CHECKING, Concatenate, Generic, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Concatenate, Generic, Optional, TypeVar, cast
 
 import attr
 from typing_extensions import ParamSpec
@@ -34,8 +34,7 @@ from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
 from basilisp.lang import queue as lqueue
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
+from basilisp.lang import reader, runtime
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
@@ -349,7 +348,7 @@ class GeneratorContext:
         )
 
 
-PyASTNode = Union[ast.expr, ast.stmt]
+PyASTNode = ast.expr | ast.stmt
 T_pynode = TypeVar("T_pynode", ast.expr, ast.stmt)
 
 
@@ -387,17 +386,20 @@ def _chain_py_ast(
     *genned: GeneratedPyAST[T_pynode],
 ) -> tuple[Iterable[PyASTNode], PyASTStream[T_pynode]]:
     """Chain a sequence of generated Python ASTs into a tuple of dependency nodes"""
-    deps = chain.from_iterable(map(lambda n: n.dependencies, genned))
-    nodes = map(lambda n: n.node, genned)
+    deps = chain.from_iterable(n.dependencies for n in genned)
+    nodes = (n.node for n in genned)
     return deps, nodes
 
 
-PyASTCtx = Union[ast.Load, ast.Store]
+PyASTCtx = ast.Load | ast.Store
 
 
-def _load_attr(name: str, ctx: PyASTCtx = ast.Load()) -> ast.Attribute:
+def _load_attr(name: str, ctx: PyASTCtx | None = None) -> ast.Attribute:
     """Generate recursive Python Attribute AST nodes for resolving nested
     names."""
+    if ctx is None:
+        ctx = ast.Load()
+
     attrs = name.split(".")
 
     def attr_node(node, idx):
@@ -658,7 +660,7 @@ def _with_ast_loc_deps(
     return with_lineno_and_col
 
 
-MetaNode = Union[Const, MapNode]
+MetaNode = Const | MapNode
 
 
 def _should_gen_safe_python_param_names(fn_meta_node: MetaNode | None) -> bool:
@@ -778,7 +780,7 @@ _MODULE_ALIASES = {
     "basilisp.lang.util": _UTIL_ALIAS,
 }
 assert set(_MODULE_ALIASES.keys()).issuperset(
-    map(lambda s: s.name, runtime.Namespace.DEFAULT_IMPORTS)
+    s.name for s in runtime.Namespace.DEFAULT_IMPORTS
 ), "All default Namespace imports should have generator aliases"
 
 _NS_VAR_VALUE = f"{_NS_VAR}.value"
@@ -3682,7 +3684,7 @@ def _with_meta_to_py_ast(
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, node.expr, meta_node=node.meta, *args, **kwargs)
+    return handle_expr(ctx, node.expr, *args, meta_node=node.meta, **kwargs)
 
 
 #################
@@ -3728,7 +3730,7 @@ def _collection_literal_to_py_ast(
     This function can only handle constant values. It does not call back into
     the generic AST generators, so only constant values will be generated down
     this path."""
-    yield from map(lambda form: _const_val_to_py_ast(form, ctx), form)
+    yield from (_const_val_to_py_ast(form, ctx) for form in form)
 
 
 def _const_meta_kwargs_ast(

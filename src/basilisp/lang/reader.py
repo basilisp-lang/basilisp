@@ -843,8 +843,8 @@ def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
 # Due to some ambiguities that arise in parsing symbols, numbers, and the
 # special keywords `true`, `false`, and `nil`, we have to have a looser
 # type defined for the return from these reader functions.
-MaybeSymbol = Union[bool, None, sym.Symbol]
-MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
+MaybeSymbol = bool | None | sym.Symbol
+MaybeNumber = complex | decimal.Decimal | float | Fraction | int | MaybeSymbol
 
 
 def _read_num(  # pylint: disable=too-many-locals,too-many-statements
@@ -1066,7 +1066,7 @@ def _read_hex_byte(ctx: ReaderContext) -> bytes:
     c1 = reader.next_char()
     c2 = reader.next_char()
     try:
-        return bytes([int("".join(["0x", c1, c2]), base=16)])
+        return bytes([int(f"0x{c1}{c2}", base=16)])
     except ValueError as e:
         raise ctx.syntax_error(
             f"Invalid byte representation for base 16: 0x{c1}{c2}"
@@ -1127,12 +1127,11 @@ def _read_sym(ctx: ReaderContext, is_reader_macro_sym: bool = False) -> MaybeSym
     ns, name = _read_namespaced(ctx)
     if not ctx.is_syntax_quoted and name.endswith("#"):
         raise ctx.syntax_error("Gensym may not appear outside syntax quote")
-    if ns is not None:
-        if any(map(lambda s: len(s) == 0, ns.split("."))):
-            raise ctx.syntax_error(
-                "All '.' separated segments of a namespace "
-                "must contain at least one character."
-            )
+    if ns is not None and any(len(s) == 0 for s in ns.split(".")):
+        raise ctx.syntax_error(
+            "All '.' separated segments of a namespace "
+            "must contain at least one character."
+        )
     if ns is None:
         if name == "nil":
             return None
@@ -1292,18 +1291,17 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
         return sym.symbol(f"arg-{suffix}")
 
     def identify_and_replace(f):
-        if isinstance(f, sym.Symbol):
-            # Checking against the current namespace is generally only used for
-            # when anonymous function definitions are syntax quoted. Arguments
-            # are resolved in terms of the current namespace, so we simply check
-            # if the symbol namespace matches the current runtime namespace.
-            if f.ns is None or f.ns == current_ns.name:
-                match = fn_macro_args.match(f.name)
-                if match is not None:
-                    arg_num = match.group(2)
-                    suffix = arg_suffix(arg_num)
-                    arg_set.add(suffix)
-                    return sym_replacement(arg_num)
+        # Checking against the current namespace is generally only used for
+        # when anonymous function definitions are syntax quoted. Arguments
+        # are resolved in terms of the current namespace, so we simply check
+        # if the symbol namespace matches the current runtime namespace.
+        if isinstance(f, sym.Symbol) and (f.ns is None or f.ns == current_ns.name):
+            match = fn_macro_args.match(f.name)
+            if match is not None:
+                arg_num = match.group(2)
+                suffix = arg_suffix(arg_num)
+                arg_set.add(suffix)
+                return sym_replacement(arg_num)
         return f
 
     body = _postwalk(identify_and_replace, form) if len(form) > 0 else None

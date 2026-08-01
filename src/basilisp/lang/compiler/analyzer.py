@@ -25,7 +25,7 @@ from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
 from re import Pattern
-from typing import Any, Literal, Optional, TypeVar, Union, cast
+from typing import Any, Literal, Optional, TypeVar, cast
 
 import attr
 
@@ -33,8 +33,7 @@ from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
 from basilisp.lang import queue as lqueue
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
+from basilisp.lang import reader, runtime
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
@@ -278,7 +277,7 @@ class SymbolTable:
             logging.WARNING
         ), "Only warn when logger is configured for WARNING level"
         ns = runtime.get_current_ns()
-        for _, entry in self._table.items():
+        for entry in self._table.values():
             if entry.symbol.name.startswith("_"):
                 continue
             if entry.symbol in _NO_WARN_UNUSED_SYMS:
@@ -552,14 +551,14 @@ class AnalyzerContext:
             not no_warn_on_shadow
             and warn_on_shadowed_name
             and self.warn_on_shadowed_name
-        ):
-            if st.find_symbol(s) is not None:
-                logger.warning(f"name '{s}' shadows name from outer scope")
+        ) and st.find_symbol(s) is not None:
+            logger.warning(f"name '{s}' shadows name from outer scope")
         if (
-            warn_on_shadowed_name or warn_on_shadowed_var
-        ) and self.warn_on_shadowed_var:
-            if self.current_ns.find(s) is not None:
-                logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
+            (warn_on_shadowed_name or warn_on_shadowed_var)
+            and self.warn_on_shadowed_var
+            and self.current_ns.find(s) is not None
+        ):
+            logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
         if s.meta is not None and s.meta.val_at(SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
             warn_if_unused = False
         st.new_symbol(s, binding, warn_if_unused=warn_if_unused)
@@ -778,7 +777,7 @@ def _body_ast(
         *stmt_forms, ret_form = body_list
 
         with ctx.stmt_pos():
-            body_stmts = list(map(lambda form: _analyze_form(form, ctx), stmt_forms))
+            body_stmts = [_analyze_form(form, ctx) for form in stmt_forms]
 
         with ctx.parent_pos():
             body_expr = _analyze_form(ret_form, ctx)
@@ -818,7 +817,7 @@ def _call_args_ast(
                 else:
                     pos.append(arg)
 
-            args = vec.vector(map(lambda form: _analyze_form(form, ctx), pos))
+            args = vec.vector(_analyze_form(form, ctx) for form in pos)
             kw_map = {}
             try:
                 for k, v in partition(kws, 2):
@@ -847,7 +846,7 @@ def _call_args_ast(
             else:
                 kwargs = lmap.map(kw_map)
         else:
-            args = vec.vector(map(lambda form: _analyze_form(form, ctx), form))
+            args = vec.vector(_analyze_form(form, ctx) for form in form)
             kwargs = lmap.EMPTY
 
         return args, kwargs
@@ -1852,10 +1851,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
             # and assert that any extra methods are included in that set below.
             artificially_abstract.add(interface)
             artificially_abstract_base_members.update(
-                map(
-                    lambda v: v[0],
-                    inspect.getmembers(interface_type, predicate=is_member),
-                )
+                v[0] for v in inspect.getmembers(interface_type, predicate=is_member)
             )
             # The meta key :abstract-members will give users the escape hatch to force
             # the compiler to recognize those members as abstract members.
@@ -2019,7 +2015,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
             runtime.nthrest(form, 3), ctx, SpecialForm.DEFTYPE
         )
         type_abstractness = __deftype_and_reify_impls_are_all_abstract(
-            ctx, SpecialForm.DEFTYPE, map(lambda f: f.name, fields), interfaces, members
+            ctx, SpecialForm.DEFTYPE, (f.name for f in fields), interfaces, members
         )
         return DefType(
             form=form,
@@ -2160,7 +2156,7 @@ def __fn_kwargs_support(ctx: AnalyzerContext, o: IMeta) -> KeywordArgSupport | N
         ) from e
 
 
-InlineMeta = Union[Callable, bool, None]
+InlineMeta = Callable | bool | None
 
 
 @functools.singledispatch
@@ -2283,12 +2279,8 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
 
         if isinstance(arity_or_args, (llist.PersistentList, ISeq)):
             arities = vec.vector(
-                map(
-                    lambda form: __fn_method_ast(
-                        form, ctx, fnname=name, is_async=is_async
-                    ),
-                    runtime.nthrest(form, idx),
-                )
+                __fn_method_ast(form, ctx, fnname=name, is_async=is_async)
+                for form in runtime.nthrest(form, idx)
             )
         elif isinstance(arity_or_args, vec.PersistentVector):
             arities = vec.v(
@@ -3154,7 +3146,7 @@ def _recur_ast(form: ISeq, ctx: AnalyzerContext) -> Recur:
         loop_id = ctx.recur_point.loop_id
 
     with ctx.expr_pos():
-        exprs = vec.vector(map(lambda form: _analyze_form(form, ctx), form.rest))
+        exprs = vec.vector(_analyze_form(form, ctx) for form in form.rest)
 
     return Recur(form=form, exprs=exprs, loop_id=loop_id, env=ctx.get_node_env())
 
@@ -3392,8 +3384,8 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
                     )
                 # Finally values are never returned
                 with ctx.stmt_pos():
-                    *finally_stmts, finally_ret = map(
-                        lambda form: _analyze_form(form, ctx), expr.rest
+                    *finally_stmts, finally_ret = (
+                        _analyze_form(form, ctx) for form in expr.rest
                     )
                 finally_ = Do(
                     form=expr.rest,
@@ -3754,16 +3746,18 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     maybe_import_or_require_entry = ctx.symbol_table.find_symbol(
         maybe_import_or_require_sym
     )
-    if maybe_import_or_require_entry is not None:
-        if maybe_import_or_require_entry.context == LocalType.IMPORT:
-            ctx.symbol_table.mark_used(maybe_import_or_require_sym)
-            return MaybeHostForm(
-                form=form,
-                class_=munge(form.ns),
-                field=munge(form.name),
-                target=None,
-                env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
+    if (
+        maybe_import_or_require_entry is not None
+        and maybe_import_or_require_entry.context == LocalType.IMPORT
+    ):
+        ctx.symbol_table.mark_used(maybe_import_or_require_sym)
+        return MaybeHostForm(
+            form=form,
+            class_=munge(form.ns),
+            field=munge(form.name),
+            target=None,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
 
     # Static and class methods on types in the current namespace can be referred
     # to as `Type/static-method`. In these cases, we will try to resolve the
@@ -3939,7 +3933,7 @@ def _py_list_node(form: list, ctx: AnalyzerContext) -> Const | PyList:
         return _const_node(form, ctx)
     return PyList(
         form=form,
-        items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
+        items=vec.vector(_analyze_form(form, ctx) for form in form),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -3951,7 +3945,7 @@ def _py_set_node(form: set, ctx: AnalyzerContext) -> Const | PySet:
         return _const_node(form, ctx)
     return PySet(
         form=form,
-        items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
+        items=vec.vector(_analyze_form(form, ctx) for form in form),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -3963,7 +3957,7 @@ def _py_tuple_node(form: tuple, ctx: AnalyzerContext) -> Const | PyTuple:
         return _const_node(form, ctx)
     return PyTuple(
         form=form,
-        items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
+        items=vec.vector(_analyze_form(form, ctx) for form in form),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -3997,7 +3991,7 @@ def _map_node_or_quoted(
 def _queue_node(form: lqueue.PersistentQueue, ctx: AnalyzerContext) -> QueueNode:
     return QueueNode(
         form=form,
-        items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
+        items=vec.vector(_analyze_form(form, ctx) for form in form),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -4016,7 +4010,7 @@ def _queue_node_or_quoted(
 def _set_node(form: lset.PersistentSet, ctx: AnalyzerContext) -> SetNode:
     return SetNode(
         form=form,
-        items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
+        items=vec.vector(_analyze_form(form, ctx) for form in form),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -4035,7 +4029,7 @@ def _set_node_or_quoted(
 def _vector_node(form: vec.PersistentVector, ctx: AnalyzerContext) -> VectorNode:
     return VectorNode(
         form=form,
-        items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
+        items=vec.vector(_analyze_form(form, ctx) for form in form),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -4192,11 +4186,10 @@ def macroexpand_1(form: ReaderForm) -> ReaderForm:
         assert isinstance(maybe_macro, Invoke)
 
         fn = maybe_macro.fn
-        if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
-            if _is_macro(fn.var):
-                assert isinstance(form, ISeq)
-                macro_env = ctx.symbol_table.as_env_map()
-                return fn.var.value(macro_env, form, *form.rest)
+        if fn.op == NodeOp.VAR and isinstance(fn, VarRef) and _is_macro(fn.var):
+            assert isinstance(form, ISeq)
+            macro_env = ctx.symbol_table.as_env_map()
+            return fn.var.value(macro_env, form, *form.rest)
     return maybe_macro.form
 
 

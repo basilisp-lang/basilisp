@@ -1,6 +1,6 @@
 from collections.abc import Iterable
-from collections.abc import Set as _PySet
-from typing import AbstractSet, TypeVar
+from collections.abc import Set as AbstractSet
+from typing import TypeVar
 
 from immutables import Map as _Map
 from immutables import MapMutation
@@ -103,7 +103,7 @@ class PersistentSet(
             return True
         if not isinstance(other, AbstractSet):
             return NotImplemented
-        return _PySet.__eq__(self, other)
+        return AbstractSet.__eq__(self, other)
 
     def __hash__(self):
         return self._hash()
@@ -117,8 +117,8 @@ class PersistentSet(
     def _lrepr(self, **kwargs: Unpack[PrintSettings]):
         return _seq_lrepr(self._inner, "#{", "}", meta=self._meta, **kwargs)
 
-    issubset = _PySet.__le__
-    issuperset = _PySet.__ge__
+    issubset = AbstractSet.__le__
+    issuperset = AbstractSet.__ge__
 
     def difference(self, *others):
         e = self

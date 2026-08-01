@@ -9,7 +9,7 @@ from basilisp.lang.symbol import Symbol
 
 K = TypeVar("K")
 V = TypeVar("V")
-T = Union[None, V, Symbol]
+T = Union[None, V, Symbol]  # noqa UP007
 
 _TAG_KW = keyword("tag")
 _FORM_KW = keyword("form")

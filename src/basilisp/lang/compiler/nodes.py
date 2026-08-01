@@ -230,10 +230,9 @@ def deftype_or_reify_python_member_names(
     will be yielded."""
     for member in members:
         yield member.python_name
-        if isinstance(member, DefTypeMethod):
-            if len(member.arities) > 1:
-                for arity in member.arities:
-                    yield arity.python_name
+        if isinstance(member, DefTypeMethod) and len(member.arities) > 1:
+            for arity in member.arities:
+                yield arity.python_name
 
 
 class Assignable(ABC):
@@ -513,7 +512,7 @@ class DefTypeStaticMethod(DefTypeMember):
     raw_forms: IPersistentVector[LispForm] = vec.EMPTY
 
 
-DefTypePythonMember = Union[DefTypeClassMethod, DefTypeProperty, DefTypeStaticMethod]
+DefTypePythonMember = DefTypeClassMethod | DefTypeProperty | DefTypeStaticMethod
 
 
 @attr.frozen
@@ -578,7 +577,7 @@ class HostCall(Node[SpecialForm]):
 
 
 @attr.frozen
-class HostField(Node[Union[SpecialForm, sym.Symbol]], Assignable):
+class HostField(Node[SpecialForm | sym.Symbol], Assignable):
     form: SpecialForm | sym.Symbol
     field: str
     target: Node
@@ -615,7 +614,7 @@ class Import(Node[SpecialForm]):
 
 
 @attr.frozen
-class ImportAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
+class ImportAlias(Node[sym.Symbol | vec.PersistentVector]):
     form: sym.Symbol | vec.PersistentVector
     name: str
     alias: str | None
@@ -754,7 +753,7 @@ class PyList(Node[list]):
 
 
 @attr.frozen(eq=True)
-class PySet(Node[Union[frozenset, set]]):
+class PySet(Node[frozenset | set]):
     form: frozenset | set
     items: Sequence[Node]
     env: NodeEnv = attr.field(hash=False)
@@ -832,7 +831,7 @@ class Reify(Node[SpecialForm]):
 
 
 @attr.frozen
-class RequireAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
+class RequireAlias(Node[sym.Symbol | vec.PersistentVector]):
     form: sym.Symbol | vec.PersistentVector
     name: str
     alias: str | None
@@ -903,7 +902,7 @@ class Try(Node[SpecialForm]):
 
 
 @attr.frozen
-class VarRef(Node[Union[sym.Symbol, ISeq]], Assignable):
+class VarRef(Node[sym.Symbol | ISeq], Assignable):
     form: sym.Symbol | ISeq
     var: Var
     env: NodeEnv = attr.field(hash=False)
@@ -957,27 +956,27 @@ class Yield(Node[SpecialForm]):
         return cls(form=form, expr=None, env=env, children=vec.EMPTY)
 
 
-SpecialFormNode = Union[
-    Await,
-    Def,
-    DefType,
-    Do,
-    Fn,
-    If,
-    HostCall,
-    HostField,
-    Import,
-    Invoke,
-    Let,
-    LetFn,
-    Loop,
-    Quote,
-    Recur,
-    Reify,
-    Require,
-    SetBang,
-    Throw,
-    Try,
-    VarRef,
-    Yield,
-]
+SpecialFormNode = (
+    Await
+    | Def
+    | DefType
+    | Do
+    | Fn
+    | If
+    | HostCall
+    | HostField
+    | Import
+    | Invoke
+    | Let
+    | LetFn
+    | Loop
+    | Quote
+    | Recur
+    | Reify
+    | Require
+    | SetBang
+    | Throw
+    | Try
+    | VarRef
+    | Yield
+)

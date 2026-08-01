@@ -8,15 +8,14 @@ import textwrap
 import types
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 from basilisp import main as basilisp
-from basilisp.lang import compiler as compiler
+from basilisp.lang import compiler
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
+from basilisp.lang import reader, runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import print_exception
@@ -384,10 +383,10 @@ def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
-Handler = Union[
-    Callable[[argparse.ArgumentParser, argparse.Namespace], None],
-    Callable[[argparse.ArgumentParser, argparse.Namespace, list[str]], None],
-]
+Handler = (
+    Callable[[argparse.ArgumentParser, argparse.Namespace], None]
+    | Callable[[argparse.ArgumentParser, argparse.Namespace, list[str]], None]
+)
 
 
 def _subcommand(
@@ -545,11 +544,9 @@ def repl(
     with runtime.bindings(
         {
             var: var.value
-            for var in map(
-                lambda name: runtime.Var.find_safe(
-                    sym.symbol(name, ns=runtime.CORE_NS)
-                ),
-                [
+            for var in (
+                runtime.Var.find_safe(sym.symbol(name, ns=runtime.CORE_NS))
+                for name in (
                     "*e",
                     "*1",
                     "*2",
@@ -563,7 +560,7 @@ def repl(
                     runtime.PRINT_LEVEL_VAR_NAME,
                     runtime.PRINT_META_VAR_NAME,
                     runtime.PRINT_NAMESPACE_MAPS_VAR_NAME,
-                ],
+                )
             )
         }
     ):
@@ -597,7 +594,9 @@ def repl(
                 print_exception(e, compiler.CompilerException, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except (
+                Exception  # pylint: disable=broad-exception-caught  # noqa BLE001
+            ) as e:
                 print_exception(e, Exception, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue

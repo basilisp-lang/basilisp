@@ -4,9 +4,8 @@ import sysconfig
 import threading
 from pathlib import Path
 
-from basilisp import importer as importer
-from basilisp import logconfig
-from basilisp.lang import runtime as runtime
+from basilisp import importer, logconfig
+from basilisp.lang import runtime
 from basilisp.lang.compiler import compiler_opts
 from basilisp.lang.typing import CompilerOpts
 from basilisp.lang.util import munge

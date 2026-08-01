@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from re import Pattern
-from typing import Any, Protocol, Union
+from typing import Any, Protocol
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -23,34 +23,37 @@ from basilisp.lang.tagged import TaggedLiteral
 
 CompilerOpts = IPersistentMap[kw.Keyword, bool]
 
-IterableLispForm = Union[
-    llist.PersistentList, lmap.PersistentMap, lset.PersistentSet, vec.PersistentVector
-]
-LispNumber = Union[int, float, Decimal, Fraction]
-LispForm = Union[
-    bool,
-    bytes,
-    complex,
-    datetime,
-    Decimal,
-    int,
-    float,
-    Fraction,
-    kw.Keyword,
-    llist.PersistentList,
-    lmap.PersistentMap,
-    None,
-    Pattern,
-    lqueue.PersistentQueue,
-    lset.PersistentSet,
-    str,
-    sym.Symbol,
-    vec.PersistentVector,
-    uuid.UUID,
-]
-PyCollectionForm = Union[dict, list, set, tuple]
-ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm, TaggedLiteral]
-SpecialForm = Union[llist.PersistentList, ISeq]
+IterableLispForm = (
+    llist.PersistentList
+    | lmap.PersistentMap
+    | lset.PersistentSet
+    | vec.PersistentVector
+)
+LispNumber = int | float | Decimal | Fraction
+LispForm = (
+    bool
+    | bytes
+    | complex
+    | datetime
+    | Decimal
+    | int
+    | float
+    | Fraction
+    | kw.Keyword
+    | llist.PersistentList
+    | lmap.PersistentMap
+    | None
+    | Pattern
+    | lqueue.PersistentQueue
+    | lset.PersistentSet
+    | str
+    | sym.Symbol
+    | vec.PersistentVector
+    | uuid.UUID
+)
+PyCollectionForm = dict | list | set | tuple
+ReaderForm = LispForm | IRecord | ISeq | IType | PyCollectionForm | TaggedLiteral
+SpecialForm = llist.PersistentList | ISeq
 
 
 class Comparable(Protocol):

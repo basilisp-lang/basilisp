@@ -6,10 +6,12 @@ from collections.abc import (
     Iterable,
     Mapping,
     Sequence,
+)
+from collections.abc import Set as AbstractSet
+from collections.abc import (
     Sized,
 )
 from typing import (
-    AbstractSet,
     Any,
     Final,
     Generic,
@@ -30,7 +32,7 @@ from basilisp.lang.obj import PrintSettings, seq_lrepr
 T = TypeVar("T")
 
 
-class IDeref(Generic[T], ABC):
+class IDeref(ABC, Generic[T]):
     """``IDeref`` types are reference container types which return their contained
     value via :lpy:fn:`deref` .
 
@@ -81,7 +83,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class IIndexed(ICounted, Generic[V], ABC):
+class IIndexed(ICounted, ABC, Generic[V]):
     """``IIndexed`` is an interface for types can be accessed by index.
 
     Of the builtin collections, only Vectors are ``IIndexed`` . ``IIndexed`` types
@@ -103,7 +105,7 @@ class IIndexed(ICounted, Generic[V], ABC):
 T_ExceptionInfo = TypeVar("T_ExceptionInfo", bound="IPersistentMap")
 
 
-class IExceptionInfo(Exception, Generic[T_ExceptionInfo], ABC):
+class IExceptionInfo(Exception, ABC, Generic[T_ExceptionInfo]):
     """``IExceptionInfo`` types are exception types which contain an optional
     :py:class:`IPersistentMap` data element of contextual information about the thrown
     exception.
@@ -120,7 +122,7 @@ class IExceptionInfo(Exception, Generic[T_ExceptionInfo], ABC):
         raise NotImplementedError()
 
 
-class IMapEntry(Generic[K, V], ABC):
+class IMapEntry(ABC, Generic[K, V]):
     """``IMapEntry`` values are produced :lpy:fn:`seq` ing over any
     :py:class:`IAssociative` (such as a Basilisp map).
 
@@ -281,7 +283,7 @@ class IReversible(Generic[T]):
 T_iter = TypeVar("T_iter")
 
 
-class ISeqable(Generic[T, T_iter], Iterable[T_iter]):
+class ISeqable(Iterable[T_iter], Generic[T, T_iter]):
     """``ISeqable`` types can produce sequences of their elements, but are not
     :py:class:`ISeq` .
 
@@ -311,7 +313,7 @@ class ISequential(ABC):
     __slots__ = ()
 
 
-class ILookup(Generic[K, V], ABC):
+class ILookup(ABC, Generic[K, V]):
     """``ILookup`` types allow accessing contained values by a key or index.
 
     .. seealso::
