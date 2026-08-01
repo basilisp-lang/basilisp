@@ -1,5 +1,6 @@
 # pylint: disable=abstract-class-instantiated,import-error,no-name-in-module
-from typing import Iterable, TypeVar
+from collections.abc import Iterable
+from typing import TypeVar
 
 from basilisp._lang.seq import Cons as _Cons
 from basilisp._lang.seq import EmptySequence as _EmptySequenceNative

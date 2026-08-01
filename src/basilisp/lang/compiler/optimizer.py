@@ -3,7 +3,6 @@ import functools
 from collections import deque
 from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Deque
 
 from basilisp.lang.compiler.constants import OPERATOR_ALIAS
 from basilisp.lang.compiler.utils import ast_FunctionDef
@@ -124,7 +123,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
     __slots__ = ("_global_ctx",)
 
     def __init__(self):
-        self._global_ctx: Deque[set[str]] = deque([set()])
+        self._global_ctx: deque[set[str]] = deque([set()])
 
     @contextmanager
     def _new_global_context(self):

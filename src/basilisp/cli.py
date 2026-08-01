@@ -577,7 +577,7 @@ def repl(
             except EOFError:
                 break
             except KeyboardInterrupt:  # pragma: no cover
-                print("")
+                print()
                 continue
 
             if len(lsrc) == 0:

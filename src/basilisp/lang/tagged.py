@@ -18,7 +18,7 @@ _FORM_KW = keyword("form")
 class TaggedLiteral(ILispObject, ILookup[K, T]):
     """Basilisp TaggedLiteral. https://clojure.org/reference/reader#tagged_literals"""
 
-    __slots__ = ("_tag", "_form", "_hash")
+    __slots__ = ("_form", "_hash", "_tag")
 
     def __init__(self, tag: Symbol, form) -> None:
         self._tag = tag

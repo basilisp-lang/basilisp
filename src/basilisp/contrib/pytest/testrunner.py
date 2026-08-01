@@ -93,7 +93,7 @@ def pytest_collect_file(file_path: Path, parent):
 
 
 class TestFailuresInfo(Exception):
-    __slots__ = ("_msg", "_data")
+    __slots__ = ("_data", "_msg")
 
     def __init__(self, message: str, data: lmap.PersistentMap) -> None:
         super().__init__()

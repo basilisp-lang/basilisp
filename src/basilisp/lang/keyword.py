@@ -20,7 +20,7 @@ _INTERN: IPersistentMap[int, "Keyword"] = lmap.EMPTY
 
 @total_ordering
 class Keyword(ILispObject, INamed):
-    __slots__ = ("_name", "_ns", "_hash")
+    __slots__ = ("_hash", "_name", "_ns")
 
     def __init__(self, name: str, ns: str | None = None) -> None:
         self._name = name

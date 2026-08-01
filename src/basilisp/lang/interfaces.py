@@ -171,7 +171,7 @@ class IWithMeta(IMeta):
     __slots__ = ()
 
     @abstractmethod
-    def with_meta(self, meta: "Optional[IPersistentMap]") -> Self:
+    def with_meta(self, meta: "IPersistentMap | None") -> Self:
         raise NotImplementedError()
 
 
@@ -295,7 +295,7 @@ class ISeqable(Generic[T, T_iter], Iterable[T_iter]):
     __slots__ = ()
 
     @abstractmethod
-    def seq(self) -> "Optional[ISeq[T]]":
+    def seq(self) -> "ISeq[T] | None":
         raise NotImplementedError()
 
 
@@ -562,7 +562,7 @@ class IPersistentVector(
         raise NotImplementedError()
 
     @abstractmethod
-    def seq(self) -> "Optional[ISeq[T]]":  # type: ignore[override]
+    def seq(self) -> "ISeq[T] | None":  # type: ignore[override]
         raise NotImplementedError()
 
 
@@ -772,7 +772,7 @@ class ISeq(ILispObject, IPersistentCollection[T, T]):
     def cons(self, *elem: T) -> "ISeq[T]":
         raise NotImplementedError()
 
-    def seq(self) -> "Optional[ISeq[T]]":
+    def seq(self) -> "ISeq[T] | None":
         return self
 
     def _lrepr(self, **kwargs: Unpack[PrintSettings]):

@@ -1,5 +1,6 @@
+from collections.abc import Callable, Iterable, Sequence
 from types import GenericAlias
-from typing import Any, Callable, Generic, Iterable, Sequence, TypeVar, overload
+from typing import Any, Generic, TypeVar, overload
 
 from typing_extensions import Self, disjoint_base
 

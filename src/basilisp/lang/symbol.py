@@ -16,7 +16,7 @@ from basilisp.lang.util import munge
 
 @total_ordering
 class Symbol(ILispObject, INamed, IWithMeta):
-    __slots__ = ("_name", "_ns", "_meta", "_hash")
+    __slots__ = ("_hash", "_meta", "_name", "_ns")
 
     def __init__(
         self, name: str, ns: str | None = None, meta: IPersistentMap | None = None

@@ -150,7 +150,6 @@ from basilisp.lang.compiler.nodes import (
     deftype_or_reify_python_member_names,
 )
 from basilisp.lang.interfaces import (
-    IMapEntry,
     IMeta,
     INamed,
     IRecord,
@@ -665,8 +664,8 @@ class AnalyzerContext:
 ####################
 
 
-BoolMetaGetter = Callable[[Union[IMeta, Var]], bool]
-MetaGetter = Callable[[Union[IMeta, Var]], Any]
+BoolMetaGetter = Callable[[IMeta | Var], bool]
+MetaGetter = Callable[[IMeta | Var], Any]
 
 
 def _bool_meta_getter(meta_kw: kw.Keyword, default: bool = False) -> BoolMetaGetter:
@@ -2485,7 +2484,7 @@ def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> HostCall | HostField:
         args, kwargs = _call_args_ast(maybe_m_or_f.rest, ctx)
         return HostCall(
             form=form,
-            method=method.name[1:] if method.name.startswith("-") else method.name,
+            method=method.name.removeprefix("-"),
             target=_analyze_form(runtime.nth(form, 1), ctx),
             args=args,
             kwargs=kwargs,
@@ -2748,7 +2747,7 @@ def _do_warn_on_arity_mismatch(
             if has_variadic and (max_fixed_arity is None or num_args > max_fixed_arity):
                 return
             if num_args not in fixed_arities:
-                report_arities = cast(set[Union[int, str]], set(fixed_arities))
+                report_arities = cast(set[int | str], set(fixed_arities))
                 if has_variadic:
                     report_arities.discard(cast(int, max_fixed_arity))
                     report_arities.add(f"{max_fixed_arity}+")

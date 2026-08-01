@@ -312,7 +312,7 @@ def _lrepr_decimal(
     if (r := _special_number_repr(o, human_readable=human_readable)) is not None:
         return r
     if print_dup:
-        return f"{str(o)}M"
+        return f"{o!s}M"
     return str(o)
 
 
@@ -335,4 +335,4 @@ def _lrepr_pattern(o: Pattern, **_) -> str:
 def _lrepr_uuid(o: uuid.UUID, human_readable: bool = False, **_) -> str:
     if human_readable:
         return str(o)
-    return f'#uuid "{str(o)}"'
+    return f'#uuid "{o!s}"'

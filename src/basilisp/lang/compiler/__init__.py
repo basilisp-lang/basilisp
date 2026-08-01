@@ -32,7 +32,7 @@ from basilisp.lang.compiler.generator import (
     GeneratedPyAST,
     GeneratorContext,
 )
-from basilisp.lang.compiler.generator import expressionize as _expressionize  # noqa
+from basilisp.lang.compiler.generator import expressionize as _expressionize
 from basilisp.lang.compiler.generator import (
     gen_py_ast,
     py_module_preamble,
@@ -58,7 +58,7 @@ BytecodeCollector = Callable[[types.CodeType], None]
 
 
 class CompilerContext:
-    __slots__ = ("_filename", "_actx", "_gctx", "_optimizer")
+    __slots__ = ("_actx", "_filename", "_gctx", "_optimizer")
 
     def __init__(self, filename: str, opts: CompilerOpts | None = None):
         self._filename = filename
