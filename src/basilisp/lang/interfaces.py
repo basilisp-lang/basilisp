@@ -500,7 +500,7 @@ class IPersistentList(ISequential, IPersistentStack[T]):
     __slots__ = ()
 
 
-class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
+class IPersistentMap(ICounted, IAssociative[K, V], Mapping[K, V]):
     """``IPersistentMap`` types support creating and modifying persistent maps.
 
     .. seealso::

@@ -1,6 +1,4 @@
 import itertools
-import os
-import re
 from decimal import Decimal
 from fractions import Fraction
 from unittest.mock import Mock
