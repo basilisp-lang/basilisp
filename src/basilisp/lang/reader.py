@@ -973,11 +973,10 @@ def _read_unicode_escape_seq(ctx: ReaderContext) -> str:
     return chr(int(unicode_hex, base=16))
 
 
-def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
+def _read_str(ctx: ReaderContext, raw_string: bool = False) -> str:
     """Return a UTF-8 encoded string from the input stream.
 
-    If allow_arbitrary_escapes is True, do not throw a SyntaxError if an
-    unknown escape sequence is encountered."""
+    If raw_string is True, do not process escape sequences."""
     s: list[str] = []
     reader = ctx.reader
     while True:
@@ -986,14 +985,14 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             raise ctx.eof_error("Unexpected EOF in string")
         if char == "\\":
             char = reader.next_char()
-            if (escape_char := _STR_ESCAPE_CHARS.get(char, None)) is not None:
+            if raw_string:
+                s.append("\\")
+            elif (escape_char := _STR_ESCAPE_CHARS.get(char, None)) is not None:
                 s.append(escape_char)
                 continue
             elif char in {"u", "U"}:
                 s.append(_read_unicode_escape_seq(ctx))
                 continue
-            elif allow_arbitrary_escapes:
-                s.append("\\")
             else:
                 raise ctx.syntax_error(f"Unknown escape sequence: \\{char}")
         if char == '"':
@@ -1528,7 +1527,7 @@ def _read_character(ctx: ReaderContext) -> str:
 
 def _read_regex(ctx: ReaderContext) -> Pattern:
     """Read a regex reader macro from the input stream."""
-    s = _read_str(ctx, allow_arbitrary_escapes=True)
+    s = _read_str(ctx, raw_string=True)
     try:
         return langutil.regex_from_str(s)
     except re.error as e:

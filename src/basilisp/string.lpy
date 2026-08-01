@@ -180,6 +180,16 @@
   be called once for every non-overlapping occurrence of match. The function should
   accept one string argument and return a replacement string.
 
+  If ``match`` is a regex pattern and ``replacement`` is a string, ``replacement`` may
+  contain references to the groups by number using any of the following sigils:
+
+  - using the Java method ``$1``, ``$2``, ``$n`` for groups 1, 2, ``n``, etc.
+  - using the Python method ``\\1``, ``\\2``, ``\\n`` for groups 1, 2, ``n``, etc.
+  - using the unambiguous Python method ``\\g<1>``, ``\\g<2>``, ``\\g<n>`` for groups
+    1, 2, ``n``, etc.
+  - using the Python method for named groups ``\\g<name>`` for regex patterns which use
+    the named capture groups like ``(?P<name>)``
+
   If both ``match`` and ``replacement`` are strings, this function behaves as the
   Python builtin :external:py:meth:`str.replace`."
   [s match replacement]
@@ -189,7 +199,7 @@
     (re/sub match
             (if (python/callable replacement)
               #(replacement (.group % 0))
-              replacement)
+              (re/sub #"\$(\d+)" #(str "\\g<" (.group % 1) ">") replacement))
             s)
 
     (and (string? match) (string? replacement))
@@ -215,6 +225,16 @@
   be called once for every non-overlapping occurrence of match. The function should
   accept one string argument and return a replacement string.
 
+  If ``match`` is a regex pattern and ``replacement`` is a string, ``replacement`` may
+  contain references to the groups by number using any of the following sigils:
+
+  - using the Java method ``$1``, ``$2``, ``$n`` for groups 1, 2, ``n``, etc.
+  - using the Python method ``\\1``, ``\\2``, ``\\n`` for groups 1, 2, ``n``, etc.
+  - using the unambiguous Python method ``\\g<1>``, ``\\g<2>``, ``\\g<n>`` for groups
+    1, 2, ``n``, etc.
+  - using the Python method for named groups ``\\g<name>`` for regex patterns which use
+    the named capture groups like ``(?P<name>)``
+
   If both ``match`` and ``replacement`` are strings, this function behaves as the
   Python builtin :external:py:meth:`str.replace` with the ``count`` argument set to 1."
   [s match replacement]
@@ -224,7 +244,7 @@
     (re/sub match
             (if (python/callable replacement)
               #(replacement (.group % 0))
-              replacement)
+              (re/sub #"\$(\d+)" #(str "\\g<" (.group % 1) ">") replacement))
             s
             **
             :count 1)
