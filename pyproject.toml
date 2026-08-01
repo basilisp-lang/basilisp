@@ -52,7 +52,6 @@ dev = [
     "pygments",
     "pytest (>=7.0.0,<9.0.0)",
     "pytest-pycharm",
-    "pyupgrade",
     "ruff",
     "tox",
 ]

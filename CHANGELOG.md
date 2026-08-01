@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Arity 0 of `concat` now returns an unrealized lazy seq, rather than an empty seq (#1339)
  * Records disallow interface method and field names in field names (#758)
  * `contains?` now matches Clojure's behavior and checks only if a fast lookup key or index is in the collection (#1353)
+ * `basilisp.string/split-lines` now matches Clojure's behavior and excludes trailing newlines (#1353)
 
 ### Fixed
  * Fix a bug where `basilisp.test/are` based tests could fail to report line numbers for test failures (#635)
