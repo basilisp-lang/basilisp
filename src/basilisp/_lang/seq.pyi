@@ -1,5 +1,5 @@
 from types import GenericAlias
-from typing import Any, Callable, Generic, Iterable, TypeVar, overload
+from typing import Any, Callable, Generic, Iterable, Sequence, TypeVar, overload
 
 from typing_extensions import Self, disjoint_base
 
@@ -51,7 +51,7 @@ class LazySeq(Generic[T]):
     def __new__(
         cls,
         /,
-        gen: Callable[[], ISeq[T] | ISeqable[T] | None],
+        gen: Callable[[], ISeq[T] | ISeqable[T, T] | None],
         seq: ISeq[T] | None = None,
         *,
         meta: IPersistentMap | None = None,
@@ -80,12 +80,14 @@ class SeqIterator(Generic[T]):
     def __next__(self, /) -> T | None: ...
     def __class_getitem__(cls, item: Any) -> GenericAlias: ...
 
-def sequence(s: Iterable[T], support_single_use: bool | None = None) -> ISeq[T]: ...
+def sequence(
+    s: Iterable[T] | Sequence[T], support_single_use: bool | None = None
+) -> ISeq[T]: ...
 @overload
 def to_seq(s: None) -> None: ...
 @overload
 def to_seq(s: ISeq[T]) -> ISeq[T] | None: ...
 @overload
-def to_seq(s: ISeqable[T]) -> ISeq[T] | None: ...
+def to_seq(s: ISeqable[T, T]) -> ISeq[T] | None: ...
 @overload
 def to_seq(s: Iterable[T] | None) -> ISeq[T] | None: ...

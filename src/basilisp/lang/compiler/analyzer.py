@@ -18,6 +18,7 @@ from collections.abc import (
     Mapping,
     MutableMapping,
     MutableSet,
+    Sequence,
 )
 from datetime import datetime
 from decimal import Decimal
@@ -148,7 +149,15 @@ from basilisp.lang.compiler.nodes import (
     Yield,
     deftype_or_reify_python_member_names,
 )
-from basilisp.lang.interfaces import IMeta, INamed, IRecord, ISeq, IType, IWithMeta
+from basilisp.lang.interfaces import (
+    IMapEntry,
+    IMeta,
+    INamed,
+    IRecord,
+    ISeq,
+    IType,
+    IWithMeta,
+)
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, count, genname, is_abstract, munge
@@ -788,7 +797,7 @@ def _body_ast(
 
 def _call_args_ast(
     form: ISeq, ctx: AnalyzerContext
-) -> tuple[Iterable[Node], KeywordArgs]:
+) -> tuple[Sequence[Node], KeywordArgs]:
     """Return a tuple of positional arguments and keyword arguments, splitting at the
     keyword argument marker symbol '**'."""
     with ctx.expr_pos():
@@ -1767,8 +1776,8 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
     ctx: AnalyzerContext,
     special_form: sym.Symbol,
     fields: Iterable[str],
-    interfaces: Iterable[DefTypeBase],
-    members: Iterable[DefTypeMember],
+    interfaces: Sequence[DefTypeBase],
+    members: Sequence[DefTypeMember],
 ) -> _TypeAbstractness:
     """Return an object indicating the abstractness of the `deftype*` or `reify*`
     super-types.

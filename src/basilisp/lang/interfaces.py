@@ -278,7 +278,10 @@ class IReversible(Generic[T]):
         raise NotImplementedError()
 
 
-class ISeqable(Iterable[T]):
+T_iter = TypeVar("T_iter")
+
+
+class ISeqable(Generic[T, T_iter], Iterable[T_iter]):
     """``ISeqable`` types can produce sequences of their elements, but are not
     :py:class:`ISeq` .
 
@@ -338,7 +341,7 @@ class IPending(ABC):
         raise NotImplementedError()
 
 
-class IPersistentCollection(ISeqable[T]):
+class IPersistentCollection(ISeqable[T, T_iter]):
     """``IPersistentCollection`` types support both fetching empty variants of an
     existing persistent collection and creating a new collection with additional
     members.
@@ -358,7 +361,7 @@ class IPersistentCollection(ISeqable[T]):
         raise NotImplementedError()
 
 
-class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
+class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V], V]):
     """``IAssociative`` types support a persistent data structure variant of
     associative operations.
 
@@ -382,7 +385,7 @@ class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
         raise NotImplementedError()
 
 
-class IPersistentStack(IPersistentCollection[T]):
+class IPersistentStack(IPersistentCollection[T, T]):
     """``IPersistentStack`` types support a persistent data structure variant of
     classical stack operations.
 
@@ -520,7 +523,7 @@ class IPersistentMap(ICounted, IAssociative[K, V], Mapping[K, V]):
         raise NotImplementedError()
 
 
-class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T]):
+class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T, T]):
     """``IPersistentSet`` types support creating and modifying persistent sets.
 
     .. seealso::
@@ -581,7 +584,7 @@ class IEvolveableCollection(Generic[T_tcoll]):
         raise NotImplementedError()
 
 
-class ITransientCollection(Generic[T]):
+class ITransientCollection(Generic[T, T_iter]):
     """``ITransientCollection`` types support efficient modification of otherwise
     persistent data structures.
 
@@ -596,11 +599,11 @@ class ITransientCollection(Generic[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def to_persistent(self: T_tcoll) -> "IPersistentCollection[T]":
+    def to_persistent(self: T_tcoll) -> "IPersistentCollection[T, T_iter]":
         raise NotImplementedError()
 
 
-class ITransientAssociative(ILookup[K, V], ITransientCollection[IMapEntry[K, V]]):
+class ITransientAssociative(ILookup[K, V], ITransientCollection[IMapEntry[K, V], V]):
     """``ITransientAssociative`` types are the transient counterpart of
     :py:class:`IAssociative` types.
 
@@ -644,7 +647,7 @@ class ITransientMap(ICounted, ITransientAssociative[K, V]):
         raise NotImplementedError()
 
 
-class ITransientSet(ICounted, ITransientCollection[T]):
+class ITransientSet(ICounted, ITransientCollection[T, T]):
     """``ITransientSet`` types are the transient counterpart of
     :py:class:`IPersistentSet` types.
 
@@ -737,7 +740,7 @@ def seq_equals(s1: Union["ISeq", ISequential], s2: Any) -> bool:
 T_inner = TypeVar("T_inner")
 
 
-class ISeq(ILispObject, IPersistentCollection[T]):
+class ISeq(ILispObject, IPersistentCollection[T, T]):
     """``ISeq`` types represent a potentially infinite sequence of elements.
 
     .. seealso::

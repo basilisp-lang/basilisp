@@ -10,7 +10,14 @@ import math
 import pickle  # nosec B403
 import re
 import uuid
-from collections.abc import Callable, Collection, Iterable, Mapping, MutableMapping
+from collections.abc import (
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Sequence,
+)
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -3714,7 +3721,7 @@ def _const_val_to_py_ast(
 
 
 def _collection_literal_to_py_ast(
-    ctx: GeneratorContext, form: Iterable[LispForm]
+    ctx: GeneratorContext, form: Iterable[LispForm] | Sequence[LispForm]
 ) -> Iterable[GeneratedPyAST[ast.expr]]:
     """Turn a quoted collection literal of Lisp forms into Python AST nodes.
 
