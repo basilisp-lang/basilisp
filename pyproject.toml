@@ -52,6 +52,7 @@ dev = [
     "pygments",
     "pytest (>=7.0.0,<9.0.0)",
     "pytest-pycharm",
+    "ruff",
     "tox",
 ]
 # Ensure the Sphinx version remains synchronized with docs/requirements.txt
@@ -258,6 +259,7 @@ ignore_missing_imports = true
 junit_family = "legacy"
 
 [tool.ruff]
+target-version = "py310"
 exclude = [
   ".cache",
   ".env",
@@ -277,4 +279,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-ignore = ["E731", "E741"]
+ignore = ["E731", "E741", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/basilisp/contrib/sphinx/**.py" = ["RUF012"]

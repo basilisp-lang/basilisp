@@ -9,7 +9,7 @@ from decimal import Decimal
 from fractions import Fraction
 from re import Match, Pattern
 
-from basilisp.lang import atom as atom
+from basilisp.lang import atom
 
 _DOUBLE_DOT = ".."
 _DOUBLE_DOT_REPLACEMENT = "__DOT_DOT__"

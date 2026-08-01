@@ -1,6 +1,6 @@
 from typing import TypeVar, cast
 
-from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
+from pyrsistent import PList, plist  # pylint: disable=unused-import
 from pyrsistent._plist import _EMPTY_PLIST  # pylint: disable=import-private-name
 from typing_extensions import Unpack
 
@@ -96,6 +96,6 @@ def list(members, meta=None) -> PersistentList:  # pylint:disable=redefined-buil
     return PersistentList(plist(iterable=members), meta=meta)
 
 
-def l(*members, meta=None) -> PersistentList:  # noqa
+def l(*members, meta=None) -> PersistentList:
     """Creates a new list from members."""
     return PersistentList(plist(iterable=members), meta=meta)

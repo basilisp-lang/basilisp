@@ -1,6 +1,6 @@
 from typing import TypeVar
 
-from pyrsistent import PDeque, pdeque  # noqa # pylint: disable=unused-import
+from pyrsistent import PDeque, pdeque  # pylint: disable=unused-import
 from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
@@ -90,6 +90,6 @@ def queue(members, meta=None) -> PersistentQueue:
     return PersistentQueue(pdeque(iterable=members), meta=meta)
 
 
-def q(*members, meta=None) -> PersistentQueue:  # noqa
+def q(*members, meta=None) -> PersistentQueue:
     """Creates a new queue from members."""
     return PersistentQueue(pdeque(iterable=members), meta=meta)

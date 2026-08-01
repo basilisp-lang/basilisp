@@ -131,9 +131,7 @@ class NamespaceDocumenter(Documenter):
         interns = self.object.interns
 
         if want_all:
-            return False, list(
-                map(lambda s: ObjectMember(s[0].name, s[1]), interns.items())
-            )
+            return False, [ObjectMember(s[0].name, s[1]) for s in interns.items()]
 
         selected = []
         for m in self.options.members:
@@ -382,12 +380,9 @@ class ProtocolDocumenter(VarDocumenter):
             IPersistentMap[kw.Keyword, Any],
             proto.val_at(_METHODS_KW, lmap.EMPTY),
         )
-        return False, list(
-            map(
-                lambda k: ObjectMember(k.name, ns.find(sym.symbol(k.name))),
-                proto_methods.keys(),
-            )
-        )
+        return False, [
+            ObjectMember(k.name, ns.find(sym.symbol(k.name))) for k in proto_methods
+        ]
 
     def filter_members(
         self, members: list[ObjectMember], want_all: bool
@@ -396,9 +391,8 @@ class ProtocolDocumenter(VarDocumenter):
         for member in members:
             name, val = member.__name__, member.object
             assert isinstance(val, runtime.Var)
-            if val.meta is not None:
-                if val.meta.val_at(_PRIVATE_KW):
-                    continue
+            if val.meta is not None and val.meta.val_at(_PRIVATE_KW):
+                continue
             filtered.append((name, val, False))
         return filtered
 

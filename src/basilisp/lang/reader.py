@@ -9,13 +9,20 @@ import math
 import os
 import re
 import uuid
-from collections.abc import Callable, Collection, Iterable, MutableMapping, Sequence
+from collections.abc import (
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Sequence,
+)
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
 from re import Pattern
 from types import TracebackType
-from typing import Any, Mapping, NoReturn, TypeVar, Union, cast
+from typing import Any, NoReturn, TypeVar, Union, cast
 
 import attr
 from typing_extensions import Unpack
@@ -221,7 +228,7 @@ class StreamReader:
 
     DEFAULT_INDEX = -2
 
-    __slots__ = ("_stream", "_pushback_depth", "_idx", "_buffer", "_line", "_col")
+    __slots__ = ("_buffer", "_col", "_idx", "_line", "_pushback_depth", "_stream")
 
     def __init__(
         self,
@@ -366,15 +373,15 @@ class ReaderContext:
     __slots__ = (
         "_data_readers",
         "_default_data_reader_fn",
+        "_eof",
         "_features",
+        "_gensym_env",
+        "_in_anon_fn",
         "_process_reader_cond",
         "_process_tagged_literals",
         "_reader",
         "_resolve",
-        "_in_anon_fn",
         "_syntax_quoted",
-        "_gensym_env",
-        "_eof",
     )
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -501,7 +508,7 @@ class ReaderContext:
 class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
     FEATURE_NOT_PRESENT = object()
 
-    __slots__ = ("_form", "_feature_vec", "_is_splicing")
+    __slots__ = ("_feature_vec", "_form", "_is_splicing")
 
     def __init__(
         self,
@@ -836,11 +843,11 @@ def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
 # Due to some ambiguities that arise in parsing symbols, numbers, and the
 # special keywords `true`, `false`, and `nil`, we have to have a looser
 # type defined for the return from these reader functions.
-MaybeSymbol = Union[bool, None, sym.Symbol]
-MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
+MaybeSymbol = bool | None | sym.Symbol
+MaybeNumber = complex | decimal.Decimal | float | Fraction | int | MaybeSymbol
 
 
-def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-statements
+def _read_num(  # pylint: disable=too-many-locals,too-many-statements
     ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
@@ -1059,7 +1066,7 @@ def _read_hex_byte(ctx: ReaderContext) -> bytes:
     c1 = reader.next_char()
     c2 = reader.next_char()
     try:
-        return bytes([int("".join(["0x", c1, c2]), base=16)])
+        return bytes([int(f"0x{c1}{c2}", base=16)])
     except ValueError as e:
         raise ctx.syntax_error(
             f"Invalid byte representation for base 16: 0x{c1}{c2}"
@@ -1120,12 +1127,11 @@ def _read_sym(ctx: ReaderContext, is_reader_macro_sym: bool = False) -> MaybeSym
     ns, name = _read_namespaced(ctx)
     if not ctx.is_syntax_quoted and name.endswith("#"):
         raise ctx.syntax_error("Gensym may not appear outside syntax quote")
-    if ns is not None:
-        if any(map(lambda s: len(s) == 0, ns.split("."))):
-            raise ctx.syntax_error(
-                "All '.' separated segments of a namespace "
-                "must contain at least one character."
-            )
+    if ns is not None and any(len(s) == 0 for s in ns.split(".")):
+        raise ctx.syntax_error(
+            "All '.' separated segments of a namespace "
+            "must contain at least one character."
+        )
     if ns is None:
         if name == "nil":
             return None
@@ -1285,18 +1291,17 @@ def _read_function(ctx: ReaderContext) -> llist.PersistentList:
         return sym.symbol(f"arg-{suffix}")
 
     def identify_and_replace(f):
-        if isinstance(f, sym.Symbol):
-            # Checking against the current namespace is generally only used for
-            # when anonymous function definitions are syntax quoted. Arguments
-            # are resolved in terms of the current namespace, so we simply check
-            # if the symbol namespace matches the current runtime namespace.
-            if f.ns is None or f.ns == current_ns.name:
-                match = fn_macro_args.match(f.name)
-                if match is not None:
-                    arg_num = match.group(2)
-                    suffix = arg_suffix(arg_num)
-                    arg_set.add(suffix)
-                    return sym_replacement(arg_num)
+        # Checking against the current namespace is generally only used for
+        # when anonymous function definitions are syntax quoted. Arguments
+        # are resolved in terms of the current namespace, so we simply check
+        # if the symbol namespace matches the current runtime namespace.
+        if isinstance(f, sym.Symbol) and (f.ns is None or f.ns == current_ns.name):
+            match = fn_macro_args.match(f.name)
+            if match is not None:
+                arg_num = match.group(2)
+                suffix = arg_suffix(arg_num)
+                arg_set.add(suffix)
+                return sym_replacement(arg_num)
         return f
 
     body = _postwalk(identify_and_replace, form) if len(form) > 0 else None
@@ -1846,7 +1851,7 @@ _read_dispatch: Mapping[str, RawLispReaderFn | None] = {
 }
 
 
-def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
+def _read_next(ctx: ReaderContext) -> LispReaderForm:
     """Read the next full form from the input stream."""
     reader = ctx.reader
     char = reader.peek()
@@ -1945,7 +1950,7 @@ def read(  # pylint: disable=too-many-arguments
             continue
         if isinstance(expr, ReaderConditional) and ctx.should_process_reader_cond:
             raise ctx.syntax_error(
-                f"Unexpected reader conditional '{repr(expr)})'; "
+                f"Unexpected reader conditional '{expr!r})'; "
                 "reader is configured to process reader conditionals"
             )
         yield expr

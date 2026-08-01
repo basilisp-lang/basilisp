@@ -137,9 +137,12 @@
                 :type    (python/type pattern)})))))
 
 (defn split-lines
-  "Split ``s`` on universal newlines as by Python's :external:py:meth:`str.splitlines`."
+  "Split ``s`` on universal newlines as by Python's :external:py:meth:`str.splitlines`.
+  Trailing newlines are stripped before splitting."
   [s]
-  (vec (.splitlines s)))
+  (if (= s "")
+    [""]
+    (vec (.splitlines (.rstrip s)))))
 
 (defn lpad
   "Pad ``s`` on the left such that the final string length is ``width``. If the initial

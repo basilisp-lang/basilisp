@@ -32,7 +32,7 @@ from basilisp.lang.compiler.generator import (
     GeneratedPyAST,
     GeneratorContext,
 )
-from basilisp.lang.compiler.generator import expressionize as _expressionize  # noqa
+from basilisp.lang.compiler.generator import expressionize as _expressionize
 from basilisp.lang.compiler.generator import (
     gen_py_ast,
     py_module_preamble,
@@ -58,7 +58,7 @@ BytecodeCollector = Callable[[types.CodeType], None]
 
 
 class CompilerContext:
-    __slots__ = ("_filename", "_actx", "_gctx", "_optimizer")
+    __slots__ = ("_actx", "_filename", "_gctx", "_optimizer")
 
     def __init__(self, filename: str, opts: CompilerOpts | None = None):
         self._filename = filename
@@ -189,7 +189,9 @@ def compile_and_exec_form(
         bytecode = compile(ast_module, ctx.filename, "exec")
         if collect_bytecode:
             collect_bytecode(bytecode)
-        exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used  # nosec 6102
+        exec(  # pylint: disable=exec-used  # noqa S102  # nosec 6102
+            bytecode, ns.module.__dict__
+        )
         try:
             last = getattr(ns.module, final_wrapped_name)()
         finally:
@@ -225,7 +227,9 @@ def _incremental_compile_module(
     bytecode = compile(module_ast, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, module.__dict__)  # pylint: disable=exec-used  # nosec 6102
+    exec(  # pylint: disable=exec-used  # noqa S102  # nosec 6102
+        bytecode, module.__dict__
+    )
 
 
 def _bootstrap_module(
@@ -287,7 +291,9 @@ def compile_bytecode(
     and then proceeds to compile a collection of bytecodes into the module."""
     _bootstrap_module(gctx, optimizer, module)
     for bytecode in code:
-        exec(bytecode, module.__dict__)  # pylint: disable=exec-used  # nosec 6102
+        exec(  # pylint: disable=exec-used  # noqa S102  # nosec 6102
+            bytecode, module.__dict__
+        )
 
 
 _LOAD_SYM = sym.symbol("load", ns=runtime.CORE_NS)

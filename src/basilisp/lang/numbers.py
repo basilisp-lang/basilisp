@@ -2,8 +2,9 @@ import decimal
 import fractions
 import functools
 import math
+from collections.abc import Callable
 from fractions import Fraction
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 from basilisp.lang.typing import LispNumber
 

@@ -13,7 +13,7 @@ P = ParamSpec("P")
 
 
 class Atom(RefBase[T], Generic[T]):
-    __slots__ = ("_meta", "_state", "_lock", "_watches", "_validator")
+    __slots__ = ("_lock", "_meta", "_state", "_validator", "_watches")
 
     def __init__(
         self,

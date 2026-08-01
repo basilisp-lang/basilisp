@@ -3,7 +3,7 @@ from typing import Generic, TypeVar
 
 import attr
 
-from basilisp.lang import atom as atom
+from basilisp.lang import atom
 from basilisp.lang.interfaces import IDeref, IPending
 
 T = TypeVar("T")

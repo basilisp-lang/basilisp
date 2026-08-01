@@ -171,7 +171,7 @@
 
 (deftest split-lines-test
   (are [s coll] (= coll (str/split-lines s))
-    ""                              []
+    ""                              [""]
     "Hello, my name is Chris."      ["Hello, my name is Chris."]
     "Hello,\n my name is Chris."    ["Hello," " my name is Chris."]
     "Hello,\n my name \r is Chris." ["Hello," " my name " " is Chris."]))

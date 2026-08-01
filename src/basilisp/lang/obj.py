@@ -11,11 +11,11 @@ from functools import singledispatch
 from itertools import islice
 from pathlib import Path
 from re import Pattern
-from typing import Any, Union, cast
+from typing import Any, cast
 
 from typing_extensions import TypedDict, Unpack
 
-PrintCountSetting = Union[bool, int, None]
+PrintCountSetting = bool | int | None
 
 SURPASSED_PRINT_LENGTH = "..."
 SURPASSED_PRINT_LEVEL = "#"
@@ -115,7 +115,7 @@ def seq_lrepr(
 
     kw_items = kwargs.copy()
     kw_items["human_readable"] = False
-    items = list(map(lambda o: lrepr(o, **kw_items), items))
+    items = [lrepr(o, **kw_items) for o in items]
     seq_lrepr = SEQ_PRINT_SEPARATOR.join(items + trailer)
 
     print_meta = kwargs["print_meta"]
@@ -312,7 +312,7 @@ def _lrepr_decimal(
     if (r := _special_number_repr(o, human_readable=human_readable)) is not None:
         return r
     if print_dup:
-        return f"{str(o)}M"
+        return f"{o!s}M"
     return str(o)
 
 
@@ -327,12 +327,15 @@ def _lrepr_path(o: Path, **_) -> str:
 
 
 @lrepr.register(type(re.compile("")))
-def _lrepr_pattern(o: Pattern, **_) -> str:
-    return f'#"{o.pattern}"'
+def _lrepr_pattern(o: Pattern, print_readably: bool = PRINT_READABLY, **_) -> str:
+    if not print_readably:
+        return f'#"{o.pattern}"'
+    escaped = o.pattern.encode("unicode_escape").replace(b'"', rb"\"").decode("utf-8")
+    return f'#"{escaped}"'
 
 
 @lrepr.register(uuid.UUID)
 def _lrepr_uuid(o: uuid.UUID, human_readable: bool = False, **_) -> str:
     if human_readable:
         return str(o)
-    return f'#uuid "{str(o)}"'
+    return f'#uuid "{o!s}"'

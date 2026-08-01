@@ -1,6 +1,6 @@
 import threading
 from collections.abc import Callable
-from typing import Any, Concatenate, Optional, TypeVar
+from typing import Any, Concatenate, TypeVar
 
 from typing_extensions import ParamSpec
 
@@ -17,7 +17,7 @@ from basilisp.lang.interfaces import (
 )
 
 P = ParamSpec("P")
-AlterMeta = Callable[Concatenate[Optional[IPersistentMap], P], Optional[IPersistentMap]]
+AlterMeta = Callable[Concatenate[IPersistentMap | None, P], IPersistentMap | None]
 
 
 class ReferenceBase(IReference):
@@ -91,7 +91,7 @@ class RefBase(IRef[T], ReferenceBase):
         if vf is not None:
             try:
                 res = vf(val)
-            except Exception:  # pylint: disable=broad-exception-caught
+            except Exception:  # pylint: disable=broad-exception-caught  # noqa BLE001
                 res = False
 
             if not res:

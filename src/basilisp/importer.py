@@ -13,9 +13,7 @@ from typing import Any, cast
 
 from typing_extensions import TypedDict
 
-from basilisp.lang import compiler as compiler
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
+from basilisp.lang import compiler, reader, runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.runtime import BasilispModule
@@ -105,7 +103,7 @@ def _is_package(path: str) -> bool:
     or Python code file."""
     for _, _, files in os.walk(path):
         for file in files:
-            if file.endswith(".lpy") or file.endswith(".py") or file.endswith(".cljc"):
+            if file.endswith((".lpy", ".py", ".cljc")):
                 return True
     return False
 
@@ -122,7 +120,7 @@ def _is_namespace_package(path: str) -> bool:
     for file in files:
         if file in {"__init__.lpy", "__init__.py"}:
             no_inits = False
-        elif file.endswith(".lpy") or file.endswith(".cljc"):
+        elif file.endswith((".lpy", ".cljc")):
             has_basilisp_files = True
     return no_inits and has_basilisp_files
 
@@ -198,9 +196,8 @@ class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
                         ), "Package module spec must have submodule_search_locations list"
                         spec.submodule_search_locations.append(root_path)
                     return spec
-            if os.path.isdir(root_path):
-                if _is_namespace_package(root_path):
-                    return ModuleSpec(fullname, None, is_package=True)
+            if os.path.isdir(root_path) and _is_namespace_package(root_path):
+                return ModuleSpec(fullname, None, is_package=True)
         return None
 
     def invalidate_caches(self) -> None:

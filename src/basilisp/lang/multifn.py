@@ -1,7 +1,7 @@
 import threading
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
-from typing_extensions import Generic, ParamSpec, Protocol
+from typing_extensions import ParamSpec, Protocol
 
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime
@@ -30,16 +30,16 @@ _ISA_SYM = sym.symbol("isa?", ns=runtime.CORE_NS)
 
 class MultiFunction(Generic[T, P]):
     __slots__ = (
-        "_name",
+        "_cache",
+        "_cached_hierarchy",
         "_default",
         "_dispatch",
+        "_hierarchy",
+        "_isa",
         "_lock",
         "_methods",
-        "_cache",
+        "_name",
         "_prefers",
-        "_hierarchy",
-        "_cached_hierarchy",
-        "_isa",
     )
 
     def __init__(

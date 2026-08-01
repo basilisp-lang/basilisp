@@ -9,7 +9,7 @@ from basilisp.lang.symbol import Symbol
 
 K = TypeVar("K")
 V = TypeVar("V")
-T = Union[None, V, Symbol]
+T = Union[None, V, Symbol]  # noqa UP007
 
 _TAG_KW = keyword("tag")
 _FORM_KW = keyword("form")
@@ -18,7 +18,7 @@ _FORM_KW = keyword("form")
 class TaggedLiteral(ILispObject, ILookup[K, T]):
     """Basilisp TaggedLiteral. https://clojure.org/reference/reader#tagged_literals"""
 
-    __slots__ = ("_tag", "_form", "_hash")
+    __slots__ = ("_form", "_hash", "_tag")
 
     def __init__(self, tag: Symbol, form) -> None:
         self._tag = tag

@@ -1,8 +1,8 @@
 from collections.abc import Iterable, Sequence
 from functools import total_ordering
-from typing import Any, TypeVar, Union, cast, overload
+from typing import Any, TypeVar, cast, overload
 
-from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
+from pyrsistent import PVector, pvector  # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
 from typing_extensions import Unpack
 
@@ -283,10 +283,10 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class MapEntry(IMapEntry[K, V], PersistentVector[Union[K, V]]):
+class MapEntry(IMapEntry[K, V], PersistentVector[K | V]):
     __slots__ = ()
 
-    def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
+    def __init__(self, wrapped: "PVector[K | V]") -> None:
         assert len(wrapped) == 2, "Vector arg to map conj must be a pair"
         super().__init__(wrapped)
 

@@ -17,8 +17,10 @@ import re
 import sys
 import threading
 import types
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
-from typing import AbstractSet, Any, NoReturn, Optional, TypeVar, Union, cast
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Set as AbstractSet
+from collections.abc import Sized
+from typing import Any, NoReturn, Optional, TypeVar, Union, cast
 
 import attr
 
@@ -228,16 +230,16 @@ class Unbound:
 
 class Var(RefBase):
     __slots__ = (
+        "_dynamic",
+        "_is_bound",
+        "_lock",
+        "_meta",
         "_name",
         "_ns",
         "_root",
-        "_dynamic",
-        "_is_bound",
         "_tl",
-        "_meta",
-        "_lock",
-        "_watches",
         "_validator",
+        "_watches",
     )
 
     def __init__(
@@ -423,7 +425,7 @@ class Var(RefBase):
     @staticmethod
     def find_in_ns(
         ns_or_sym: Union["Namespace", sym.Symbol], name_sym: sym.Symbol
-    ) -> "Optional[Var]":
+    ) -> "Var | None":
         """Return the value current bound to the name `name_sym` in the namespace
         specified by `ns_sym`."""
         ns = (
@@ -434,7 +436,7 @@ class Var(RefBase):
         return None
 
     @classmethod
-    def find(cls, ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
+    def find(cls, ns_qualified_sym: sym.Symbol) -> "Var | None":
         """Return the value currently bound to the name in the namespace specified
         by `ns_qualified_sym`."""
         ns = Maybe(ns_qualified_sym.ns).or_else_raise(
@@ -493,7 +495,7 @@ class ImportRefer:
 
 AliasMap = lmap.PersistentMap[sym.Symbol, sym.Symbol]
 ImportReferMap = lmap.PersistentMap[sym.Symbol, Any]
-Module = Union[BasilispModule, types.ModuleType]
+Module = BasilispModule | types.ModuleType
 ModuleMap = lmap.PersistentMap[sym.Symbol, Module]
 NamespaceMap = lmap.PersistentMap[sym.Symbol, "Namespace"]
 VarMap = lmap.PersistentMap[sym.Symbol, Var]
@@ -580,16 +582,16 @@ class Namespace(ReferenceBase):
     _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.EMPTY)
 
     __slots__ = (
-        "_name",
-        "_module",
-        "_meta",
-        "_lock",
-        "_interns",
-        "_refers",
         "_aliases",
-        "_imports",
         "_import_aliases",
         "_import_refers",
+        "_imports",
+        "_interns",
+        "_lock",
+        "_meta",
+        "_module",
+        "_name",
+        "_refers",
     )
 
     def __init__(self, name: sym.Symbol, module: BasilispModule | None = None) -> None:
@@ -601,12 +603,7 @@ class Namespace(ReferenceBase):
 
         self._aliases: NamespaceMap = lmap.EMPTY
         self._imports: ModuleMap = lmap.map(
-            dict(
-                map(
-                    lambda s: (s, importlib.import_module(s.name)),
-                    Namespace.DEFAULT_IMPORTS,
-                )
-            )
+            {s: importlib.import_module(s.name) for s in Namespace.DEFAULT_IMPORTS}
         )
         self._import_aliases: AliasMap = lmap.EMPTY
         self._import_refers: lmap.PersistentMap[sym.Symbol, ImportRefer] = lmap.EMPTY
@@ -756,7 +753,7 @@ class Namespace(ReferenceBase):
                 new_m = new_m.assoc(alias, namespace)
             self._aliases = new_m
 
-    def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
+    def get_alias(self, alias: sym.Symbol) -> "Namespace | None":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
         with self._lock:
             return self._aliases.val_at(alias, None)
@@ -914,7 +911,7 @@ class Namespace(ReferenceBase):
         ]
 
     @classmethod
-    def get(cls, name: sym.Symbol) -> "Optional[Namespace]":
+    def get(cls, name: sym.Symbol) -> "Namespace | None":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache. Return the namespace if it exists or None otherwise.."""
         return cls._NAMESPACES.deref().val_at(name, None)
@@ -1010,23 +1007,23 @@ class Namespace(ReferenceBase):
             def is_match(entry: tuple[sym.Symbol, Var]) -> bool:
                 return _is_match(entry) and not entry[1].is_private
 
-        return map(
-            lambda entry: f"{entry[0].name}",
-            filter(is_match, ((s, v) for s, v in self.interns.items())),
+        return (
+            f"{entry[0].name}"
+            for entry in filter(is_match, ((s, v) for s, v in self.interns.items()))
         )
 
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given prefix from
         the list of referred Vars and referred Python module members."""
-        return map(
-            lambda entry: f"{entry[0].name}",
-            filter(
+        return (
+            f"{entry[0].name}"
+            for entry in filter(
                 Namespace.__completion_matcher(value),
                 itertools.chain(
                     ((s, v) for s, v in self.refers.items()),
                     ((s, v) for s, v in self.import_refers.items()),
                 ),
-            ),
+            )
         )
 
     def complete(self, text: str) -> Iterable[str]:
@@ -1455,10 +1452,10 @@ def _nth_none(_: None, i: int, notfound=IIndexed.NTH_SENTINEL) -> None:
 def _nth_sequence(coll: Sequence, i: int, notfound=IIndexed.NTH_SENTINEL):
     try:
         return coll[i]
-    except IndexError as ex:
+    except IndexError:
         if notfound is not IIndexed.NTH_SENTINEL:
             return notfound
-        raise ex
+        raise
 
 
 @nth.register(IIndexed)
@@ -1479,9 +1476,9 @@ def _nth_iseq(coll: ISeq, i: int, notfound=IIndexed.NTH_SENTINEL):
 
 
 @functools.singledispatch
-def contains(coll, k) -> bool:
+def contains(coll, _) -> bool:
     """Return true if o contains the key k."""
-    return k in coll
+    raise TypeError(f"contains? not supported for type '{type(coll)}'")
 
 
 @contains.register(type(None))
@@ -1489,14 +1486,21 @@ def _contains_none(_, __) -> bool:
     return False
 
 
-@contains.register(str)
-def _contains_str(s: str, k: Any) -> bool:
+@contains.register(Sequence)
+def _contains_sequence(s: Sequence, k: Any) -> bool:
     if isinstance(k, int):
         return 0 <= k < len(s)
-    elif isinstance(k, str):
-        return k in s
     else:
-        raise TypeError(f"contains? key must be a string; got '{type(k)}'")
+        raise TypeError(f"contains? key must be a int; got '{type(k)}'")
+
+
+@contains.register(frozenset)
+@contains.register(set)
+@contains.register(IPersistentSet)
+@contains.register(ITransientSet)
+@contains.register(Mapping)
+def _contains_set(s: AbstractSet, k: Any) -> bool:
+    return k in s
 
 
 @contains.register(IAssociative)
@@ -1635,7 +1639,7 @@ def _vals_none(_: None) -> None:
 @vals.register(str)
 def _vals_str(o: str) -> None:
     if to_seq(o) is None:
-        return None
+        return
     raise TypeError(f"Object of type {type(o)} cannot be coerced to a value sequence")
 
 
@@ -2073,7 +2077,7 @@ def repl_completions(text: str) -> Iterable[str]:
 
 
 class _TrampolineArgs:
-    __slots__ = ("_has_varargs", "_args", "_kwargs")
+    __slots__ = ("_args", "_has_varargs", "_kwargs")
 
     def __init__(self, has_varargs: bool, *args, **kwargs) -> None:
         self._has_varargs = has_varargs
@@ -2347,14 +2351,12 @@ def _basilisp_type(
                 all_interface_methods.update(interface_names)
             elif interface in artificially_abstract_bases:
                 artificially_abstract_base_members.update(
-                    map(
-                        lambda v: v[0],
-                        inspect.getmembers(
-                            interface,
-                            predicate=lambda v: inspect.isfunction(v)
-                            or isinstance(v, (property, staticmethod))
-                            or inspect.ismethod(v),
-                        ),
+                    v[0]
+                    for v in inspect.getmembers(
+                        interface,
+                        predicate=lambda v: inspect.isfunction(v)
+                        or isinstance(v, (property, staticmethod))
+                        or inspect.ismethod(v),
                     )
                 )
             else:
