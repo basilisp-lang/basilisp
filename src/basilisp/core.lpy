@@ -2047,7 +2047,7 @@
 (def short-array object-array)
 (def float-array object-array)
 (def double-array object-array)
-(def bool-array object-array)
+(def boolean-array object-array)
 
 (defn ^:inline booleans
   "Dummy cast to a Python list of booleans.
