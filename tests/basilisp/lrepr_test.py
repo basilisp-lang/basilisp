@@ -191,7 +191,7 @@ def test_print_readably(lcompile: CompileFn):
             '(pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
         ),
         ('#"\\\\s"', '(pr-str #"\\s")'),
-        ('#"\\x08."', '(pr-str #"\\b.")'),
+        ('#"\\\\b."', '(pr-str #"\\b.")'),
         (
             '#inst "2018-11-28T12:43:25.477000+00:00"',
             '(pr-str #inst "2018-11-28T12:43:25.477-00:00")',
@@ -235,8 +235,8 @@ def test_lrepr(lcompile: CompileFn, repr: str, code: str):
             uuid.UUID("81f35603-0408-4b3d-bbc0-462e3702747f"),
             '(read-string (pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f"))',
         ),
-        (re.compile(r"\s"), '(read-string (pr-str #"\\s"))'),
-        (re.compile(r"\x08."), '(read-string (pr-str #"\\b."))'),
+        (re.compile(r"\\s"), '(read-string (pr-str #"\\s"))'),
+        (re.compile(r"\\b."), '(read-string (pr-str #"\\b."))'),
         (
             datetime.datetime.fromisoformat("2018-11-28T12:43:25.477000+00:00"),
             '(read-string (pr-str #inst "2018-11-28T12:43:25.477-00:00"))',
@@ -302,7 +302,7 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
             '(print-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
         ),
         ('#"\\\\s"', '(print-str #"\\s")'),
-        ('#"\\x08."', '(print-str #"\\b.")'),
+        ('#"\\\\b."', '(print-str #"\\b.")'),
         (
             '#inst "2018-11-28T12:43:25.477000+00:00"',
             '(print-str #inst "2018-11-28T12:43:25.477-00:00")',
