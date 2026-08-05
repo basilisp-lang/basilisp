@@ -95,6 +95,35 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  run-graalpy-tests:
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        version: ['3.12']
+        include:
+          - version: '3.12'
+            graalpy-version: '25.0.2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: graalpy-${{ matrix.graalpy-version }}
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+          key: ${{ runner.os }}-graalpy-${{ matrix.version }}-pip-${{ hashFiles('.github/workflows/run-tests.yml', 'pyproject.toml', 'tox.ini') }}
+      - name: Install Basilisp
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Run tests
+        run: |
+          tox run -m test-graalpy
+
   run-pypy-tests:
     runs-on: ${{matrix.os}}
     strategy:
