@@ -296,7 +296,6 @@ class BasilispImporter(  # type: ignore[misc]  # pylint: disable=abstract-method
             mod = BasilispModule(spec.name)
 
         mod.__file__ = spec.loader_state["filename"]
-        mod.__loader__ = spec.loader
         mod.__package__ = spec.parent
         mod.__spec__ = spec
         self._cache[spec.name] = {"spec": spec}

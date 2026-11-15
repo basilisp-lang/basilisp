@@ -8,9 +8,7 @@ from collections.abc import (
     Sequence,
 )
 from collections.abc import Set as AbstractSet
-from collections.abc import (
-    Sized,
-)
+from collections.abc import Sized
 from typing import (
     Any,
     Final,
@@ -730,9 +728,9 @@ def seq_equals(s1: Union["ISeq", ISequential], s2: Any) -> bool:
     if not isinstance(s2, (ISeq, ISequential)):
         return NotImplemented
 
-    sentinel = object()
-    for e1, e2 in itertools.zip_longest(s1, s2, fillvalue=sentinel):  # type: ignore[arg-type]
-        if bool(e1 is sentinel) or bool(e2 is sentinel):
+    sentinel_obj = object()
+    for e1, e2 in itertools.zip_longest(s1, s2, fillvalue=sentinel_obj):  # type: ignore[arg-type]
+        if bool(e1 is sentinel_obj) or bool(e2 is sentinel_obj):
             return False
         if e1 != e2:
             return False
