@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added support for Python 3.15 (#???)
  * Added `basilisp.test/do-report` and `basilisp.test/assert-expr` for `clojure.test` compatibility in writing custom assertion expressions (#1334)
 
 ### Changed

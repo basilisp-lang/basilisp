@@ -28,7 +28,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
         include:
           - version: '3.10'
             tox-env: py310,py310-mypy,py310-lint,bandit
@@ -39,13 +39,15 @@ jobs:
           - version: '3.13'
             tox-env: py313,py313-mypy,py313-lint,bandit
           - version: '3.14'
-            tox-env: py314,py314-mypy,py314-lint,bandit,format
+            tox-env: py314,py314-mypy,py314-lint,bandit
+          - version: '3.15'
+            tox-env: py315,py314-mypy,py315-lint,bandit,format
           - os: windows-latest
-            version: '3.14'
-            tox-env: py314,py314-lint
+            version: '3.15'
+            tox-env: py315,py315-lint
           - os: macos-latest
-            version: '3.14'
-            tox-env: py314,py314-lint
+            version: '3.15'
+            tox-env: py315,py315-lint
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -100,10 +102,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        version: ['3.11']
+        version: ['3.11', '3.12']
         include:
           - version: '3.11'
             tox-env: pypy311
+          - version: '3.12'
+            tox-env: pypy312
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
