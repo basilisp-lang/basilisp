@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where scientific notation literals could not be read with an `M` prefix into decimal types (#1351)
  * Fix a bug where `partition` could return an extra partition unexpectedly (#1353)
  * Fix a bug where regex patterns representation at the REPL printed special characters unescaped (#1353)
+ * Fix multiple bugs in nREPL server (#1356, #1357)
 
 ### Removed
  * `basilisp.test/gen-assert` has been removed and replaced with `basilisp.test/assert-expr` (#1347)

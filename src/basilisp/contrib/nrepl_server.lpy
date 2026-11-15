@@ -261,14 +261,14 @@
                                                        (urllib.parse/urljoin "file:"))
                                                   file)
                                  "line"         line
-                                 "column"       col
+                                 "column"       (inc col)
                                  "arglists-str" (forms-join arglists)
                                  "status"       ["done"]}))
-            status   (if (and (nil? symname) (= mapping-type :eldoc) )
-                       ["done" "no-eldoc"]
-                       ["done"])]
+            status   (cond-> ["done"]
+                       (and (nil? symname) (= mapping-type :info)) (conj "no-info")
+                       (and (nil? symname) (= mapping-type :eldoc)) (conj "no-eldoc"))]
         (trace :lookup :sym sym-str :doc doc :args arglists)
-        (send-fn request (assoc response :status status)))
+        (send-fn request (assoc response "status" status)))
       (catch python/Exception e
         (let [status (cond->
                          ["done"]

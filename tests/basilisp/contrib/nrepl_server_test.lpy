@@ -469,7 +469,7 @@
                 meta-file-uri     (->> (urllib.parse/quote meta-file)
                                        (urllib.parse/urljoin "file:"))]
             (is (= {:ns "basilisp.core" :status ["done"] :id @id* :arglists-str "[keyfn coll]\n[keyfn cmp coll]"
-                    :line line :column col
+                    :line line :column (inc col)
                     :doc doc :name "sort-by"}
                    (select-keys response [:ns :status :id :arglists-str :doc :name :line :column])))
             (is (= meta-file-uri file)))
@@ -501,11 +501,11 @@
 
           (client-send! client {:id (id-inc!) :op "info" :ns "user" :symbol "abcde"})
           (let [response (client-recv! client)]
-            (is (= {:status ["done"] :id @id*}
+            (is (= {:status ["done" "no-info"] :id @id*}
                    (select-keys response [:doc :status :id :name]))))
 
           (client-send! client {:id (id-inc!) :op "info"})
-          (is (= {:id @id* :status ["done"]}
+          (is (= {:id @id* :status ["done" "no-info"]}
                  (client-recv! client)))))))
 
   (testing "nrepl server eldoc"
