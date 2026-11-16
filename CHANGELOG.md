@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `basilisp.test/do-report` and `basilisp.test/assert-expr` for `clojure.test` compatibility in writing custom assertion expressions (#1334)
 
 ### Changed
- * Reimplemented `basilisp.lang.seq` in Rust using PyO3 to improve performance (#1338, #1341, #13??)
+ * Reimplemented `basilisp.lang.seq` in Rust using PyO3 to improve performance (#1338, #1341, #1362)
  * Performance improvements for compile time and runtime (#1337)
  * Arity 0 of `concat` now returns an unrealized lazy seq, rather than an empty seq (#1339)
  * Records disallow interface method and field names in field names (#758)
