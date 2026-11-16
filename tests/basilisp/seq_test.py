@@ -2,6 +2,7 @@ import pytest
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang import seq as lseq
 from basilisp.lang import vector as vec
@@ -94,6 +95,24 @@ def test_empty_sequence():
     assert lseq.EMPTY == empty
     assert empty.is_empty
     assert True is bool(lseq.sequence([]))
+
+
+def test_with_meta():
+    empty_lazy = lseq.sequence([])
+
+    empty_lazy_with_no_meta = empty_lazy.with_meta(None)
+    assert empty_lazy_with_no_meta.meta is None
+
+    empty_lazy_with_meta = empty_lazy.with_meta(lmap.map({"a": "b"}))
+    assert empty_lazy_with_meta.meta is not None
+
+    empty = lseq.EMPTY
+
+    empty_with_no_meta = empty.with_meta(None)
+    assert empty_with_no_meta.meta is None
+
+    empty_with_meta = empty.with_meta({"a": "b"})
+    assert empty_with_meta.meta is not None
 
 
 def test_sequence():

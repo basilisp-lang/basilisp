@@ -402,13 +402,11 @@ impl Cons {
         let kwargs = PyDict::new(py);
         kwargs.set_item("meta", meta)?;
         let cur = slf.borrow();
-        tp.call(
-            (
-                cur.first.clone_ref(py),
-                cur.rest.as_ref().unwrap().clone_ref(py),
-            ),
-            Some(&kwargs),
-        )
+        let rest = match &cur.rest {
+            Some(r) => r.clone_ref(py),
+            None => py.None(),
+        };
+        tp.call((cur.first.clone_ref(py), rest), Some(&kwargs))
     }
 }
 
@@ -442,7 +440,10 @@ impl LazySeq {
         } else {
             Ok(LazySeq {
                 lock: ReentrantMutex::new(RefCell::new(if gen.is_none() {
-                    LazySeqState::Realized(seq.unwrap().unbind())
+                    LazySeqState::Realized(match seq {
+                        Some(s) => s.unbind(),
+                        None => py.None(),
+                    })
                 } else {
                     LazySeqState::Initialized(gen.unbind())
                 })),
