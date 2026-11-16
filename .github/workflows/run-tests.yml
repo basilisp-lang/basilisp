@@ -41,7 +41,7 @@ jobs:
           - version: '3.14'
             tox-env: py314,py314-mypy,py314-lint,bandit
           - version: '3.15'
-            tox-env: py315,py314-mypy,py315-lint,bandit,format
+            tox-env: py315,py315-mypy,py315-lint,bandit,format
           - os: windows-latest
             version: '3.15'
             tox-env: py315,py315-lint
