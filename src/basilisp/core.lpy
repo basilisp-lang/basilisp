@@ -6307,9 +6307,23 @@
                     (destructure-binding ddef))]
     (apply list orig-name expr bindings)))
 
+(defn ^:private validate-bindings
+  "Validate that bindings for a specific special form (``let`` or ``loop``) are
+  vectors with an even number of elements."
+  [form bindings]
+  (when-not (vector? bindings)
+    (throw
+     (ex-info (str form " bindings must be a vector")
+              {:type (type bindings)})))
+  (when-not (even? (count bindings))
+    (throw
+     (ex-info "must specify an even number of bindings"
+              {:num-bindings (count bindings)}))))
+
 (defmacro ^:no-warn-on-redef let
   ":lpy:form:`let` bindings with :ref:`destructuring` support."
   [bindings & body]
+  (validate-bindings 'let bindings)
   `(let* [~@(->> (partition 2 bindings)
                  (mapcat destructure))]
      ~@body))
@@ -6356,6 +6370,7 @@
 (defmacro ^:no-warn-on-redef loop
   ":lpy:form:`loop` bindings with :ref:`destructuring` support."
   [bindings & body]
+  (validate-bindings 'loop bindings)
   (let [[bindings body] (loop-with-destructuring bindings body)]
     `(loop* ~bindings
         ~@body)))

@@ -4,6 +4,12 @@
    [basilisp.string :as str]
    [basilisp.test :refer [deftest is are testing]]))
 
+(deftest let-test
+  (is (thrown? basilisp.lang.interfaces/IExceptionInfo
+               (eval '(let [a 1 b] a))))
+  (is (thrown? basilisp.lang.interfaces/IExceptionInfo
+               (eval '(let '(a 1) a)))))
+
 (deftest fn-decorators-test
   (testing "decorators"
     (testing "in form meta"
