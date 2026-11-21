@@ -2599,7 +2599,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
 
             try:
                 opts = lmap.hash_map(*f[1:])
-            except IndexError:
+            except ValueError:
                 raise ctx.AnalyzerException(
                     "Expected options: ':as alias' or ':refer [...]'", form=f
                 ) from None

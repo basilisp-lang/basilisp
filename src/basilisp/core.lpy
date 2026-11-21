@@ -522,7 +522,10 @@
   "Return a new array-map.
 
   Array maps are copy-on-write implementations of ``IPersistentMap`` backed by a
-  Python ``dict`` which preserve insertion order."
+  Python ``dict`` which preserve insertion order.
+
+  Array maps may be created with any number of entries, but adding additional entries
+  beyond a specific threshold will trigger a one-way conversion to a standard map type."
   ([]
    basilisp.lang.map/EMPTY-ARRAY-MAP)
   ([& keyvals]
