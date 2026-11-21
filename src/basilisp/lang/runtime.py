@@ -2197,8 +2197,8 @@ def _fn_with_meta(f, meta: lmap.PersistentMap | None):
             return f(*args, **kwargs)
 
     wrapped_f.meta = (  # type: ignore
-        f.meta.update(meta)
-        if hasattr(f, "meta") and isinstance(f.meta, lmap._AbstractPersistentMap)
+        f.meta.cons(meta)
+        if hasattr(f, "meta") and isinstance(f.meta, IPersistentMap)
         else meta
     )
     wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)  # type: ignore

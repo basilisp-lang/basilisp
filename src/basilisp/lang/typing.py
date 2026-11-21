@@ -42,6 +42,7 @@ LispForm = (
     | kw.Keyword
     | llist.PersistentList
     | lmap.PersistentMap
+    | lmap.PersistentArrayMap
     | None
     | Pattern
     | lqueue.PersistentQueue
@@ -52,7 +53,7 @@ LispForm = (
     | uuid.UUID
 )
 PyCollectionForm = dict | list | set | tuple
-ReaderForm = LispForm | IRecord | ISeq | IType | PyCollectionForm | TaggedLiteral
+ReaderForm = LispForm | IRecord | ISeq | IType | IPersistentMap | PyCollectionForm | TaggedLiteral
 SpecialForm = llist.PersistentList | ISeq
 
 

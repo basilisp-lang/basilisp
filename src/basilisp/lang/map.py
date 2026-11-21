@@ -313,10 +313,6 @@ class _AbstractPersistentMap(
         return self._inner.get(k, default)
 
     @abstractmethod
-    def update(self, *maps: Mapping[K, V]) -> Self:
-        raise NotImplementedError()
-
-    @abstractmethod
     def cons(  # type: ignore[override]
         self,
         *elems: (
@@ -379,10 +375,6 @@ class PersistentMap(_AbstractPersistentMap[_Map[K, V], K, V]):
     def empty(self) -> "PersistentMap[K, V]":
         return EMPTY.with_meta(self._meta)
 
-    def update(self, *maps: Mapping[K, V]) -> "PersistentMap":
-        m: _Map = self._inner.update(*(m.items() for m in maps))
-        return PersistentMap(m, meta=self._meta)
-
     def cons(  # type: ignore[override, return]
         self,
         *elems: (
@@ -396,8 +388,7 @@ class PersistentMap(_AbstractPersistentMap[_Map[K, V], K, V]):
             try:
                 for elem in elems:
                     if isinstance(elem, (IPersistentMap, Mapping)):
-                        for k, v in elem.items():
-                            m.set(k, v)
+                        m.update(elem)
                     elif isinstance(elem, IMapEntry):
                         m.set(elem.key, elem.value)
                     elif elem is None:
@@ -490,9 +481,6 @@ class PersistentArrayMap(_AbstractPersistentMap[dict[K, V], K, V]):
 
     def empty(self) -> "PersistentArrayMap[K, V]":
         return self.from_coll((), meta=self._meta)
-
-    def update(self, *maps: Mapping[K, V]) -> "PersistentArrayMap[K, V]":
-        return self.assoc(*chain.from_iterable(m.items() for m in maps))
 
     def cons(  # type: ignore[override]
         self,
