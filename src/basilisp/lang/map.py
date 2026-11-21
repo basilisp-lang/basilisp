@@ -537,8 +537,12 @@ def m(**kvs) -> PersistentMap[str, V]:
 
 
 def array_map(*pairs) -> PersistentArrayMap:
-    return PersistentArrayMap.from_coll(iter(partition(pairs, 2)))
+    if len(pairs) % 2:
+        raise IndexError("array_map requires an even number of arguments")
+    return PersistentArrayMap.from_coll(partition(pairs, 2))
 
 
 def hash_map(*pairs) -> PersistentMap:
-    return PersistentMap.from_coll(iter(partition(pairs, 2)))
+    if len(pairs) % 2:
+        raise IndexError("hash_map requires an even number of arguments")
+    return PersistentMap.from_coll(partition(pairs, 2))
