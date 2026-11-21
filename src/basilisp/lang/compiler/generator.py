@@ -563,7 +563,7 @@ def _tagged_assign(
     return ast.Assign(targets=[target], value=value)
 
 
-def _clean_meta(form: IMeta) -> LispForm:
+def _clean_meta(form: IMeta) -> IPersistentMap | None:
     """Remove reader metadata from the form's meta map."""
     assert form.meta is not None, "Form must have non-null 'meta' attribute"
     meta = form.meta.dissoc(
@@ -574,7 +574,7 @@ def _clean_meta(form: IMeta) -> LispForm:
     )
     if len(meta) == 0:
         return None
-    return cast(lmap.PersistentMap, meta)
+    return meta
 
 
 def _ast_with_loc(
