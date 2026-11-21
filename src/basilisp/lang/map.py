@@ -1,10 +1,11 @@
-from collections.abc import Callable, Iterable, Mapping
-from itertools import islice
-from typing import Any, TypeVar, cast
+from abc import abstractmethod
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from itertools import chain, islice
+from typing import Any, Generic, TypeVar, cast
 
 from immutables import Map as _Map
 from immutables import MapMutation
-from typing_extensions import Unpack
+from typing_extensions import Self, Unpack
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -209,34 +210,36 @@ def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
-class PersistentMap(
+_T_inner = TypeVar("_T_inner", bound=Mapping)
+
+
+class _AbstractPersistentMap(
     IPersistentMap[K, V],
     IEvolveableCollection[TransientMap],
     IReduceKV,
     ILispObject,
     IWithMeta,
+    Generic[_T_inner, K, V],
 ):
-    """Basilisp Map. Delegates internally to a immutables.Map object.
-    Do not instantiate directly. Instead use the m() and map() factory
-    methods below."""
 
     __slots__ = ("_inner", "_meta")
 
     def __init__(
         self,
-        m: "_Map[K, V]",
+        m: _T_inner,
         meta: IPersistentMap | None = None,
     ) -> None:
-        self._inner = m
+        self._inner: _T_inner = m
         self._meta = meta
 
     @classmethod
+    @abstractmethod
     def from_coll(
         cls,
         members: Mapping[K, V] | Iterable[tuple[K, V]],
         meta: IPersistentMap | None = None,
-    ) -> "PersistentMap[K, V]":
-        return PersistentMap(_Map(members), meta=meta)
+    ) -> Self:
+        raise NotImplementedError()
 
     def __bool__(self):
         return True
@@ -281,7 +284,81 @@ class PersistentMap(
     def meta(self) -> IPersistentMap | None:
         return self._meta
 
-    def with_meta(self, meta: IPersistentMap | None) -> "PersistentMap":
+    @abstractmethod
+    def with_meta(self, meta: IPersistentMap | None) -> Self:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def assoc(self, *kvs):
+        raise NotImplementedError()
+
+    def contains(self, k):
+        return k in self._inner
+
+    @abstractmethod
+    def dissoc(self, *ks):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def empty(self) -> Self:
+        raise NotImplementedError()
+
+    def entry(self, k: K) -> MapEntry[K, V] | None:
+        v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
+        if v is _ENTRY_SENTINEL:
+            return None
+        return MapEntry.of(k, v)
+
+    def val_at(self, k, default=None):
+        return self._inner.get(k, default)
+
+    @abstractmethod
+    def update(self, *maps: Mapping[K, V]) -> Self:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def cons(  # type: ignore[override]
+        self,
+        *elems: (
+            IPersistentMap[K, V]
+            | IMapEntry[K, V]
+            | IPersistentVector[K | V]
+            | Mapping[K, V]
+        ),
+    ) -> Self:
+        raise NotImplementedError()
+
+    def seq(self) -> ISeq[IMapEntry[K, V]] | None:
+        if len(self._inner) == 0:
+            return None
+        return iterator_sequence((MapEntry.of(k, v) for k, v in self._inner.items()))
+
+    @abstractmethod
+    def to_transient(self) -> TransientMap[K, V]:
+        raise NotImplementedError()
+
+    def reduce_kv(self, f: ReduceKVFunction, init: T_reduce) -> T_reduce:
+        for k, v in self._inner.items():
+            init = f(init, k, v)
+            if isinstance(init, Reduced):
+                return init.deref()
+        return init
+
+
+class PersistentMap(_AbstractPersistentMap[_Map[K, V], K, V]):
+    """Basilisp Map. Delegates internally to a immutables.Map object.
+    Do not instantiate directly. Instead use the m() and map() factory
+    methods below."""
+
+    @classmethod
+    def from_coll(
+        cls,
+        members: Mapping[K, V] | Iterable[tuple[K, V]],
+        meta: IPersistentMap | None = None,
+    ) -> "PersistentMap[K, V]":
+        return cls(_Map(members), meta=meta)
+
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentMap[K, V]":
         return PersistentMap(self._inner, meta=meta)
 
     def assoc(self, *kvs):
@@ -289,9 +366,6 @@ class PersistentMap(
             for k, v in partition(kvs, 2):
                 m[k] = v
             return PersistentMap(m.finish(), meta=self._meta)
-
-    def contains(self, k):
-        return k in self._inner
 
     def dissoc(self, *ks):
         with self._inner.mutate() as m:
@@ -302,27 +376,12 @@ class PersistentMap(
                     pass
             return PersistentMap(m.finish(), meta=self._meta)
 
-    def entry(self, k):
-        v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
-        if v is _ENTRY_SENTINEL:
-            return None
-        return MapEntry.of(k, v)
-
-    def val_at(self, k, default=None):
-        return self._inner.get(k, default)
+    def empty(self) -> "PersistentMap[K, V]":
+        return EMPTY.with_meta(self._meta)
 
     def update(self, *maps: Mapping[K, V]) -> "PersistentMap":
         m: _Map = self._inner.update(*(m.items() for m in maps))
         return PersistentMap(m, meta=self._meta)
-
-    def update_with(  # type: ignore[return]
-        self, merge_fn: Callable[[V, V], V], *maps: Mapping[K, V]
-    ) -> "PersistentMap[K, V]":
-        with self._inner.mutate() as m:
-            for map in maps:
-                for k, v in map.items():
-                    m.set(k, merge_fn(m[k], v) if k in m else v)
-            return PersistentMap(m.finish(), meta=self._meta)
 
     def cons(  # type: ignore[override, return]
         self,
@@ -353,26 +412,123 @@ class PersistentMap(
             else:
                 return PersistentMap(m.finish(), meta=self.meta)
 
-    def empty(self) -> "PersistentMap":
-        return EMPTY.with_meta(self._meta)
-
-    def seq(self) -> ISeq[IMapEntry[K, V]] | None:
-        if len(self._inner) == 0:
-            return None
-        return iterator_sequence((MapEntry.of(k, v) for k, v in self._inner.items()))
-
     def to_transient(self) -> TransientMap[K, V]:
         return TransientMap(self._inner.mutate())
 
-    def reduce_kv(self, f: ReduceKVFunction, init: T_reduce) -> T_reduce:
-        for k, v in self._inner.items():
-            init = f(init, k, v)
-            if isinstance(init, Reduced):
-                return init.deref()
-        return init
-
 
 EMPTY: PersistentMap = PersistentMap.from_coll(())
+
+
+class PersistentArrayMap(_AbstractPersistentMap[dict[K, V], K, V]):
+    """Basilisp Array Map. Delegates internally to a Python dict.
+
+    Do not instantiate directly. Instead use the array_map() factory
+    methods below.
+
+    Array maps preserve insertion order (since that order is guaranteed by Python
+    dicts by default). Updates copy the inner dict before applying changes."""
+
+    _THRESHOLD = 8
+
+    __slots__ = ("_hash", "_inner", "_meta")
+
+    def __init__(
+        self,
+        m: dict[K, V],
+        meta: IPersistentMap | None = None,
+    ) -> None:
+        super().__init__(m, meta)
+        self._hash: int | None = None
+
+    def __hash__(self):
+        # Compute the hash from the elements of the inner. We have to do this because
+        # otherwise attempting to hash the dict will fail. Cache the hash value locally.
+        if self._hash is None:
+            self._hash = hash(frozenset(self._inner.items()))
+        return self._hash
+
+    @classmethod
+    def from_coll(
+        cls,
+        members: Mapping[K, V] | Iterable[tuple[K, V]],
+        meta: IPersistentMap | None = None,
+    ) -> "PersistentArrayMap[K, V]":
+        return cls(dict(members), meta=meta)
+
+    def with_meta(self, meta: IPersistentMap | None) -> "PersistentArrayMap[K, V]":
+        return PersistentArrayMap(self._inner, meta=meta)
+
+    @classmethod
+    def _do_assoc(
+        cls,
+        d: dict[K, V],
+        it: Iterator[tuple[K, V]],
+        meta: IPersistentMap | None = None,
+    ) -> "PersistentMap[K, V] | PersistentArrayMap[K, V]":
+        while True:
+            try:
+                k, v = next(it)
+            except StopIteration:
+                break
+            else:
+                if len(d) >= cls._THRESHOLD and k not in d:
+                    return PersistentMap.from_coll(
+                        chain.from_iterable([d.items(), ((k, v),), it]), meta=meta
+                    )
+                d[k] = v
+
+        return PersistentArrayMap(d, meta=meta)
+
+    def assoc(self, *kvs):
+        d = dict(self._inner)
+        return self._do_assoc(d, iter(partition(kvs, 2)), meta=self._meta)
+
+    def dissoc(self, *ks: K) -> "PersistentArrayMap[K, V]":
+        return PersistentArrayMap(
+            {k: v for k, v in self._inner.items() if k not in ks}, meta=self._meta
+        )
+
+    def empty(self) -> "PersistentArrayMap[K, V]":
+        return self.from_coll((), meta=self._meta)
+
+    def update(self, *maps: Mapping[K, V]) -> "PersistentArrayMap[K, V]":
+        return self.assoc(*chain.from_iterable(m.items() for m in maps))
+
+    def cons(  # type: ignore[override]
+        self,
+        *elems: (
+            IPersistentMap[K, V]
+            | IMapEntry[K, V]
+            | IPersistentVector[K | V]
+            | Mapping[K, V]
+        ),
+    ) -> "PersistentMap[K, V] | PersistentArrayMap[K, V]":
+
+        def _cons_iter() -> Iterable[tuple[K, V]]:
+            try:
+                for elem in elems:
+                    if isinstance(elem, (IPersistentMap, Mapping)):
+                        yield from elem.items()
+                    elif isinstance(elem, IMapEntry):
+                        yield elem.key, elem.value
+                    elif elem is None:
+                        continue
+                    else:
+                        entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
+                        yield entry.key, entry.value
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    "Argument to map conj must be another Map or castable to MapEntry"
+                ) from e
+
+        d = dict(self._inner)
+        return self._do_assoc(d, iter(_cons_iter()), meta=self._meta)
+
+    def to_transient(self) -> TransientMap[K, V]:
+        return TransientMap(_Map(self._inner).mutate())
+
+
+EMPTY_ARRAY_MAP: PersistentArrayMap = PersistentArrayMap.from_coll(())
 
 
 def map(  # pylint:disable=redefined-builtin
@@ -397,6 +553,10 @@ def from_entries(entries: Iterable[MapEntry[K, V]]) -> PersistentMap[K, V]:  # t
         for entry in entries:
             m.set(entry.key, entry.value)
         return PersistentMap(m.finish())
+
+
+def array_map(*pairs) -> PersistentArrayMap:
+    return PersistentArrayMap.from_coll(iter(partition(pairs, 2)))
 
 
 def hash_map(*pairs) -> PersistentMap:

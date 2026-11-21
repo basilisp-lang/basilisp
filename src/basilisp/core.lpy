@@ -518,6 +518,16 @@
   ([coll]
    (basilisp.lang.queue/queue coll)))
 
+(defn array-map
+  "Return a new array-map.
+
+  Array maps are copy-on-write implementations of ``IPersistentMap`` backed by a
+  Python ``dict`` which preserve insertion order."
+  ([]
+   basilisp.lang.map/EMPTY-ARRAY-MAP)
+  ([& keyvals]
+   (apply basilisp.lang.map/array-map keyvals)))
+
 (defn symbol
   "Create a new symbol with ``name`` and optional namespace ``ns``.
 

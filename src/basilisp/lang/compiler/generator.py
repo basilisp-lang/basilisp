@@ -228,7 +228,7 @@ class GeneratorContext:
         self, filename: str | None = None, opts: CompilerOpts | None = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.EMPTY)
         self._recur_points: collections.deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._this: collections.deque[sym.Symbol] = collections.deque([])

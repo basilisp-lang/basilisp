@@ -267,7 +267,7 @@ class Var(RefBase):
 
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
-            if isinstance(self._meta, lmap.PersistentMap):
+            if isinstance(self._meta, IPersistentMap):
                 if not self._meta.val_at(_DYNAMIC_META_KEY):
                     self._meta = self._meta.assoc(_DYNAMIC_META_KEY, True)
             else:
@@ -2181,7 +2181,7 @@ def _fn_with_meta(f, meta: lmap.PersistentMap | None):
     """Return a new function with the given meta. If the function f already
     has a meta map, then merge the new meta with the existing meta."""
 
-    if not isinstance(meta, lmap.PersistentMap):
+    if not isinstance(meta, IPersistentMap):
         raise TypeError("meta must be a map")
 
     if inspect.iscoroutinefunction(f):
@@ -2198,7 +2198,7 @@ def _fn_with_meta(f, meta: lmap.PersistentMap | None):
 
     wrapped_f.meta = (  # type: ignore
         f.meta.update(meta)
-        if hasattr(f, "meta") and isinstance(f.meta, lmap.PersistentMap)
+        if hasattr(f, "meta") and isinstance(f.meta, lmap._AbstractPersistentMap)
         else meta
     )
     wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)  # type: ignore
