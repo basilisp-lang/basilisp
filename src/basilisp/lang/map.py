@@ -548,17 +548,9 @@ def m(**kvs) -> PersistentMap[str, V]:
     return PersistentMap.from_coll(kvs)
 
 
-def from_entries(entries: Iterable[MapEntry[K, V]]) -> PersistentMap[K, V]:  # type: ignore[return]
-    with _Map().mutate() as m:  # type: ignore[var-annotated]
-        for entry in entries:
-            m.set(entry.key, entry.value)
-        return PersistentMap(m.finish())
-
-
 def array_map(*pairs) -> PersistentArrayMap:
     return PersistentArrayMap.from_coll(iter(partition(pairs, 2)))
 
 
 def hash_map(*pairs) -> PersistentMap:
-    entries = (MapEntry.of(v[0], v[1]) for v in partition(pairs, 2))
-    return from_entries(entries)
+    return PersistentMap.from_coll(iter(partition(pairs, 2)))
