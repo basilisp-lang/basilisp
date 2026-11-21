@@ -1822,7 +1822,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
             # of the map, denoted by the keyword `:interface`.
             if _var_is_protocol(interface.var):
                 proto_map = interface.var.value
-                assert isinstance(proto_map, lmap.PersistentMap)
+                assert isinstance(proto_map, IPersistentMap)
                 interface_type = proto_map.val_at(INTERFACE)
             else:
                 interface_type = interface.var.value
@@ -4098,6 +4098,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
                     vec.PersistentVector,
                     llist.PersistentList,
                     lmap.PersistentMap,
+                    lmap.PersistentArrayMap,
                     lqueue.PersistentQueue,
                     lset.PersistentSet,
                     ISeq,

@@ -890,7 +890,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
     def_meta = node.meta.form
-    assert isinstance(def_meta, lmap.PersistentMap), "Meta should always be a map"
+    assert isinstance(def_meta, IPersistentMap), "Meta should always be a map"
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
@@ -3877,8 +3877,9 @@ def _const_py_tuple_to_py_ast(
 
 
 @_const_val_to_py_ast.register(lmap.PersistentMap)
+@_const_val_to_py_ast.register(lmap.PersistentArrayMap)
 def _const_map_to_py_ast(
-    form: lmap.PersistentMap, ctx: GeneratorContext
+    form: lmap.PersistentMap | lmap.PersistentArrayMap, ctx: GeneratorContext
 ) -> GeneratedPyAST[ast.expr]:
     key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.keys()))
     val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.values()))

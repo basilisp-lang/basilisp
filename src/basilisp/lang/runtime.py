@@ -2177,7 +2177,7 @@ def _with_attrs(**kwargs):
     return decorator
 
 
-def _fn_with_meta(f, meta: lmap.PersistentMap | None):
+def _fn_with_meta(f, meta: IPersistentMap | None):
     """Return a new function with the given meta. If the function f already
     has a meta map, then merge the new meta with the existing meta."""
 

@@ -388,7 +388,7 @@ class PersistentMap(_AbstractPersistentMap[_Map[K, V], K, V]):
             try:
                 for elem in elems:
                     if isinstance(elem, (IPersistentMap, Mapping)):
-                        m.update(elem)
+                        m.update(elem.items())
                     elif isinstance(elem, IMapEntry):
                         m.set(elem.key, elem.value)
                     elif elem is None:
