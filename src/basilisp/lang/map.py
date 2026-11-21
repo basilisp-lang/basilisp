@@ -280,7 +280,7 @@ class _AbstractPersistentMap(
     Generic[_T_inner, K, V],
 ):
 
-    __slots__ = ("_inner", "_meta")
+    __slots__ = ("_hash", "_inner", "_meta")
 
     def __init__(
         self,
@@ -289,6 +289,7 @@ class _AbstractPersistentMap(
     ) -> None:
         self._inner: _T_inner = m
         self._meta = meta
+        self._hash: int | None = None
 
     @classmethod
     @abstractmethod
@@ -315,13 +316,17 @@ class _AbstractPersistentMap(
             return NotImplemented
         if len(self._inner) != len(other):
             return False
-        return self._inner == other
+        if type(self) is type(other):
+            return self._inner == other._inner
+        return all(k in other and v == other[k] for k, v in self._inner.items())
 
     def __getitem__(self, item):
         return self._inner[item]
 
     def __hash__(self):
-        return hash(self._inner)
+        if self._hash is None:
+            self._hash = hash(frozenset(self._inner.items()))
+        return self._hash
 
     def __iter__(self):
         return iter(self._inner)
@@ -478,23 +483,6 @@ class PersistentArrayMap(_AbstractPersistentMap[dict[K, V], K, V]):
     dicts by default). Updates copy the inner dict before applying changes."""
 
     _THRESHOLD = 8
-
-    __slots__ = ("_hash", "_inner", "_meta")
-
-    def __init__(
-        self,
-        m: dict[K, V],
-        meta: IPersistentMap | None = None,
-    ) -> None:
-        super().__init__(m, meta)
-        self._hash: int | None = None
-
-    def __hash__(self):
-        # Compute the hash from the elements of the inner. We have to do this because
-        # otherwise attempting to hash the dict will fail. Cache the hash value locally.
-        if self._hash is None:
-            self._hash = hash(frozenset(self._inner.items()))
-        return self._hash
 
     @classmethod
     def from_coll(

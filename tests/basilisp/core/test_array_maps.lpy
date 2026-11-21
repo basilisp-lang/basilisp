@@ -1,0 +1,27 @@
+(ns tests.basilisp.core.test-array-maps
+  (:import string)
+  (:require
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest array-map-test
+  (testing "constructing array-maps"
+    (testing "array-maps equal to hash-maps"
+      (is (= {} (array-map)))
+      (is (= {:a 1} (array-map :a 1)))
+      (is (= {:a 1 :b 2} (array-map :a 1 :b 2)))
+      (is (= {:a 3 :b 2} (array-map :a 1 :b 2 :a 3))))
+
+    (testing "array-maps equal to other array-maps"
+      (is (= (array-map) (array-map)))
+      (is (= (array-map :a 1) (array-map :a 1)))
+      (is (= (array-map :a 1 :b 2) (array-map :a 1 :b 2)))
+      (is (= (array-map :a 1 :b 2 :a 3) (array-map :a 1 :b 2 :a 3))))
+
+    (is (= basilisp.lang.map/PersistentArrayMap
+           (type
+            (apply array-map (map vector string/ascii_lowercase (range))))))
+    ;; assoc'ing a new key into the map when the map already has > some threshold
+    ;; number of entries converts into a persistent hash map transparently
+    (is (= basilisp.lang.map/PersistentMap
+           (type
+            (assoc (apply array-map (map vector string/ascii_lowercase (range))) :a 26))))))
