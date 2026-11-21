@@ -30,6 +30,8 @@ Type Differences
 * Type coercions generally delegate to the relevant Python constructor, which handles such things natively.
 * Collections
 
+  * Array maps exist, but Basilisp may choose to use them or convert to a hash map based on different criteria than Clojure.
+  * The behavior of transient collections after they are converted back to persistent differs from Clojure, but like Clojure those collections are no longer valid to use and may throw exceptions.
   * Sorted sets and sorted maps are not implemented (support is tracked in `#416 <https://github.com/basilisp-lang/basilisp/issues/416>`_).
 
 .. _arithmetic_comparison:

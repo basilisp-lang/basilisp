@@ -341,6 +341,11 @@ class _AbstractPersistentMap(
             self._hash = hash(frozenset(self._inner.items()))
         return self._hash
 
+    def __getstate__(self):
+        # The cached hash is only valid for the process which computed it, so null
+        # it out to ensure invalid hashes aren't stored.
+        return None, {"_inner": self._inner, "_meta": self._meta, "_hash": None}
+
     def __iter__(self):
         return iter(self._inner)
 

@@ -5,11 +5,17 @@
 
 (deftest array-map-test
   (testing "constructing array-maps"
+    (testing "invalid number of args"
+      (is (thrown? python/ValueError (array-map :a)))
+      (is (thrown? python/ValueError (array-map :a 1 :b))))
+
     (testing "array-maps equal to hash-maps"
-      (is (= {} (array-map)))
-      (is (= {:a 1} (array-map :a 1)))
-      (is (= {:a 1 :b 2} (array-map :a 1 :b 2)))
-      (is (= {:a 3 :b 2} (array-map :a 1 :b 2 :a 3))))
+      (are [expected val] (and (= expected val)
+                               (= (hash expected) (hash val)))
+        {}          (array-map)
+        {:a 1}      (array-map :a 1)
+        {:a 1 :b 2} (array-map :a 1 :b 2)
+        {:a 3 :b 2} (array-map :a 1 :b 2 :a 3)))
 
     (testing "array-maps equal to other array-maps"
       (is (= (array-map) (array-map)))
@@ -47,6 +53,9 @@
     (is (= {} (persistent! (transient (array-map)))))
     (is (= {:a 1} (persistent! (assoc! (transient (array-map)) :a 1))))
     (is (= {:a 1 :b 2} (persistent! (assoc! (transient (array-map)) :a 1 :b 2))))
+    (is (= 3 (let [t (assoc! (transient (array-map :a 1 :b 2)) :b 3)]
+               (persistent! t)
+               (get t :b))))
     (is (thrown? python/ValueError (let [t (transient (array-map))]
                                      (persistent! t)
                                      (assoc! t :a 1))))))

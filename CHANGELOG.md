@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * `basilisp.string/split-lines` now matches Clojure's behavior and excludes trailing newlines (#1353)
  * `basilisp.string/replace` now supports both Python and Clojure backreferences (#1354)
  * Reader regex literals do not replace escape characters with their corresponding character (#1354)
+ * Map hash values are now computed differently and cached on first access (#1364)
 
 ### Fixed
  * Fix a bug where `basilisp.test/are` based tests could fail to report line numbers for test failures (#635)
