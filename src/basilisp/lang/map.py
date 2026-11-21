@@ -480,7 +480,7 @@ class PersistentArrayMap(_AbstractPersistentMap[dict[K, V], K, V]):
         )
 
     def empty(self) -> "PersistentArrayMap[K, V]":
-        return self.from_coll((), meta=self._meta)
+        return EMPTY_ARRAY_MAP.with_meta(meta=self._meta)
 
     def cons(  # type: ignore[override]
         self,
