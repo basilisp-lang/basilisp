@@ -1,0 +1,61 @@
+(ns tests.basilisp.core.test-array-maps
+  (:import string)
+  (:require
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest array-map-test
+  (testing "constructing array-maps"
+    (testing "invalid number of args"
+      (is (thrown? python/ValueError (array-map :a)))
+      (is (thrown? python/ValueError (array-map :a 1 :b))))
+
+    (testing "array-maps equal to hash-maps"
+      (are [expected val] (and (= expected val)
+                               (= (hash expected) (hash val)))
+        {}          (array-map)
+        {:a 1}      (array-map :a 1)
+        {:a 1 :b 2} (array-map :a 1 :b 2)
+        {:a 3 :b 2} (array-map :a 1 :b 2 :a 3)))
+
+    (testing "array-maps equal to other array-maps"
+      (is (= (array-map) (array-map)))
+      (is (= (array-map :a 1) (array-map :a 1)))
+      (is (= (array-map :a 1 :b 2) (array-map :a 1 :b 2)))
+      (is (= (array-map :a 1 :b 2 :a 3) (array-map :a 1 :b 2 :a 3)))))
+
+  (testing "metadata"
+    (is (nil? (meta (array-map))))
+    (is (= {:const true} (meta (with-meta (array-map) {:const true})))))
+
+  (testing "array-map -> hash-map conversion logic"
+    (are [expr] (= basilisp.lang.map/PersistentArrayMap (type expr))
+      (conj (array-map) nil)
+      (conj (array-map) [:a 1])
+      (conj (array-map) [:a 1] [:b 2])
+      (conj (array-map) {:a 1})
+      (conj (array-map :a 1) {:b 2} [:c 3])
+      (apply conj (array-map) {:a 1 :b 2})
+      (apply assoc (array-map) [:a 1])
+      (apply assoc (array-map) [:a 1 :b 2])
+      (apply array-map (map vector string/ascii-lowercase (range)))
+      (conj (apply array-map (map vector string/ascii-lowercase (range))) nil)
+      (dissoc (apply array-map (map vector string/ascii-lowercase (range))) :a :b :c))
+
+    (are [expr] (= basilisp.lang.map/PersistentMap (type expr))
+      ;; assoc'ing a new key into the map when the map already has > some threshold
+      ;; number of entries converts into a persistent hash map transparently
+      (assoc (apply array-map (map vector string/ascii-lowercase (range))) :a 26)
+      (conj (apply array-map (map vector string/ascii-lowercase (range))) [:a 26])
+      (conj (apply array-map (map vector string/ascii-lowercase (range))) {:a 26})
+      (apply assoc (array-map) (map vector string/ascii-lowercase (range)))))
+
+  (testing "transients"
+    (is (= {} (persistent! (transient (array-map)))))
+    (is (= {:a 1} (persistent! (assoc! (transient (array-map)) :a 1))))
+    (is (= {:a 1 :b 2} (persistent! (assoc! (transient (array-map)) :a 1 :b 2))))
+    (is (= 3 (let [t (assoc! (transient (array-map :a 1 :b 2)) :b 3)]
+               (persistent! t)
+               (get t :b))))
+    (is (thrown? python/ValueError (let [t (transient (array-map))]
+                                     (persistent! t)
+                                     (assoc! t :a 1))))))

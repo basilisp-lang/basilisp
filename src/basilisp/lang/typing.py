@@ -42,6 +42,7 @@ LispForm = (
     | kw.Keyword
     | llist.PersistentList
     | lmap.PersistentMap
+    | lmap.PersistentArrayMap
     | None
     | Pattern
     | lqueue.PersistentQueue

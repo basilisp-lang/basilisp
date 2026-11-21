@@ -240,7 +240,7 @@ def test_hash_map_creator():
     assert lmap.map({1: 2}) == lmap.hash_map(1, 2)
     assert lmap.map({1: 2, 3: 4}) == lmap.hash_map(1, 2, 3, 4)
 
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError):
         lmap.hash_map(1, 2, 3)
 
 
@@ -251,6 +251,10 @@ def test_hash_map_creator():
         lmap.map({"a": 2}),
         lmap.map({"a": 2, None: "NOTHINGNESS"}),
         lmap.map({"a": 2, keyword("b"): lmap.map({keyword("c"): "string"})}),
+        lmap.array_map(),
+        lmap.array_map("a", 2),
+        lmap.array_map("a", 2, None, "NOTHINGNESS"),
+        lmap.array_map("a", 2, keyword("b"), lmap.array_map(keyword("c"), "string")),
     ],
 )
 def test_map_pickleability(pickle_protocol: int, o: lmap.PersistentMap):

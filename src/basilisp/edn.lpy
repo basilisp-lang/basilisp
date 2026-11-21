@@ -373,7 +373,7 @@
                  (remove #(or (identical? comment %)
                               (identical? eof %)))
                  (apply hash-map))
-            (catch python/IndexError _
+            (catch python/ValueError _
               (throw
                (ex-info "Map should contain an even number of forms"
                         {:error :invalid-map-literal})))))

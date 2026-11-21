@@ -139,6 +139,7 @@ from basilisp.lang.compiler.nodes import (
 from basilisp.lang.interfaces import (
     IMeta,
     INamed,
+    IPersistentMap,
     IRecord,
     ISeq,
     IType,
@@ -735,7 +736,7 @@ def _with_loc(f: LispAnalyzer[T_form, T_node]) -> LispAnalyzer[T_form, T_node]:
     return _analyze_form
 
 
-def _clean_meta(meta: lmap.PersistentMap | None) -> lmap.PersistentMap | None:
+def _clean_meta(meta: IPersistentMap | None) -> IPersistentMap | None:
     """Remove reader metadata from the form's meta map."""
     if meta is None:
         return None
@@ -860,10 +861,12 @@ def _with_meta(gen_node: LispAnalyzer[T_form, T_node]) -> LispAnalyzer[T_form, T
         descriptor = gen_node(form, ctx)
 
         if isinstance(form, IMeta):
-            assert isinstance(form.meta, (lmap.PersistentMap, type(None)))
+            assert isinstance(form.meta, (IPersistentMap, type(None)))
             form_meta = _clean_meta(form.meta)
             if form_meta is not None:
-                meta_ast = _analyze_form(form_meta, ctx)
+                meta_ast = _analyze_form(
+                    cast(lmap.PersistentMap | lmap.PersistentArrayMap, form_meta), ctx
+                )
                 assert isinstance(meta_ast, MapNode) or (
                     isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
                 )
@@ -924,7 +927,7 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
 def __should_warn_on_redef(
     current_ns: runtime.Namespace,
     defsym: sym.Symbol,
-    def_meta: lmap.PersistentMap | None,
+    def_meta: IPersistentMap | None,
 ) -> bool:
     """Return True if the compiler should emit a warning about this name being redefined."""
     if def_meta is not None and def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False):
@@ -1001,7 +1004,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
         name = name.with_meta(lmap.EMPTY)
     def_node_env = ctx.get_node_env(pos=ctx.syntax_position)
     def_meta = _clean_meta(
-        name.meta.update(  # type: ignore [union-attr]
+        name.meta.cons(  # type: ignore [union-attr]
             lmap.map(
                 {
                     COL_KW: def_loc[1],
@@ -1029,7 +1032,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     arglists_meta = def_meta.val_at(ARGLISTS_KW)
     if isinstance(arglists_meta, (llist.PersistentList, ISeq)):
         assert arglists_meta.first == SpecialForm.QUOTE
-        var_meta = def_meta.update({ARGLISTS_KW: runtime.nth(arglists_meta, 1)})
+        var_meta = def_meta.cons({ARGLISTS_KW: runtime.nth(arglists_meta, 1)})
     else:
         var_meta = def_meta
 
@@ -1048,7 +1051,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     var = Var.intern_unbound(
         ns_sym,
         bare_name,
-        dynamic=def_meta.val_at(SYM_DYNAMIC_META_KEY, False),
+        dynamic=bool(def_meta.val_at(SYM_DYNAMIC_META_KEY, False)),
         meta=var_meta,
     )
 
@@ -1106,18 +1109,21 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     #       some-name
     #       "some value")
     meta_ast = _analyze_form(
-        def_meta.update(
-            {
-                NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
-                NS_KW: llist.l(
-                    llist.l(
-                        SpecialForm.INTEROP_PROP,
-                        sym.symbol("Namespace", "basilisp.lang.runtime"),
-                        sym.symbol("get"),
+        cast(
+            lmap.PersistentMap | lmap.PersistentArrayMap,
+            def_meta.cons(
+                {
+                    NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
+                    NS_KW: llist.l(
+                        llist.l(
+                            SpecialForm.INTEROP_PROP,
+                            sym.symbol("Namespace", "basilisp.lang.runtime"),
+                            sym.symbol("get"),
+                        ),
+                        llist.l(SpecialForm.QUOTE, sym.symbol(current_ns.name)),
                     ),
-                    llist.l(SpecialForm.QUOTE, sym.symbol(current_ns.name)),
-                ),
-            }
+                }
+            ),
         ),
         ctx,
     )
@@ -1821,7 +1827,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
             # of the map, denoted by the keyword `:interface`.
             if _var_is_protocol(interface.var):
                 proto_map = interface.var.value
-                assert isinstance(proto_map, lmap.PersistentMap)
+                assert isinstance(proto_map, IPersistentMap)
                 interface_type = proto_map.val_at(INTERFACE)
             else:
                 interface_type = interface.var.value
@@ -2593,7 +2599,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
 
             try:
                 opts = lmap.hash_map(*f[1:])
-            except IndexError:
+            except ValueError:
                 raise ctx.AnalyzerException(
                     "Expected options: ':as alias' or ':refer [...]'", form=f
                 ) from None
@@ -3951,7 +3957,9 @@ def _py_tuple_node(form: tuple, ctx: AnalyzerContext) -> Const | PyTuple:
 
 
 @_with_meta
-def _map_node(form: lmap.PersistentMap, ctx: AnalyzerContext) -> MapNode:
+def _map_node(
+    form: lmap.PersistentMap | lmap.PersistentArrayMap, ctx: AnalyzerContext
+) -> MapNode:
     keys, vals = [], []
     for k, v in form.items():
         keys.append(_analyze_form(k, ctx))
@@ -3966,9 +3974,10 @@ def _map_node(form: lmap.PersistentMap, ctx: AnalyzerContext) -> MapNode:
 
 
 @_analyze_form.register(lmap.PersistentMap)
+@_analyze_form.register(lmap.PersistentArrayMap)
 @_with_loc
 def _map_node_or_quoted(
-    form: lmap.PersistentMap, ctx: AnalyzerContext
+    form: lmap.PersistentMap | lmap.PersistentArrayMap, ctx: AnalyzerContext
 ) -> Const | MapNode:
     if ctx.is_quoted:
         return _const_node(form, ctx)
@@ -4051,6 +4060,7 @@ for tp, const_type in {
     list: ConstType.PY_LIST,
     llist.PersistentList: ConstType.SEQ,
     lmap.PersistentMap: ConstType.MAP,
+    lmap.PersistentArrayMap: ConstType.MAP,
     lqueue.PersistentQueue: ConstType.QUEUE,
     lset.PersistentSet: ConstType.SET,
     IRecord: ConstType.RECORD,
@@ -4095,6 +4105,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
                     vec.PersistentVector,
                     llist.PersistentList,
                     lmap.PersistentMap,
+                    lmap.PersistentArrayMap,
                     lqueue.PersistentQueue,
                     lset.PersistentSet,
                     ISeq,
