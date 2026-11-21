@@ -53,7 +53,7 @@ LispForm = (
     | uuid.UUID
 )
 PyCollectionForm = dict | list | set | tuple
-ReaderForm = LispForm | IRecord | ISeq | IType | IPersistentMap | PyCollectionForm | TaggedLiteral
+ReaderForm = LispForm | IRecord | ISeq | IType | PyCollectionForm | TaggedLiteral
 SpecialForm = llist.PersistentList | ISeq
 
 

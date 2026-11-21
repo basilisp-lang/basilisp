@@ -514,7 +514,8 @@ class IPersistentMap(ICounted, IAssociative[K, V], Mapping[K, V]):
 
     @abstractmethod
     def cons(
-        self: Self, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", Mapping[K, V], None]
+        self: Self,
+        *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", Mapping[K, V], None],
     ) -> Self:
         raise NotImplementedError()
 

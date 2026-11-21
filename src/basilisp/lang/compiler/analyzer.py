@@ -864,7 +864,9 @@ def _with_meta(gen_node: LispAnalyzer[T_form, T_node]) -> LispAnalyzer[T_form, T
             assert isinstance(form.meta, (IPersistentMap, type(None)))
             form_meta = _clean_meta(form.meta)
             if form_meta is not None:
-                meta_ast = _analyze_form(form_meta, ctx)
+                meta_ast = _analyze_form(
+                    cast(lmap.PersistentMap | lmap.PersistentArrayMap, form_meta), ctx
+                )
                 assert isinstance(meta_ast, MapNode) or (
                     isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
                 )
@@ -1107,18 +1109,21 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     #       some-name
     #       "some value")
     meta_ast = _analyze_form(
-        def_meta.cons(
-            {
-                NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
-                NS_KW: llist.l(
-                    llist.l(
-                        SpecialForm.INTEROP_PROP,
-                        sym.symbol("Namespace", "basilisp.lang.runtime"),
-                        sym.symbol("get"),
+        cast(
+            lmap.PersistentMap | lmap.PersistentArrayMap,
+            def_meta.cons(
+                {
+                    NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
+                    NS_KW: llist.l(
+                        llist.l(
+                            SpecialForm.INTEROP_PROP,
+                            sym.symbol("Namespace", "basilisp.lang.runtime"),
+                            sym.symbol("get"),
+                        ),
+                        llist.l(SpecialForm.QUOTE, sym.symbol(current_ns.name)),
                     ),
-                    llist.l(SpecialForm.QUOTE, sym.symbol(current_ns.name)),
-                ),
-            }
+                }
+            ),
         ),
         ctx,
     )
@@ -3952,7 +3957,9 @@ def _py_tuple_node(form: tuple, ctx: AnalyzerContext) -> Const | PyTuple:
 
 
 @_with_meta
-def _map_node(form: lmap.PersistentMap | lmap.PersistentArrayMap, ctx: AnalyzerContext) -> MapNode:
+def _map_node(
+    form: lmap.PersistentMap | lmap.PersistentArrayMap, ctx: AnalyzerContext
+) -> MapNode:
     keys, vals = [], []
     for k, v in form.items():
         keys.append(_analyze_form(k, ctx))
