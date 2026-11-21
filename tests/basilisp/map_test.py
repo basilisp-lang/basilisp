@@ -240,7 +240,7 @@ def test_hash_map_creator():
     assert lmap.map({1: 2}) == lmap.hash_map(1, 2)
     assert lmap.map({1: 2, 3: 4}) == lmap.hash_map(1, 2, 3, 4)
 
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError):
         lmap.hash_map(1, 2, 3)
 
 

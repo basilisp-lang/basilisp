@@ -228,7 +228,7 @@ class GeneratorContext:
         self, filename: str | None = None, opts: CompilerOpts | None = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.EMPTY)
         self._recur_points: collections.deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._this: collections.deque[sym.Symbol] = collections.deque([])
@@ -563,7 +563,7 @@ def _tagged_assign(
     return ast.Assign(targets=[target], value=value)
 
 
-def _clean_meta(form: IMeta) -> LispForm:
+def _clean_meta(form: IMeta) -> IPersistentMap | None:
     """Remove reader metadata from the form's meta map."""
     assert form.meta is not None, "Form must have non-null 'meta' attribute"
     meta = form.meta.dissoc(
@@ -574,7 +574,7 @@ def _clean_meta(form: IMeta) -> LispForm:
     )
     if len(meta) == 0:
         return None
-    return cast(lmap.PersistentMap, meta)
+    return meta
 
 
 def _ast_with_loc(
@@ -890,7 +890,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
     def_meta = node.meta.form
-    assert isinstance(def_meta, lmap.PersistentMap), "Meta should always be a map"
+    assert isinstance(def_meta, IPersistentMap), "Meta should always be a map"
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
@@ -3877,8 +3877,9 @@ def _const_py_tuple_to_py_ast(
 
 
 @_const_val_to_py_ast.register(lmap.PersistentMap)
+@_const_val_to_py_ast.register(lmap.PersistentArrayMap)
 def _const_map_to_py_ast(
-    form: lmap.PersistentMap, ctx: GeneratorContext
+    form: lmap.PersistentMap | lmap.PersistentArrayMap, ctx: GeneratorContext
 ) -> GeneratedPyAST[ast.expr]:
     key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.keys()))
     val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.values()))

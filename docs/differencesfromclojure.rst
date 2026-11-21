@@ -30,7 +30,7 @@ Type Differences
 * Type coercions generally delegate to the relevant Python constructor, which handles such things natively.
 * Collections
 
-  * Sorted sets, sorted maps, and array maps are not implemented (support is tracked in `#416 <https://github.com/basilisp-lang/basilisp/issues/416>`_).
+  * Sorted sets and sorted maps are not implemented (support is tracked in `#416 <https://github.com/basilisp-lang/basilisp/issues/416>`_).
 
 .. _arithmetic_comparison:
 

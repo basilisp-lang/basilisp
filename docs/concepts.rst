@@ -236,6 +236,7 @@ Random access to map values is ``O(log(n))``.
 - Another map; values will be merged in from left to right with keys from the rightmost map taking precedence in the instance of a conflict
 - A map entry
 - 2 element vector; the first element will be treated as the key and the second the value
+- Any value conforming to the Python :external:py:class:`collections.abc.Mapping` protocol
 
 Calling :lpy:fn:`seq` on a map yields successive map entries, which are roughly equivalent to 2 element vectors.
 
@@ -251,7 +252,7 @@ Returns the default value or ``nil`` (if no default value is specified) otherwis
 
 .. seealso::
 
-   :lpy:fn:`hash-map`, :lpy:fn:`assoc`, :lpy:fn:`assoc-in`, :lpy:fn:`get`, :lpy:fn:`get-in`, :lpy:fn:`find`, :lpy:fn:`update`, :lpy:fn:`update-in`, :lpy:fn:`dissoc`, :lpy:fn:`merge`, :lpy:fn:`merge-with`, :lpy:fn:`map-entry`, :lpy:fn:`key`, :lpy:fn:`val`, :lpy:fn:`keys`, :lpy:fn:`vals`, :lpy:fn:`select-keys`, :lpy:fn:`update-keys`, :lpy:fn:`update-vals`, :lpy:fn:`map?`
+   :lpy:fn:`hash-map`, :lpy:fn:`array-map`, :lpy:fn:`assoc`, :lpy:fn:`assoc-in`, :lpy:fn:`get`, :lpy:fn:`get-in`, :lpy:fn:`find`, :lpy:fn:`update`, :lpy:fn:`update-in`, :lpy:fn:`dissoc`, :lpy:fn:`merge`, :lpy:fn:`merge-with`, :lpy:fn:`map-entry`, :lpy:fn:`key`, :lpy:fn:`val`, :lpy:fn:`keys`, :lpy:fn:`vals`, :lpy:fn:`select-keys`, :lpy:fn:`update-keys`, :lpy:fn:`update-vals`, :lpy:fn:`map?`
 
 .. _sets:
 
