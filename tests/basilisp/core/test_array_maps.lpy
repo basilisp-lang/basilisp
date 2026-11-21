@@ -15,13 +15,38 @@
       (is (= (array-map) (array-map)))
       (is (= (array-map :a 1) (array-map :a 1)))
       (is (= (array-map :a 1 :b 2) (array-map :a 1 :b 2)))
-      (is (= (array-map :a 1 :b 2 :a 3) (array-map :a 1 :b 2 :a 3))))
+      (is (= (array-map :a 1 :b 2 :a 3) (array-map :a 1 :b 2 :a 3)))))
 
-    (is (= basilisp.lang.map/PersistentArrayMap
-           (type
-            (apply array-map (map vector string/ascii_lowercase (range))))))
-    ;; assoc'ing a new key into the map when the map already has > some threshold
-    ;; number of entries converts into a persistent hash map transparently
-    (is (= basilisp.lang.map/PersistentMap
-           (type
-            (assoc (apply array-map (map vector string/ascii_lowercase (range))) :a 26))))))
+  (testing "metadata"
+    (is (nil? (meta (array-map))))
+    (is (= {:const true} (meta (with-meta (array-map) {:const true})))))
+
+  (testing "array-map -> hash-map conversion logic"
+    (are [expr] (= basilisp.lang.map/PersistentArrayMap (type expr))
+      (conj (array-map) nil)
+      (conj (array-map) [:a 1])
+      (conj (array-map) [:a 1] [:b 2])
+      (conj (array-map) {:a 1})
+      (conj (array-map :a 1) {:b 2} [:c 3])
+      (apply conj (array-map) {:a 1 :b 2})
+      (apply assoc (array-map) [:a 1])
+      (apply assoc (array-map) [:a 1 :b 2])
+      (apply array-map (map vector string/ascii-lowercase (range)))
+      (conj (apply array-map (map vector string/ascii-lowercase (range))) nil)
+      (dissoc (apply array-map (map vector string/ascii-lowercase (range))) :a :b :c))
+
+    (are [expr] (= basilisp.lang.map/PersistentMap (type expr))
+      ;; assoc'ing a new key into the map when the map already has > some threshold
+      ;; number of entries converts into a persistent hash map transparently
+      (assoc (apply array-map (map vector string/ascii-lowercase (range))) :a 26)
+      (conj (apply array-map (map vector string/ascii-lowercase (range))) [:a 26])
+      (conj (apply array-map (map vector string/ascii-lowercase (range))) {:a 26})
+      (apply assoc (array-map) (map vector string/ascii-lowercase (range)))))
+
+  (testing "transients"
+    (is (= {} (persistent! (transient (array-map)))))
+    (is (= {:a 1} (persistent! (assoc! (transient (array-map)) :a 1))))
+    (is (= {:a 1 :b 2} (persistent! (assoc! (transient (array-map)) :a 1 :b 2))))
+    (is (thrown? python/ValueError (let [t (transient (array-map))]
+                                     (persistent! t)
+                                     (assoc! t :a 1))))))

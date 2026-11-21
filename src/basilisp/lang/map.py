@@ -64,8 +64,8 @@ class _AbstractTransientMap(
 ):
     __slots__ = ("_inner",)
 
-    def __init__(self, evolver: _T_transient_inner) -> None:
-        self._inner = evolver
+    def __init__(self, inner: _T_transient_inner) -> None:
+        self._inner = inner
 
     def __bool__(self):
         return True
@@ -161,6 +161,17 @@ class TransientMap(
         return PersistentMap(self._inner.finish())
 
 
+class _FrozenDict(dict[K, V]):
+    """A frozen dict subtype which is used to ensure that transient maps can
+    no longer be modified after being made persistent."""
+
+    def _blocked(self, *args, **kwargs):
+        raise ValueError("cannot mutate a frozen dict")
+
+    __setitem__ = __delitem__ = __ior__ = _blocked
+    update = pop = popitem = clear = setdefault = _blocked
+
+
 class TransientArrayMap(
     _AbstractTransientMap[dict[K, V], "PersistentArrayMap[K, V]", K, V]
 ):
@@ -183,7 +194,9 @@ class TransientArrayMap(
     in general be programming to the public interfaces, not the implementations."""
 
     def to_persistent(self) -> "PersistentArrayMap[K, V]":
-        return PersistentArrayMap(dict(self._inner))
+        persistent = PersistentArrayMap(self._inner)
+        self._inner = _FrozenDict(self._inner)
+        return persistent
 
 
 def map_lrepr(  # pylint: disable=too-many-locals
