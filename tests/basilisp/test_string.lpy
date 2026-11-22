@@ -138,7 +138,9 @@
     [1 2 3] "123")
 
   (are [coll sep s] (str/join sep coll)
-    [1 2 3] ",", "1,2,3"))
+    [1 2 3] nil "123"
+    [1 2 3] ""  "123"
+    [1 2 3] "," "1,2,3"))
 
 (deftest reverse-test
   (are [s rev] (= rev (str/reverse s))

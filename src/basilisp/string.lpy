@@ -104,7 +104,7 @@
      ""))
   ([separator coll]
    (if (seq coll)
-     (.join separator (seq (map str coll)))
+     (.join (or separator "") (seq (map str coll)))
      "")))
 
 (defn reverse
