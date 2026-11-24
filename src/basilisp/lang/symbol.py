@@ -70,6 +70,9 @@ class Symbol(ILispObject, INamed, IWithMeta):
     def __hash__(self):
         return self._hash
 
+    def __reduce__(self):
+        return Symbol, (self._name, self._ns, self._meta)
+
     def __lt__(self, other):
         if other is None:  # pragma: no cover
             return False

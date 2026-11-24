@@ -3,6 +3,7 @@ import logging
 import marshal
 import os
 import os.path
+import struct
 import sys
 import types
 from collections.abc import Iterable, Mapping, MutableMapping, Sequence
@@ -23,30 +24,22 @@ from basilisp.util import timed
 
 _NO_CACHE_ENVVAR = "BASILISP_DO_NOT_CACHE_NAMESPACES"
 
-MAGIC_NUMBER = (1149).to_bytes(2, "little") + b"\r\n"
+_HEADER = struct.Struct("<4sII16s")
+MAGIC_NUMBER = (1150).to_bytes(2, "little") + b"\r\n"
 
 logger = logging.getLogger(__name__)
-
-
-def _r_long(int_bytes: bytes) -> int:
-    """Convert 4 bytes in little-endian to an integer."""
-    return int.from_bytes(int_bytes, "little")
-
-
-def _w_long(x: int) -> bytes:
-    """Convert a 32-bit integer to little-endian."""
-    return (int(x) & 0xFFFFFFFF).to_bytes(4, "little")
 
 
 def _basilisp_bytecode(
     mtime: int, source_size: int, code: list[types.CodeType]
 ) -> bytes:
     """Return the bytes for a Basilisp bytecode cache file."""
-    data = bytearray(MAGIC_NUMBER)
-    data.extend(_w_long(mtime))
-    data.extend(_w_long(source_size))
-    data.extend(marshal.dumps(code))
-    return bytes(data)
+    return _HEADER.pack(
+        MAGIC_NUMBER,
+        mtime,
+        source_size,
+        runtime.BASILISP_VERSION_STRING.encode("utf-8"),
+    ) + marshal.dumps(code)
 
 
 def _get_basilisp_bytecode(
@@ -56,34 +49,38 @@ def _get_basilisp_bytecode(
     file header prior to returning. If the file header does not match, throw
     an exception."""
     exc_details = {"name": fullname}
-    magic = cache_data[:4]
-    raw_timestamp = cache_data[4:8]
-    raw_size = cache_data[8:12]
-    if magic != MAGIC_NUMBER:
-        message = (
-            f"Incorrect magic number ({magic!r}) in {fullname}; "
-            f"expected {MAGIC_NUMBER!r}"
+    try:
+        magic, raw_timestamp, raw_size, version_str_raw = _HEADER.unpack_from(
+            cache_data
         )
+    except struct.error as e:
+        message = f"Malformed cache file header: {e.args[0]}"
+        logger.debug(message)
+        raise ImportError(message, **exc_details) from e
+
+    if magic != MAGIC_NUMBER:
+        message = f"Incorrect magic number ({magic!r}) in {fullname}; expected {MAGIC_NUMBER!r}"
         logger.debug(message)
         raise ImportError(message, **exc_details)
-    elif len(raw_timestamp) != 4:
-        message = f"Reached EOF while reading timestamp in {fullname}"
-        logger.debug(message)
-        raise EOFError(message)
-    elif _r_long(raw_timestamp) != mtime:
-        message = f"Non-matching timestamp ({_r_long(raw_timestamp)}) in {fullname} bytecode cache; expected {mtime}"
+    elif raw_timestamp != mtime:
+        message = f"Non-matching timestamp ({raw_timestamp}) in {fullname} bytecode cache; expected {mtime}"
         logger.debug(message)
         raise ImportError(message, **exc_details)
-    elif len(raw_size) != 4:
-        message = f"Reached EOF while reading size of source in {fullname}"
-        logger.debug(message)
-        raise EOFError(message)
-    elif _r_long(raw_size) != source_size:
-        message = f"Non-matching filesize ({_r_long(raw_size)}) in {fullname} bytecode cache; expected {source_size}"
+    elif raw_size != source_size:
+        message = f"Non-matching filesize ({raw_size}) in {fullname} bytecode cache; expected {source_size}"
         logger.debug(message)
         raise ImportError(message, **exc_details)
 
-    return marshal.loads(cache_data[12:])  # nosec 6302
+    version_str = version_str_raw.strip(b"\0").decode()
+    if version_str != runtime.BASILISP_VERSION_STRING:
+        message = (
+            f"Non-matching version string '{version_str}' in {fullname}; "
+            f"expected '{runtime.BASILISP_VERSION_STRING}'"
+        )
+        logger.debug(message)
+        raise ImportError(message, **exc_details)
+
+    return marshal.loads(cache_data[_HEADER.size :])  # nosec 6302
 
 
 def _cache_from_source(path: str) -> str:

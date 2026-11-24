@@ -1,21 +1,19 @@
 import threading
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from functools import total_ordering
 
 from typing_extensions import Unpack
 
-from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
     INamed,
-    IPersistentMap,
     IPersistentSet,
 )
 from basilisp.lang.obj import PrintSettings
 
 _LOCK = threading.Lock()
-_INTERN: IPersistentMap[int, "Keyword"] = lmap.EMPTY
+_INTERN: dict[tuple[str, str | None], "Keyword"] = {}
 
 
 @total_ordering
@@ -75,19 +73,22 @@ class Keyword(ILispObject, INamed):
             return default
 
     def __reduce__(self):
-        return keyword_from_hash, (self._hash, self._name, self._ns)
+        return keyword, (self._name, self._ns)
 
 
 def complete(
     text: str,
-    kw_cache: IPersistentMap[int, Keyword] | None = None,
+    kw_cache: Mapping[tuple[str, str | None], Keyword] | None = None,
 ) -> Iterable[str]:
     """Return an iterable of possible completions for the given text."""
     assert text.startswith(":")
     text = text[1:]
 
     if kw_cache is None:
-        kw_cache = _INTERN
+        # Snapshot the interns under lock so we can use it without holding
+        # the lock.
+        with _LOCK:
+            kw_cache = dict(_INTERN)
 
     if "/" in text:
         prefix, suffix = text.split("/", maxsplit=1)
@@ -111,35 +112,11 @@ def hash_kw(name: str, ns: str | None = None) -> int:
     return hash((name, ns))
 
 
-def keyword_from_hash(kw_hash: int, name: str, ns: str | None = None) -> Keyword:
-    """Return the interned keyword with the hash `kw_hash` or create and intern a new
-    keyword with name `name` and optional namespace `ns`.
-
-    Keywords are stored in a global cache by their hash. If a keyword with the same
-    hash already exists in the cache, that keyword will be returned. If no keyword
-    exists in the global cache, one will be created, entered into the cache, and then
-    returned.
-
-    This function is an optimization primarily meant for the compiler. Keyword hashes
-    are pre-computed during compilation so repeated lookups for the same keyword do not
-    require recomputing the hash. In some brief testing, this yielded significant
-    performance improvements when creating the same keyword repeatedly."""
-    global _INTERN
-
-    with _LOCK:
-        found = _INTERN.val_at(kw_hash)
-        if found:
-            return found
-        kw = Keyword(name, ns=ns)
-        _INTERN = _INTERN.assoc(kw_hash, kw)
-        return kw
-
-
 def find_keyword(name: str, ns: str | None = None) -> Keyword | None:
     """Return the already-interned keyword named by `name` and `ns`, if one exists.
     If the keyword with that name is not interned, return None."""
     with _LOCK:
-        return _INTERN.val_at(hash_kw(name, ns))
+        return _INTERN.get((name, ns))
 
 
 def keyword(name: str, ns: str | None = None) -> Keyword:
@@ -147,4 +124,10 @@ def keyword(name: str, ns: str | None = None) -> Keyword:
 
     Keyword instances are interned, so an existing object may be returned if one
     with the same name and namespace are already interned."""
-    return keyword_from_hash(hash_kw(name, ns), name, ns=ns)
+    with _LOCK:
+        found = _INTERN.get((name, ns))
+        if found:
+            return found
+        kw = Keyword(name, ns=ns)
+        _INTERN[name, ns] = kw
+        return kw
