@@ -74,6 +74,18 @@ def test_symbol_pickleability(pickle_protocol: int, o: Symbol):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
+def _produce_symbol() -> dict[Symbol, str]:
+    return {Symbol("sym"): "value"}
+
+
+def _consume_symbol(d: dict[Symbol, str]):
+    return d.get(Symbol("sym"))
+
+
+def test_symbol_pickleability_cross_process(pickle_cross_process):
+    assert pickle_cross_process(_produce_symbol, _consume_symbol) == "value"
+
+
 def test_symbol_str_and_repr():
     sym = symbol("sym", ns="ns")
     assert str(sym) == "ns/sym"

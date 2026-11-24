@@ -150,7 +150,7 @@ class TestREPLCompletions:
     def patch_keyword_completions(self, completions: Iterable[str]):
         with patch(
             "basilisp.lang.keyword._INTERN",
-            new=lmap.EMPTY,
+            new={},
         ):
             # Seed the temporary cache with these keywords
             for v in completions:

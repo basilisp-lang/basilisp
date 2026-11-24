@@ -48,6 +48,9 @@ class TaggedLiteral(ILispObject, ILookup[K, T]):
             self._hash = hash((self._tag, self._form))
         return self._hash
 
+    def __getstate__(self):
+        return None, {"_tag": self._tag, "_form": self._form, "_hash": None}
+
     def __getitem__(self, item):
         return self.val_at(item)
 

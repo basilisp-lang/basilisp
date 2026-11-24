@@ -83,29 +83,47 @@ def test_keyword_pickleability(pickle_protocol: int, o: Keyword):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
+def _produce_keyword() -> tuple[Keyword, Keyword]:
+    return keyword("key"), keyword("key", ns="ns")
+
+
+def _consume_keyword(t: tuple[Keyword, Keyword]):
+    key, namespaced = t
+    return (
+        keyword("key") is key
+        and find_keyword("key")
+        and keyword("key", ns="ns") is namespaced
+        and find_keyword("key", ns="ns")
+    )
+
+
+def test_keyword_pickleability_cross_process(pickle_cross_process):
+    assert pickle_cross_process(_produce_keyword, _consume_keyword)
+
+
 class TestKeywordCompletion:
     @pytest.fixture
-    def empty_cache(self) -> lmap.PersistentMap[int, Keyword]:
-        return lmap.EMPTY
+    def empty_cache(self) -> dict[tuple[str, str | None], Keyword]:
+        return {}
 
     def test_empty_cache_no_completion(
-        self, empty_cache: lmap.PersistentMap[int, Keyword]
+        self, empty_cache: dict[tuple[str, str | None], Keyword]
     ):
         assert [] == list(complete(":", kw_cache=empty_cache))
 
     @pytest.fixture
-    def cache(self) -> lmap.PersistentMap[int, Keyword]:
+    def cache(self) -> dict[tuple[str, str | None], Keyword]:
         values = [Keyword("kw"), Keyword("ns"), Keyword("kw", ns="ns")]
-        return lmap.map({hash(v): v for v in values})
+        return {(v.name, v.ns): v for v in values}
 
-    def test_no_ns_completion(self, cache: lmap.PersistentMap[int, Keyword]):
+    def test_no_ns_completion(self, cache: dict[tuple[str, str | None], Keyword]):
         assert [] == list(complete(":v", kw_cache=cache))
         assert {":kw", ":ns/kw"} == set(complete(":k", kw_cache=cache))
         assert {":kw", ":ns/kw"} == set(complete(":kw", kw_cache=cache))
         assert {":ns", ":ns/kw"} == set(complete(":n", kw_cache=cache))
         assert {":ns", ":ns/kw"} == set(complete(":ns", kw_cache=cache))
 
-    def test_ns_completion(self, cache: lmap.PersistentMap[int, Keyword]):
+    def test_ns_completion(self, cache: dict[tuple[str, str | None], Keyword]):
         assert [] == list(complete(":v/", kw_cache=cache))
         assert [] == list(complete(":k/", kw_cache=cache))
         assert [] == list(complete(":kw/", kw_cache=cache))

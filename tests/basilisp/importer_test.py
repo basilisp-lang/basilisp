@@ -12,12 +12,17 @@ from unittest.mock import patch
 
 import pytest
 
-from basilisp import importer as importer
-from basilisp.lang import runtime as runtime
+from basilisp import importer
+from basilisp.lang import runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.util import demunge, munge
 from basilisp.main import bootstrap as bootstrap_basilisp
+
+
+def _w_long(x: int) -> bytes:
+    """Convert a 32-bit integer to little-endian."""
+    return (int(x) & 0xFFFFFFFF).to_bytes(4, "little")
 
 
 def importer_counter():
@@ -85,6 +90,16 @@ if get_start_method() != "fork":
     _import_module = bootstrap_basilisp
 else:
     _import_module = importlib.import_module
+
+
+def _import_module_and_enable_caching(name: str) -> None:
+    """Import module by name in a child process.
+
+    Child processes inherit bytecode suppression from the parent process which
+    would otherwise cause the loader to skip writing the `.lpyc` file these
+    tests intentionally corrupt."""
+    sys.dont_write_bytecode = False
+    _import_module(name)
 
 
 class TestImporter:
@@ -354,9 +369,12 @@ class TestImporter:
 
         # Import the module out of the current process to avoid having to
         # monkeypatch sys.modules
-        p = Process(target=_import_module, args=(munge(cached_module_ns),))
+        p = Process(
+            target=_import_module_and_enable_caching, args=(munge(cached_module_ns),)
+        )
         p.start()
         p.join()
+        assert p.exitcode == 0, f"child process failed to import {cached_module_ns}"
         return os.path.join(*file_path)
 
     def test_import_module_with_cache(
@@ -414,7 +432,7 @@ class TestImporter:
         )
         with open(cache_filename, mode="r+b") as f:
             f.seek(4)
-            f.write(importer._w_long(7_323_337_733))
+            f.write(_w_long(7_323_337_733))
 
         using_cache = load_namespace(cached_module_ns)
         assert cached_module_ns == using_cache.find(sym.symbol("val")).value
@@ -428,7 +446,7 @@ class TestImporter:
         stat = os.stat(cache_filename)
         with open(cache_filename, mode="w+b") as f:
             f.write(importer.MAGIC_NUMBER)
-            f.write(importer._w_long(stat.st_mtime))
+            f.write(_w_long(stat.st_mtime))
             f.write(b"abc")
 
         using_cache = load_namespace(cached_module_ns)
@@ -442,7 +460,7 @@ class TestImporter:
         )
         with open(cache_filename, mode="r+b") as f:
             f.seek(8)
-            f.write(importer._w_long(7733))
+            f.write(_w_long(7733))
 
         using_cache = load_namespace(cached_module_ns)
         assert cached_module_ns == using_cache.find(sym.symbol("val")).value
